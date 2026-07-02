@@ -1,0 +1,21 @@
+[Unit]
+Description=strom Go API
+After=network-online.target postgresql.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=strom
+Group=strom
+EnvironmentFile=/etc/strom/strom.env
+ExecStart=/opt/strom/strom-api
+Restart=on-failure
+RestartSec=5
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=full
+ProtectHome=true
+ReadWritePaths=/var/lib/strom /etc/strom
+
+[Install]
+WantedBy=multi-user.target
