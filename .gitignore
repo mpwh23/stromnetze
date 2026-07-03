@@ -1,0 +1,32 @@
+# Secrets / private runtime data
+config.php
+adminpanel_auth.php
+*.env
+*.secret
+*.secrets
+*.key
+*.pem
+*.crt
+*.p12
+*.pfx
+.env
+.env.*
+strom.env
+
+# Backups / dumps / runtime
+backups/
+backup_*/
+*.sql.gz
+*.dump
+*.pg_dump
+*.sqlite
+*.db
+runtime/
+logs/
+*.log
+
+# Local editor/cache files
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
