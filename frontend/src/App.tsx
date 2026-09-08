@@ -2777,6 +2777,7 @@ function toggleRecessOffsetDirection() {
                     titleOffset={normalizeTitleOffset(titleOffsets[room.id])}
                     onStartTitleDrag={startTitleDrag}
                     ghost={renderState.ghost}
+                    floorHeightM={floor.heightM}
                   />
                   {tool === 'select' && showTechnicalDimensions && !isOuterWallRoom(room) && room.id !== selectedRoomId && <TechnicalDimensions vertices={vertices} zoom={zoom} offset={normalizeDimensionOffset(dimensionOffsets[room.id])} onStartDrag={isActiveLayerRoom ? (event, line) => startDimensionDrag(event, room.id, line) : undefined} />}
                   {tool === 'select' && showTechnicalDimensions && isOuterWallRoom(room) && <OuterWallDimensions vertices={vertices} />}
@@ -4662,6 +4663,7 @@ function RoomShape({
   titleOffset = { x: 0, y: 0 },
   onStartTitleDrag,
   ghost = false,
+  floorHeightM = 2.7,
 }: {
   room: Room
   vertices: PointM[]
@@ -4679,6 +4681,7 @@ function RoomShape({
   titleOffset?: TitleOffset
   onStartTitleDrag?: (event: ReactMouseEvent<SVGGElement>, room: Room) => void
   ghost?: boolean
+  floorHeightM?: number
 }) {
   const verticesText = pointsToSvg(vertices)
   const center = centroid(vertices)
@@ -4745,7 +4748,7 @@ function RoomShape({
           <path d="M0 18 H17" />
         </g>
       )}
-      {stairRoom && bounds && stairLayoutElements.length > 0 && <StairBlueprintLayoutOverlay room={room} elements={stairLayoutElements} />}
+      {stairRoom && bounds && stairLayoutElements.length > 0 && <StairBlueprintHeightOverlay135 room={room} elements={stairLayoutElements} roomHeightM={floorHeightM} />}
       {!outerWall && (
         <g className="room-title" transform={`translate(${titleOffset.x}, ${titleOffset.y})`} onMouseDown={(event) => { event.stopPropagation(); onStartTitleDrag?.(event, room) }}>
           <text x={mToX(center.x)} y={mToY(center.y)} dy="-0.24em" textAnchor="middle" className="room-label">{room.name}</text>
@@ -4754,7 +4757,7 @@ function RoomShape({
         </g>
       )}
       {selected && !outerWall && <DimensionLabels vertices={vertices} />}
-      {stairRoom && bounds && stairLayoutElements.length > 0 && <StairBlueprintVisibilityOverlay room={room} elements={stairLayoutElements} />}
+      
       {selected && room.shapeType === 'rectangle' && bounds && (
         <g className="rect-selection">
           <polyline points={`${verticesText} ${mToX(vertices[0]?.x ?? 0)},${mToY(vertices[0]?.y ?? 0)}`} className="selected-edit-line" />
@@ -4772,6 +4775,60 @@ function RoomShape({
       )}
       {selected && room.shapeType === 'polygon' && vertices.map((point, index) => (
         <circle key={index} className="vertex-handle" cx={mToX(point.x)} cy={mToY(point.y)} r="7" onMouseDown={(event) => onStartVertexDrag(event, room, index)} />
+      ))}
+    </g>
+  )
+}
+
+function stairBlueprintOpacityForRelativeHeight135(relativeHeightM: number, roomHeightM: number) {
+  const safeHeight = Math.max(0.05, roomHeightM)
+  const relative = Math.abs(relativeHeightM) / safeHeight
+  if (relative <= 0.25) return 1
+  if (relative >= 0.5) return 0
+  return clamp(round3(1 - (relative - 0.25) / 0.25), 0, 1)
+}
+
+type StairBlueprintPolygon135 = {
+  key: string
+  role: 'landing' | 'tread'
+  zM: number
+  opacity: number
+  points: Vec3[]
+}
+
+function StairBlueprintHeightOverlay135({ room, elements, roomHeightM }: { room: Room; elements: StairEditorElement[]; roomHeightM: number }) {
+  const safeHeight = Math.max(0.05, roomHeightM)
+  const polygons: StairBlueprintPolygon135[] = []
+  const ordered = stairOrderedElementsForWallDetail(room, elements)
+
+  ordered.forEach((element) => {
+    stairElementPolygons3D(room, element, safeHeight, elements)
+      .filter((entry) => entry.role === 'tread' || entry.role === 'landing')
+      .forEach((entry, index) => {
+        const zM = entry.points.reduce((sum, point) => sum + point.z, 0) / Math.max(1, entry.points.length)
+        const opacity = stairBlueprintOpacityForRelativeHeight135(zM, safeHeight)
+        if (opacity <= 0.001) return
+        polygons.push({
+          key: `${element.id}-${entry.role}-${index}`,
+          role: entry.role === 'landing' ? 'landing' : 'tread',
+          zM,
+          opacity,
+          points: entry.points,
+        })
+      })
+  })
+
+  polygons.sort((a, b) => a.zM - b.zM)
+  return (
+    <g className="stair-blueprint-height-overlay-135" aria-label="Treppenstufen nach Hoehe">
+      {polygons.map((entry) => (
+        <polygon
+          key={entry.key}
+          points={entry.points.map((point) => `${mToX(point.x)},${mToY(point.y)}`).join(' ')}
+          className={`stair-blueprint-height-step-135 ${entry.role}`}
+          style={{ opacity: entry.opacity }}
+          data-height-m={round3(entry.zM)}
+        />
       ))}
     </g>
   )
@@ -6568,7 +6625,7 @@ function projectWallPlacedObjectBetweenRooms(item: WallPlacedObject, sourceRoom:
   const sourceEdge = edgePoints(sourceRoom.vertices, sourceEdgeIndex)
   const targetEdge = edgePoints(targetRoom.vertices, targetEdgeIndex)
   if (!sourceEdge || !targetEdge) return normalized
-  const pair = wallEdgePairInfo(sourceEdge, targetEdge)
+  const pair = wallObjectPairInfo(sourceRoom, sourceEdge, targetRoom, targetEdge)
   if (!pair?.paired) return normalized
 
   const sourceDx = sourceEdge.b.x - sourceEdge.a.x
@@ -7368,28 +7425,52 @@ function floorLabelTransformFromProjected(projectedRoom: ProjectedRoom3D) {
 
 
 function wallObjectsForFace(face: RenderedWallFace, floorId: string, rooms: Room[], wallObjectsByKey: Record<string, WallPlacedObject[]>) {
-  const ownKey = wallObjectKey(floorId, face.room.id, face.edgeIndex)
-  const ownObjects = wallObjectsByKey[ownKey] ?? []
-  const ownGroupIds = new Set(ownObjects.map((item) => item.groupId).filter((value): value is string => Boolean(value)))
-  const faceEdge = edgePoints(face.room.vertices, face.edgeIndex)
-  if (!faceEdge) return ownObjects
-  const mirrored: WallPlacedObject[] = []
+  const targetKey = wallObjectKey(floorId, face.room.id, face.edgeIndex)
+  const targetEdge = edgePoints(face.room.vertices, face.edgeIndex)
+  const ownObjects = wallObjectsByKey[targetKey] ?? []
+  if (!targetEdge) return ownObjects
+
+  type SourceCandidate = { room: Room; edgeIndex: number; item: WallPlacedObject; own: boolean }
+  const candidates: SourceCandidate[] = []
   rooms.forEach((room) => {
     room.vertices.forEach((_, edgeIndex) => {
-      if (room.id === face.room.id && edgeIndex === face.edgeIndex) return
+      const sourceEdge = edgePoints(room.vertices, edgeIndex)
+      if (!sourceEdge || !wallObjectPairInfo(face.room, targetEdge, room, sourceEdge)?.paired) return
       const key = wallObjectKey(floorId, room.id, edgeIndex)
-      const objects = wallObjectsByKey[key] ?? []
-      if (objects.length === 0) return
-      const otherEdge = edgePoints(room.vertices, edgeIndex)
-      if (!otherEdge || !wallObjectPairInfo(face.room, faceEdge, room, otherEdge)?.paired) return
-      objects.forEach((item) => {
-        if (item.groupId && ownGroupIds.has(item.groupId)) return
-        const projected = projectWallPlacedObjectBetweenRooms(item, room, edgeIndex, face.room, face.edgeIndex)
-        mirrored.push({ ...projected, id: `${item.id}-mirror-${room.id}-${edgeIndex}` })
-      })
+      ;(wallObjectsByKey[key] ?? []).forEach((item) => candidates.push({
+        room,
+        edgeIndex,
+        item,
+        own: room.id === face.room.id && edgeIndex === face.edgeIndex,
+      }))
     })
   })
-  return [...ownObjects, ...mirrored]
+
+  const groups = new Map<string, SourceCandidate[]>()
+  const ungrouped: SourceCandidate[] = []
+  candidates.forEach((candidate) => {
+    const groupId = candidate.item.groupId
+    if (!groupId) {
+      if (candidate.own) ungrouped.push(candidate)
+      return
+    }
+    groups.set(groupId, [...(groups.get(groupId) ?? []), candidate])
+  })
+
+  const result: WallPlacedObject[] = ungrouped.map((candidate) => candidate.item)
+  groups.forEach((groupCandidates, groupId) => {
+    const own = groupCandidates.find((candidate) => candidate.own)
+    const inner = groupCandidates.find((candidate) => !isOuterWallRoom(candidate.room))
+    const source = isOuterWallRoom(face.room) ? (inner ?? own ?? groupCandidates[0]) : (own ?? inner ?? groupCandidates[0])
+    if (!source) return
+    const mapped = projectWallPlacedObjectBetweenRooms(source.item, source.room, source.edgeIndex, face.room, face.edgeIndex)
+    result.push({
+      ...mapped,
+      id: own?.item.id ?? `${source.item.id}-mirror-${face.room.id}-${face.edgeIndex}`,
+      groupId,
+    })
+  })
+  return result
 }
 
 function samePhysicalWallEdge(a: { a: PointM; b: PointM }, b: { a: PointM; b: PointM }) {

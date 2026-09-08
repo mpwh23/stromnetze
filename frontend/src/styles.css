@@ -4604,3 +4604,20 @@ svg [class*="dimension"], svg [class*="technical"], svg [class*="measure"] { vec
   stroke-linecap: butt;
   stroke-dasharray: none !important;
 }
+
+
+/* 135: outer door scaling + height based stair blueprint */
+.stair-blueprint-height-overlay-135 {
+  pointer-events: none;
+}
+.stair-blueprint-height-step-135 {
+  fill: rgba(219, 234, 254, 0.34);
+  stroke: rgba(37, 99, 235, 0.96);
+  stroke-width: 1.4;
+  stroke-linejoin: round;
+  vector-effect: non-scaling-stroke;
+}
+.stair-blueprint-height-step-135.landing {
+  fill: rgba(254, 249, 195, 0.46);
+  stroke: rgba(180, 83, 9, 0.82);
+}
