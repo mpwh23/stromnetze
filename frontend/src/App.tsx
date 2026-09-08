@@ -4844,24 +4844,36 @@ function BlueprintWallObjectConnections({ wallObjects, rooms }: { wallObjects: A
     }, {})
 
   const connectors = Object.entries(byGroup).flatMap(([groupId, groupItems]) => {
-    const segments = groupItems
+    const actualSegments = groupItems
       .map((item) => blueprintWallObjectSegment(item, rooms))
       .filter((segment): segment is BlueprintWallSegment => Boolean(segment))
-    if (segments.length < 2) return []
-    const pair = bestBlueprintConnectionPair(segments)
+    if (actualSegments.length === 0) return []
+
+    let pair: { a: BlueprintWallSegment; b: BlueprintWallSegment } | null = null
+    if (actualSegments.length >= 2) {
+      pair = bestBlueprintConnectionPair(actualSegments)
+    } else {
+      const synthetic = synthesizeBlueprintDoorPartner(actualSegments[0], rooms)
+      if (synthetic) pair = { a: actualSegments[0], b: synthetic }
+    }
+    if (!pair) return []
+
     const normalized = normalizeBlueprintConnectionPair(pair.a, pair.b)
-    return [{ groupId, points: [normalized.a.left, normalized.a.right, normalized.b.right, normalized.b.left] }]
+    return [{ groupId, points: [normalized.a.left, normalized.a.right, normalized.b.right, normalized.b.left], edgeA: normalized.a, edgeB: normalized.b }]
   })
 
   if (connectors.length === 0) return null
   return (
     <g className="blueprint-wall-object-connections" aria-label="Wanddetail-Durchgaenge">
       {connectors.map((connector) => (
-        <polygon
-          key={connector.groupId}
-          points={connector.points.map((point) => `${mToX(point.x)},${mToY(point.y)}`).join(' ')}
-          className="blueprint-wall-connection-door"
-        />
+        <g key={connector.groupId}>
+          <polygon
+            points={connector.points.map((point) => `${mToX(point.x)},${mToY(point.y)}`).join(' ')}
+            className="blueprint-wall-connection-door"
+          />
+          <line x1={mToX(connector.edgeA.left.x)} y1={mToY(connector.edgeA.left.y)} x2={mToX(connector.edgeA.right.x)} y2={mToY(connector.edgeA.right.y)} className="blueprint-wall-door-edge" />
+          <line x1={mToX(connector.edgeB.left.x)} y1={mToY(connector.edgeB.left.y)} x2={mToX(connector.edgeB.right.x)} y2={mToY(connector.edgeB.right.y)} className="blueprint-wall-door-edge" />
+        </g>
       ))}
     </g>
   )
@@ -4871,6 +4883,9 @@ type BlueprintWallSegment = {
   left: PointM
   right: PointM
   edge: { a: PointM; b: PointM }
+  room: Room
+  edgeIndex: number
+  sourceItem: ApiWallObject
 }
 
 function blueprintWallObjectSegment(item: ApiWallObject, rooms: Room[]): BlueprintWallSegment | null {
@@ -4888,7 +4903,41 @@ function blueprintWallObjectSegment(item: ApiWallObject, rooms: Room[]): Bluepri
     x: round3(edge.a.x + (edge.b.x - edge.a.x) * value),
     y: round3(edge.a.y + (edge.b.y - edge.a.y) * value),
   })
-  return { left: pointAt(leftT), right: pointAt(rightT), edge }
+  return { left: pointAt(leftT), right: pointAt(rightT), edge, room, edgeIndex: item.edgeIndex, sourceItem: item }
+}
+
+function synthesizeBlueprintDoorPartner(source: BlueprintWallSegment, rooms: Room[]): BlueprintWallSegment | null {
+  const sourcePlaced: WallPlacedObject = {
+    id: source.sourceItem.id,
+    type: 'door',
+    x: source.sourceItem.x,
+    y: source.sourceItem.y,
+    w: source.sourceItem.w,
+    h: source.sourceItem.h,
+    groupId: source.sourceItem.groupId || undefined,
+  }
+  const candidates = rooms.flatMap((room) => room.vertices.map((_, edgeIndex) => {
+    if (room.id === source.room.id && edgeIndex === source.edgeIndex) return null
+    const targetEdge = edgePoints(room.vertices, edgeIndex)
+    if (!targetEdge) return null
+    const pair = wallObjectPairInfo(source.room, source.edge, room, targetEdge)
+    if (!pair?.paired) return null
+    const mapped = projectWallPlacedObjectBetweenRooms(sourcePlaced, source.room, source.edgeIndex, room, edgeIndex)
+    const leftT = clamp(mapped.x - mapped.w / 2, 0, 1)
+    const rightT = clamp(mapped.x + mapped.w / 2, 0, 1)
+    const pointAt = (value: number): PointM => ({
+      x: round3(targetEdge.a.x + (targetEdge.b.x - targetEdge.a.x) * value),
+      y: round3(targetEdge.a.y + (targetEdge.b.y - targetEdge.a.y) * value),
+    })
+    const outerBonus = isOuterWallRoom(source.room) !== isOuterWallRoom(room) ? 10000 : 0
+    return {
+      segment: { left: pointAt(leftT), right: pointAt(rightT), edge: targetEdge, room, edgeIndex, sourceItem: source.sourceItem } as BlueprintWallSegment,
+      score: outerBonus + wallPairPlacementScore(source.edge, targetEdge),
+    }
+  }).filter((candidate): candidate is { segment: BlueprintWallSegment; score: number } => Boolean(candidate)))
+  if (candidates.length === 0) return null
+  candidates.sort((a, b) => b.score - a.score)
+  return candidates[0].segment
 }
 
 function bestBlueprintConnectionPair(segments: BlueprintWallSegment[]) {
@@ -4899,7 +4948,8 @@ function bestBlueprintConnectionPair(segments: BlueprintWallSegment[]) {
       const b = segments[j]
       const centerA = { x: (a.left.x + a.right.x) / 2, y: (a.left.y + a.right.y) / 2 }
       const centerB = { x: (b.left.x + b.right.x) / 2, y: (b.left.y + b.right.y) / 2 }
-      const score = distance(centerA, centerB)
+      const outerBonus = isOuterWallRoom(a.room) !== isOuterWallRoom(b.room) ? -1000 : 0
+      const score = distance(centerA, centerB) + outerBonus
       if (score < best.score) best = { a, b, score }
     }
   }
@@ -4926,13 +4976,15 @@ function normalizeBlueprintConnectionPair(a: BlueprintWallSegment, b: BlueprintW
   const overlapMax = Math.min(edgeA.max, edgeB.max)
   if (overlapMax - overlapMin < 0.001) return alignBlueprintSegmentPair(a, b)
 
-  let commonMin = clamp((intervalA.min + intervalB.min) / 2, overlapMin, overlapMax)
-  let commonMax = clamp((intervalA.max + intervalB.max) / 2, overlapMin, overlapMax)
-  if (commonMax < commonMin) [commonMin, commonMax] = [commonMax, commonMin]
-  if (commonMax - commonMin < 0.01) {
-    const center = clamp((commonMin + commonMax) / 2, overlapMin, overlapMax)
-    commonMin = clamp(center - 0.005, overlapMin, overlapMax)
-    commonMax = clamp(center + 0.005, overlapMin, overlapMax)
+  const commonCenter = clamp(((intervalA.min + intervalA.max) + (intervalB.min + intervalB.max)) / 4, overlapMin, overlapMax)
+  const widthA = Math.max(0.01, intervalA.max - intervalA.min)
+  const widthB = Math.max(0.01, intervalB.max - intervalB.min)
+  const commonWidth = Math.min(widthA, widthB, Math.max(0.01, overlapMax - overlapMin))
+  let commonMin = clamp(commonCenter - commonWidth / 2, overlapMin, overlapMax)
+  let commonMax = clamp(commonCenter + commonWidth / 2, overlapMin, overlapMax)
+  if (commonMax - commonMin < commonWidth * 0.95) {
+    if (commonMin <= overlapMin + 0.0001) commonMax = clamp(commonMin + commonWidth, overlapMin, overlapMax)
+    else commonMin = clamp(commonMax - commonWidth, overlapMin, overlapMax)
   }
 
   const pointOnEdge = (edge: { a: PointM; b: PointM }, targetScalar: number): PointM => {
@@ -4940,10 +4992,7 @@ function normalizeBlueprintConnectionPair(a: BlueprintWallSegment, b: BlueprintW
     const bScalar = scalar(edge.b)
     const denom = bScalar - aScalar
     const t = Math.abs(denom) < 0.000001 ? 0 : clamp((targetScalar - aScalar) / denom, 0, 1)
-    return {
-      x: round3(edge.a.x + (edge.b.x - edge.a.x) * t),
-      y: round3(edge.a.y + (edge.b.y - edge.a.y) * t),
-    }
+    return { x: round3(edge.a.x + (edge.b.x - edge.a.x) * t), y: round3(edge.a.y + (edge.b.y - edge.a.y) * t) }
   }
 
   return {
@@ -5473,31 +5522,75 @@ function WallDetailEditor({
     return wallFaceVisiblePolygons(face.points, openings).map((polygon, pieceIndex) => ({ face, polygon, pieceIndex, opened: openings.length > 0, fullOpen: false }))
   }), [projectedWallFaces, wallObjectsByKey, floor.id, rooms, introPhase])
 
-  const stairRoomDepthById = useMemo(() => {
+  const stairGeometryDepthByRoomId = useMemo(() => {
+    const grouped = new Map<string, number[]>()
+    projectedStairObjects.forEach((entry) => {
+      const values = grouped.get(entry.roomId) ?? []
+      values.push(entry.avgDepth)
+      grouped.set(entry.roomId, values)
+    })
     const result = new Map<string, number>()
-    projectedRooms.forEach((entry) => {
-      if (isStairRoom(entry.room)) result.set(entry.room.id, entry.avgDepth)
+    grouped.forEach((values, roomId) => {
+      const sorted = [...values].sort((a, b) => a - b)
+      const middle = Math.floor(sorted.length / 2)
+      const median = sorted.length % 2 === 0
+        ? (sorted[middle - 1] + sorted[middle]) / 2
+        : sorted[middle]
+      result.set(roomId, median)
     })
     return result
-  }, [projectedRooms])
+  }, [projectedStairObjects])
+
+  const stairFaceRoomByFaceId = useMemo(() => {
+    const result = new Map<string, string>()
+    projectedWallFaces.forEach((face) => {
+      if (face.modelFaceId && isStairRoom(face.room)) result.set(face.modelFaceId, face.room.id)
+    })
+    projectedWallFaces.forEach((face) => {
+      if (!face.modelFaceId || isStairRoom(face.room)) return
+      const partner = projectedWallFaces.find((candidate) =>
+        Boolean(candidate.modelFaceId)
+        && isStairRoom(candidate.room)
+        && (face.pairedFaceIds ?? []).includes(candidate.modelFaceId!),
+      )
+      if (partner?.modelFaceId) result.set(face.modelFaceId, partner.room.id)
+    })
+    return result
+  }, [projectedWallFaces])
+
+  const stairReferenceFaceDepth = useMemo(() => {
+    const result = new Map<string, number>()
+    projectedWallFaces.forEach((face) => {
+      if (!face.modelFaceId || !isStairRoom(face.room)) return
+      result.set(face.modelFaceId, face.avgDepth)
+      ;(face.pairedFaceIds ?? []).forEach((pairedId) => result.set(pairedId, face.avgDepth))
+    })
+    return result
+  }, [projectedWallFaces])
 
   const wallDepthScene = useMemo(() => {
     const stairEntries = projectedStairObjects.map((entry) => ({
       kind: 'stair' as const,
       depth: entry.avgDepth,
-      layer: 1,
+      layer: 2,
       entry,
     }))
     const wallEntries = visibleWallFacePieces.map((entry) => {
-      const stairRoomDepth = stairRoomDepthById.get(entry.face.room.id)
-      if (stairRoomDepth === undefined) {
-        return { kind: 'wall' as const, depth: entry.face.avgDepth, layer: 1, entry }
+      const faceId = entry.face.modelFaceId
+      const stairRoomId = faceId ? stairFaceRoomByFaceId.get(faceId) : undefined
+      if (!stairRoomId) {
+        return { kind: 'wall' as const, depth: entry.face.avgDepth, layer: 2, entry }
       }
-      const behindStair = entry.face.avgDepth >= stairRoomDepth
+      const stairDepth = stairGeometryDepthByRoomId.get(stairRoomId)
+      const referenceFaceDepth = faceId ? stairReferenceFaceDepth.get(faceId) : undefined
+      if (stairDepth === undefined || referenceFaceDepth === undefined) {
+        return { kind: 'wall' as const, depth: entry.face.avgDepth, layer: 2, entry }
+      }
+      const behindStair = referenceFaceDepth >= stairDepth
       return {
         kind: 'wall' as const,
         depth: entry.face.avgDepth,
-        layer: behindStair ? 2 : 0,
+        layer: behindStair ? 3 : 1,
         entry,
       }
     })
@@ -5505,7 +5598,7 @@ function WallDetailEditor({
       if (a.layer !== b.layer) return b.layer - a.layer
       return b.depth - a.depth
     })
-  }, [visibleWallFacePieces, projectedStairObjects, stairRoomDepthById])
+  }, [visibleWallFacePieces, projectedStairObjects, projectedWallFaces, stairGeometryDepthByRoomId, stairFaceRoomByFaceId, stairReferenceFaceDepth])
 
   const wallPassageRevealsIn3D = useMemo(() => projectedWallFaces.flatMap((face) => {
     const openings = wallObjectsForFace(face, floor.id, rooms, wallObjectsByKey).filter((item) => isRegularWallOpeningObject(item))
@@ -7369,6 +7462,7 @@ function findOpeningPartnerFace(
   const sourceRoom = rooms.find((room) => room.id === face.room.id) ?? face.room
   const faceEdge = edgePoints(sourceRoom.vertices, face.edgeIndex)
   if (!faceEdge) return null
+
   const candidates = faces.flatMap((candidate) => {
     if (candidate.modelFaceId === face.modelFaceId) return []
     const candidateRoom = rooms.find((room) => room.id === candidate.room.id) ?? candidate.room
@@ -7376,12 +7470,20 @@ function findOpeningPartnerFace(
     if (!candidateEdge) return []
     const pair = wallObjectPairInfo(sourceRoom, faceEdge, candidateRoom, candidateEdge)
     if (!pair?.paired) return []
+
+    const candidateKey = wallObjectKey(floorId, candidateRoom.id, candidate.edgeIndex)
+    const ownPartner = item.groupId
+      ? (wallObjectsByKey[candidateKey] ?? []).find((candidateItem) => candidateItem.groupId === item.groupId)
+      : undefined
     const projectedItem = projectWallPlacedObjectBetweenRooms(item, sourceRoom, face.edgeIndex, candidateRoom, candidate.edgeIndex)
+    const pairScore = wallPairPlacementScore(faceEdge, candidateEdge)
+    const groupBonus = ownPartner ? 100000 : 0
+    const outerBonus = isOuterWallRoom(sourceRoom) !== isOuterWallRoom(candidateRoom) ? 2500 : 0
     const centerDistance = openingCenterDistance(face.points, item, candidate.points, projectedItem)
-    return [{ face: candidate, item: projectedItem, score: centerDistance }]
+    return [{ face: candidate, item: projectedItem, score: groupBonus + outerBonus + pairScore * 10 - centerDistance }]
   })
   if (candidates.length === 0) return null
-  candidates.sort((a, b) => a.score - b.score)
+  candidates.sort((a, b) => b.score - a.score)
   return { face: candidates[0].face, item: candidates[0].item }
 }
 

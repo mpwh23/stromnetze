@@ -4595,3 +4595,12 @@ svg [class*="dimension"], svg [class*="technical"], svg [class*="measure"] { vec
   fill-opacity: 0.82;
   stroke-opacity: 0.82;
 }
+
+
+/* 134: stair depth layers + exterior door blueprint */
+.blueprint-wall-object-connections .blueprint-wall-door-edge {
+  stroke: rgba(37, 99, 235, 0.95);
+  stroke-width: 4;
+  stroke-linecap: butt;
+  stroke-dasharray: none !important;
+}
