@@ -1,0 +1,20 @@
+INSERT INTO projects (id, name, description)
+VALUES ('00000000-0000-0000-0000-000000000001', 'Mein Haus', 'Startprojekt fuer strom')
+ON CONFLICT (id) DO NOTHING;
+
+INSERT INTO houses (id, project_id, name)
+VALUES ('00000000-0000-0000-0000-000000000101', '00000000-0000-0000-0000-000000000001', 'Haus')
+ON CONFLICT (id) DO NOTHING;
+
+INSERT INTO floors (id, house_id, name, level_index, elevation_m, height_m)
+VALUES ('00000000-0000-0000-0000-000000000201', '00000000-0000-0000-0000-000000000101', 'EG', 0, 0, 2.5)
+ON CONFLICT (id) DO NOTHING;
+
+INSERT INTO rooms (id, floor_id, name, polygon)
+VALUES (
+  '00000000-0000-0000-0000-000000000301',
+  '00000000-0000-0000-0000-000000000201',
+  'Flur',
+  ST_GeomFromText('POLYGON((0 0, 4 0, 4 2.5, 0 2.5, 0 0))', 0)
+)
+ON CONFLICT (id) DO NOTHING;

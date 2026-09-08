@@ -1,0 +1,4590 @@
+:root {
+  font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  color: #172033;
+  background: #eef3f8;
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+}
+
+* { box-sizing: border-box; }
+body { margin: 0; min-width: 320px; min-height: 100vh; background: #eef3f8; }
+button, input, select { font: inherit; }
+button { border: 0; border-radius: 10px; padding: 0.65rem 0.85rem; background: #2563eb; color: #fff; font-weight: 800; cursor: pointer; }
+button:disabled { cursor: not-allowed; opacity: 0.45; }
+button:hover:not(:disabled) { filter: brightness(0.96); }
+input, select { border: 1px solid #d4dde8; border-radius: 10px; padding: 0.55rem 0.65rem; background: #fff; color: #172033; }
+label { display: grid; gap: 0.3rem; font-size: 0.82rem; font-weight: 800; color: #475569; }
+
+.app-shell { display: grid; grid-template-columns: 280px minmax(0, 1fr); gap: 1rem; min-height: 100vh; padding: 1rem; }
+.sidebar, .main-area, .panel, .canvas-card, .properties-topbar, .session-card, .details-card { border: 1px solid #dbe4ef; border-radius: 20px; background: rgba(255,255,255,0.95); box-shadow: 0 18px 40px rgba(15, 23, 42, 0.08); }
+.sidebar { padding: 1rem; display: flex; flex-direction: column; gap: 1rem; }
+.sidebar h1 { margin: 0; font-size: 1.75rem; letter-spacing: -0.05em; }
+.sidebar p { margin: 0; color: #64748b; line-height: 1.4; }
+.panel { padding: 1rem; }
+.panel.small { padding: 0.85rem; }
+.panel h2 { margin: 0 0 0.65rem; font-size: 1rem; }
+.nav-list { display: grid; gap: 0.45rem; }
+.nav-list button, .choice-list button { text-align: left; background: #e8eef8; color: #1e3a8a; }
+.nav-list button.active, .choice-list button.active { background: #2563eb; color: #fff; }
+.choice-list { display: grid; gap: 0.45rem; margin-bottom: 0.75rem; }
+.choice-list.compact { max-height: 190px; overflow: auto; }
+.button-row { display: flex; gap: 0.5rem; flex-wrap: wrap; align-items: center; }
+.button-row.vertical { display: grid; }
+.muted { color: #64748b; }
+.eyebrow { display: block; color: #64748b; font-size: 0.72rem; font-weight: 900; letter-spacing: 0.08em; text-transform: uppercase; }
+
+.object-panel .collapse-toggle { width: 100%; display: flex; align-items: center; justify-content: space-between; background: #e8eef8; color: #1e3a8a; }
+.collapsible-content { display: grid; gap: 0.75rem; padding-top: 0.8rem; }
+.user-summary { display: grid; gap: 0.4rem; padding: 0.7rem; border-radius: 14px; background: #f8fafc; border: 1px solid #e2e8f0; }
+.user-summary button { background: #475569; }
+
+.main-area { min-width: 0; padding: 1rem; display: grid; grid-template-rows: auto auto auto minmax(0, 1fr); gap: 0.8rem; }
+.topbar { display: flex; justify-content: space-between; align-items: center; gap: 1rem; }
+.topbar h2 { margin: 0; font-size: 1.35rem; }
+.error-box { padding: 0.75rem 0.9rem; border-radius: 14px; background: #fee2e2; color: #991b1b; font-weight: 800; }
+.error-box.inline { margin-bottom: 1rem; }
+.workspace { min-width: 0; min-height: 0; }
+.hint-box { padding: 1rem; border: 1px dashed #94a3b8; border-radius: 16px; background: #f8fafc; color: #475569; }
+
+.properties-topbar { display: flex; align-items: end; gap: 0.65rem; padding: 0.75rem; overflow-x: auto; }
+.properties-topbar.empty { align-items: center; color: #64748b; }
+.properties-topbar.empty p { margin: 0; }
+.properties-topbar label { min-width: 92px; }
+.properties-topbar label:first-of-type { min-width: 180px; }
+.properties-topbar input { width: 100%; }
+.properties-title { min-width: 92px; padding-bottom: 0.12rem; }
+.property-readout { display: grid; gap: 0.25rem; min-width: 170px; color: #475569; font-size: 0.82rem; font-weight: 800; padding-bottom: 0.35rem; }
+
+.session-shell { min-height: 100vh; display: grid; place-items: center; padding: 1rem; }
+.session-card { width: min(720px, 100%); padding: 1.5rem; }
+.session-card h1 { margin: 0 0 0.5rem; font-size: 2rem; letter-spacing: -0.05em; }
+.session-lead { margin: 0 0 1rem; color: #64748b; }
+
+.floorplan-layout { display: grid; }
+.canvas-toolbar-row { display: flex; align-items: center; gap: 0.6rem; padding: 0.45rem 0.55rem; border: 1px solid #dbe4ef; border-radius: 20px; background: rgba(255,255,255,0.95); box-shadow: 0 12px 28px rgba(15, 23, 42, 0.06); }
+.canvas-card { position: relative; min-height: 720px; overflow: hidden; padding: 0; }
+.canvas-scroll { min-height: 720px; overflow: auto; background: radial-gradient(circle at 18px 18px, rgba(148, 163, 184, 0.13) 1px, transparent 1px), #ffffff; background-size: 24px 24px; }
+.canvas { display: block; }
+.canvas-toolbox { position: relative; z-index: 20; display: flex; align-items: center; gap: 0.35rem; padding: 0.35rem; border: 1px solid rgba(203,213,225,0.95); border-radius: 999px; background: rgba(255,255,255,0.93); box-shadow: none; backdrop-filter: blur(8px); }
+.canvas-toolbox button { width: 34px; height: 34px; padding: 0; display: grid; place-items: center; border-radius: 999px; background: #e8eef8; color: #1e3a8a; font-size: 1rem; }
+.canvas-toolbox button.active { background: #2563eb; color: #fff; }
+.canvas-toolbox button[title="100 Prozent"] { width: 54px; font-size: 0.76rem; }
+.tool-divider { width: 1px; height: 24px; margin: 0 0.12rem; background: #d6e0ee; }
+.snap-control { display: flex; align-items: center; gap: 0.25rem; min-width: unset; color: #1e3a8a; }
+.snap-control input { width: auto; }
+.wall-control { display: flex; grid-template-columns: unset; align-items: center; gap: 0.25rem; min-width: unset; color: #1e3a8a; }
+.wall-control input { width: 5.4rem; min-width: 5.4rem; padding: 0.38rem 0.45rem; }
+
+.canvas-settings { position: absolute; z-index: 18; top: 62px; left: 12px; display: flex; gap: 0.55rem; align-items: end; max-width: calc(100% - 24px); padding: 0.55rem; border: 1px solid rgba(203,213,225,0.95); border-radius: 14px; background: rgba(255,255,255,0.94); box-shadow: 0 12px 26px rgba(15,23,42,0.10); backdrop-filter: blur(8px); overflow-x: auto; }
+.canvas-settings label { min-width: 120px; }
+.canvas-settings button { white-space: nowrap; padding: 0.55rem 0.7rem; }
+.metric-card.compact { min-width: 150px; padding: 0.6rem 0.7rem; border-radius: 12px; background: #f8fafc; border: 1px solid #e2e8f0; display: grid; gap: 0.15rem; }
+.recess-help { top: 62px; align-items: center; color: #475569; }
+
+.canvas-hint { position: absolute; z-index: 12; left: 12px; right: 12px; bottom: 12px; width: fit-content; max-width: min(900px, calc(100% - 24px)); border: 1px solid rgba(203,213,225,0.85); border-radius: 999px; background: rgba(255,255,255,0.86); color: #53627a; padding: 0.45rem 0.75rem; font-size: 0.82rem; font-weight: 800; box-shadow: 0 10px 24px rgba(15,23,42,0.08); pointer-events: none; }
+.recess-floating { position: absolute; z-index: 25; top: 122px; right: 18px; width: 230px; display: grid; gap: 0.55rem; padding: 0.75rem; border: 1px solid #bfdbfe; border-radius: 16px; background: rgba(255,255,255,0.96); box-shadow: 0 18px 44px rgba(15,23,42,0.18); }
+.recess-floating .button-row button { flex: 1; padding: 0.52rem 0.6rem; }
+
+.floorplan-canvas .grid line { stroke: rgba(148,163,184,0.24); stroke-width: 0.7; }
+.floorplan-canvas .grid line.major { stroke: rgba(100,116,139,0.42); stroke-width: 1.1; }
+.floorplan-canvas .grid text { fill: rgba(71,85,105,0.74); font-size: 12px; font-weight: 700; }
+.floorplan-canvas .workspace-boundary { fill: none; stroke: rgba(15,23,42,0.26); stroke-width: 2; stroke-dasharray: 12 10; pointer-events: none; }
+.room-group { cursor: grab; }
+.room-group:active { cursor: grabbing; }
+.floorplan-canvas .room-group:not(.selected) .room { fill: rgba(241,245,249,0.46); stroke: rgba(71,85,105,0.62); stroke-width: 0.75; }
+.floorplan-canvas .room-group:not(.selected) .wall-outline { stroke: rgba(71,85,105,0.44); stroke-width: 0.75; }
+.floorplan-canvas .room-group:not(.selected) .room-label, .floorplan-canvas .room-group:not(.selected) .room-measure, .edge-label.muted { opacity: 0.74; }
+.floorplan-canvas .room-group.selected .room { fill: rgba(37,99,235,0.14); stroke: #1d4ed8; stroke-width: 2.8; filter: drop-shadow(0 8px 12px rgba(37,99,235,0.15)); }
+.floorplan-canvas .room-group.selected .wall-outline { stroke: #1d4ed8; stroke-width: 2.8; }
+.floorplan-canvas .room-group.selected .room-label { fill: #1e3a8a; font-weight: 900; }
+.floorplan-canvas .room-group.selected .room-measure { fill: #1d4ed8; font-weight: 850; }
+.room { vector-effect: non-scaling-stroke; }
+.wall-outline { fill: none; vector-effect: non-scaling-stroke; pointer-events: none; }
+.room-label, .room-measure, .edge-label { font-size: 13px; font-weight: 850; fill: #334155; paint-order: stroke; stroke: #fff; stroke-width: 5px; pointer-events: none; }
+.edge-label { font-size: 11px; fill: #0369a1; }
+.room-anchor { pointer-events: none; }
+.room-anchor line { stroke: #ef4444; stroke-width: 2.2; stroke-linecap: round; paint-order: stroke; }
+.room-anchor circle { fill: #ef4444; stroke: #fff; stroke-width: 1.4; }
+.floorplan-canvas .room-group:not(.selected) .room-anchor { opacity: 0.55; }
+.floorplan-canvas .room-group.selected .room-anchor { opacity: 1; filter: drop-shadow(0 2px 4px rgba(239,68,68,0.35)); }
+.rect-resize-handle { stroke: #2563eb; stroke-width: 10; opacity: 0.75; stroke-linecap: round; cursor: ew-resize; vector-effect: non-scaling-stroke; }
+.rect-resize-handle.horizontal { cursor: ns-resize; }
+.vertex-handle { fill: #fff; stroke: #2563eb; stroke-width: 3; cursor: move; vector-effect: non-scaling-stroke; }
+
+.draft-shape rect, .draft-shape polygon { fill: rgba(37,99,235,0.12); stroke: #2563eb; stroke-width: 2; stroke-dasharray: 8 6; }
+.draft-shape polyline, .draft-shape line { fill: none; stroke: #2563eb; stroke-width: 2.5; stroke-dasharray: 8 6; }
+.draft-shape circle { fill: #fff; stroke: #2563eb; stroke-width: 2; }
+.draft-shape text { fill: #1e3a8a; font-weight: 850; font-size: 13px; paint-order: stroke; stroke: #fff; stroke-width: 5px; }
+.recess-preview rect { fill: rgba(37,99,235,0.12); stroke: #2563eb; stroke-width: 2.5; stroke-dasharray: 7 5; }
+.recess-preview text { fill: #1d4ed8; font-weight: 900; font-size: 13px; paint-order: stroke; stroke: #fff; stroke-width: 5px; pointer-events: none; }
+.distance-guides line { stroke: #2563eb; stroke-width: 3; stroke-dasharray: 8 7; pointer-events: none; }
+.distance-guides circle { fill: #fff; stroke: #2563eb; stroke-width: 3; pointer-events: none; }
+.distance-guides text { fill: #1d4ed8; font-size: 13px; font-weight: 850; paint-order: stroke; stroke: #fff; stroke-width: 5px; pointer-events: none; }
+
+.placeholder3d { display: grid; place-items: center; min-height: 540px; color: #64748b; }
+.cube { width: 120px; height: 120px; border-radius: 18px; background: linear-gradient(135deg, #dbeafe, #bfdbfe); transform: rotateX(55deg) rotateZ(45deg); box-shadow: 30px 30px 50px rgba(37,99,235,0.18); }
+
+@media (max-width: 1100px) {
+  .app-shell { grid-template-columns: 1fr; }
+  .sidebar { order: 0; }
+  .main-area { order: 1; }
+  .properties-topbar { flex-wrap: wrap; }
+}
+
+@media (max-width: 760px) {
+  .canvas-settings { right: 12px; flex-wrap: wrap; }
+  .canvas-hint { border-radius: 14px; }
+  .properties-topbar label, .properties-topbar label:first-of-type { min-width: 130px; }
+}
+/* strom update 015: no system dialogs, stable canvas viewport and blue-only selection */
+html, body, #root {
+  height: 100%;
+  overflow: hidden;
+  overscroll-behavior: none;
+}
+
+button, input, select {
+  scroll-margin: 0;
+}
+
+.app-shell {
+  height: 100vh;
+  overflow: hidden;
+}
+
+.main-area {
+  min-height: 0;
+  overflow: hidden;
+}
+
+.workspace {
+  min-height: 0;
+  overflow: hidden;
+}
+
+.floorplan-layout {
+  min-height: 0;
+  overflow: hidden;
+}
+
+.canvas-card {
+  min-height: 0;
+  overflow: hidden;
+}
+
+.canvas-scroll {
+  overflow: auto;
+  overscroll-behavior: contain;
+}
+
+.rect-resize-handle,
+.rect-resize-handle.horizontal,
+.rect-resize-handle.vertical,
+.recess-resize-handle {
+  stroke: #2563eb;
+  opacity: 0.82;
+}
+
+.recess-resize-handle {
+  stroke-width: 10;
+  stroke-linecap: round;
+  cursor: ew-resize;
+  vector-effect: non-scaling-stroke;
+}
+
+.recess-resize-handle.horizontal {
+  cursor: ns-resize;
+}
+
+.recess-preview rect {
+  fill: rgba(37, 99, 235, 0.12);
+  stroke: #2563eb;
+  stroke-width: 2.4;
+  stroke-dasharray: 9 6;
+}
+
+.recess-preview text {
+  fill: #1d4ed8;
+  font-weight: 850;
+  paint-order: stroke;
+  stroke: #ffffff;
+  stroke-width: 5px;
+}
+
+.recess-floating select,
+.recess-floating input {
+  width: 100%;
+}
+
+.mini-hint {
+  margin: 0;
+  color: #64748b;
+  font-size: 0.8rem;
+  line-height: 1.35;
+}
+
+.modal-backdrop {
+  position: fixed;
+  z-index: 100;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  background: rgba(15, 23, 42, 0.42);
+  backdrop-filter: blur(4px);
+}
+
+.confirm-modal {
+  width: min(420px, calc(100vw - 32px));
+  padding: 1rem;
+  border: 1px solid #dbe4ef;
+  border-radius: 20px;
+  background: #ffffff;
+  box-shadow: 0 26px 80px rgba(15, 23, 42, 0.28);
+}
+
+.confirm-modal h2 {
+  margin: 0.15rem 0 0.4rem;
+}
+
+.confirm-modal p {
+  margin: 0 0 0.9rem;
+  color: #475569;
+}
+
+button.danger {
+  background: #fee2e2;
+  color: #991b1b;
+  border-color: #fecaca;
+}
+
+button.danger:hover {
+  background: #fecaca;
+}
+
+/* strom update 016: Tooltips, disabled toolbar buttons, stable drawing properties */
+.canvas-toolbox button {
+  position: relative;
+}
+
+.canvas-toolbox button:disabled {
+  opacity: 0.28;
+  filter: grayscale(0.9);
+  cursor: not-allowed;
+  background: #edf2f7;
+  color: #94a3b8;
+}
+
+.canvas-toolbox button[data-tooltip]:hover::after,
+.canvas-toolbox button[data-tooltip]:focus-visible::after {
+  content: attr(data-tooltip);
+  position: absolute;
+  z-index: 80;
+  left: 50%;
+  top: calc(100% + 10px);
+  transform: translateX(-50%);
+  width: max-content;
+  max-width: 220px;
+  padding: 0.35rem 0.55rem;
+  border-radius: 10px;
+  background: rgba(15, 23, 42, 0.94);
+  color: #fff;
+  font-size: 0.74rem;
+  font-weight: 800;
+  white-space: nowrap;
+  box-shadow: 0 8px 22px rgba(15, 23, 42, 0.22);
+  pointer-events: none;
+}
+
+.canvas-toolbox button[data-tooltip]:hover::before,
+.canvas-toolbox button[data-tooltip]:focus-visible::before {
+  content: '';
+  position: absolute;
+  z-index: 81;
+  left: 50%;
+  top: calc(100% + 4px);
+  transform: translateX(-50%);
+  border: 6px solid transparent;
+  border-bottom-color: rgba(15, 23, 42, 0.94);
+  pointer-events: none;
+}
+
+.properties-topbar {
+  min-height: 76px;
+}
+
+.recess-floating {
+  min-width: 250px;
+}
+
+.recess-floating select {
+  display: block;
+}
+
+.floorplan-canvas .room-group:not(.selected) .rect-resize-handle,
+.floorplan-canvas .room-group:not(.selected) .vertex-handle {
+  display: none;
+}
+
+
+/* strom update 017: stabile Eigenschaftenleiste und robuste Aussparung */
+.floorplan-layout > .properties-topbar {
+  position: sticky;
+  top: 0;
+  z-index: 35;
+  margin-bottom: 0.75rem;
+  flex-shrink: 0;
+}
+
+.properties-topbar {
+  visibility: visible !important;
+}
+
+.canvas-toolbox button:disabled,
+.canvas-toolbox button[disabled] {
+  opacity: 0.28;
+  filter: grayscale(1);
+  cursor: not-allowed;
+  background: #eef2f7;
+  color: #94a3b8;
+}
+
+.recess-preview rect {
+  pointer-events: none;
+}
+
+.recess-preview .recess-resize-handle {
+  pointer-events: stroke;
+}
+
+/* strom update 018: stabile Eigenschaftenleiste, technische Bemaszung */
+.app-shell, .main-area, .workspace, .floorplan-layout {
+  min-height: 0;
+}
+
+.main-area, .workspace {
+  overflow: hidden;
+}
+
+.floorplan-layout {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  gap: 0.75rem;
+}
+
+.properties-topbar {
+  position: sticky;
+  top: 0;
+  z-index: 70;
+  min-height: 84px;
+  flex-shrink: 0;
+  visibility: visible !important;
+  opacity: 1 !important;
+}
+
+.properties-topbar.empty {
+  min-height: 84px;
+}
+
+.canvas-card {
+  min-height: 0;
+}
+
+.canvas-scroll {
+  height: min(72vh, 760px);
+  overflow: auto;
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable both-edges;
+}
+
+.technical-dimensions,
+.recess-offset-dim {
+  pointer-events: none;
+}
+
+.technical-dimensions line,
+.recess-offset-dim line {
+  stroke: #111827;
+  stroke-width: 1.1;
+  vector-effect: non-scaling-stroke;
+  fill: none;
+}
+
+.technical-dimensions line.extension {
+  stroke-width: 0.75;
+  stroke-dasharray: 0;
+  opacity: 0.85;
+}
+
+.technical-dimensions line.tick,
+.recess-offset-dim line.tick {
+  stroke-width: 1.1;
+}
+
+.technical-dimensions text,
+.recess-offset-dim text {
+  fill: #111827;
+  font-size: 13px;
+  font-weight: 750;
+  paint-order: stroke;
+  stroke: #ffffff;
+  stroke-width: 4px;
+}
+
+.recess-offset-dim line,
+.recess-offset-dim text {
+  stroke: #2563eb;
+  fill: #1d4ed8;
+}
+
+.recess-floating label {
+  display: grid;
+  gap: 0.25rem;
+}
+
+.recess-floating input,
+.recess-floating select {
+  width: 100%;
+}
+
+
+/* strom update 019: canvas panning, center-all, and cleaner dimension display */
+.canvas-card {
+  display: flex;
+  flex-direction: column;
+}
+
+.canvas-hint {
+  position: static !important;
+  z-index: auto;
+  margin: 0.55rem 0.75rem 0.75rem;
+  width: auto;
+  max-width: none;
+  border-radius: 14px;
+  box-shadow: none;
+  pointer-events: none;
+}
+
+.canvas-scroll {
+  flex: 1 1 auto;
+  cursor: grab;
+}
+
+.canvas-scroll:active {
+  cursor: grabbing;
+}
+
+.floorplan-canvas .room-group {
+  cursor: grab;
+}
+
+.floorplan-canvas .room-group:active {
+  cursor: grabbing;
+}
+
+.canvas-toolbox button:disabled,
+.canvas-toolbox button[disabled] {
+  opacity: 0.38;
+  filter: grayscale(0.5);
+  cursor: not-allowed;
+  box-shadow: none;
+}
+
+.canvas-toolbox button:disabled:hover::after,
+.canvas-toolbox button[disabled]:hover::after {
+  opacity: 0.95;
+}
+
+.technical-dimensions {
+  opacity: 0.92;
+}
+
+.room-group.selected .technical-dimensions {
+  display: none;
+}
+
+.recess-preview .technical-dimensions {
+  display: none;
+}
+
+.recess-preview .edge-label {
+  fill: #0369a1;
+  opacity: 1;
+}
+
+
+/* strom update 020: kompaktere technische Bemaßung und Abstands-Haarlinien */
+.distance-guides line {
+  stroke: #2563eb !important;
+  stroke-width: 0.8 !important;
+  stroke-dasharray: none !important;
+  vector-effect: non-scaling-stroke;
+  opacity: 0.82;
+}
+.distance-guides circle {
+  display: none !important;
+}
+.distance-guides text {
+  fill: #1d4ed8 !important;
+  font-size: 10px !important;
+  font-weight: 750 !important;
+  stroke: #ffffff !important;
+  stroke-width: 3px !important;
+}
+.technical-dimensions {
+  pointer-events: none;
+  opacity: 0.88;
+}
+.technical-dimensions line {
+  stroke: #111827;
+  stroke-width: 0.68;
+  vector-effect: non-scaling-stroke;
+  stroke-dasharray: none;
+}
+.technical-dimensions line.extension {
+  stroke: rgba(17, 24, 39, 0.62);
+  stroke-width: 0.55;
+}
+.technical-dimensions line.tick {
+  stroke-width: 0.75;
+}
+.technical-dimensions text {
+  fill: #111827;
+  font-size: 10px;
+  font-weight: 700;
+  paint-order: stroke;
+  stroke: rgba(255, 255, 255, 0.88);
+  stroke-width: 2.4px;
+}
+.technical-dimensions.compact text {
+  font-size: 9px;
+  stroke-width: 2px;
+}
+.floorplan-canvas .room-group:not(.selected) .room-label,
+.floorplan-canvas .room-group:not(.selected) .room-measure {
+  font-size: 12px;
+  stroke-width: 4px;
+}
+
+/* strom update 021: toolbar above canvas, wheel zoom, toggle/drag technical dimensions */
+.canvas-toolbar-row .canvas-toolbox { flex-wrap: wrap; }
+.canvas-toolbox button:disabled { opacity: 0.38; filter: grayscale(0.7); cursor: not-allowed; }
+.technical-dimensions .dimension-drag-zone .hit { stroke: transparent; stroke-width: 18; cursor: grab; pointer-events: stroke; }
+.technical-dimensions .dimension-drag-zone:active .hit { cursor: grabbing; }
+.technical-dimensions { pointer-events: all; }
+.technical-dimensions line:not(.hit), .technical-dimensions text { pointer-events: none; }
+.canvas-scroll { overscroll-behavior: contain; }
+
+/* strom update 022: title/dimension/help refinements */
+.floorplan-toolbar-help-button {
+  margin-left: auto !important;
+  width: 34px !important;
+  height: 34px !important;
+  border-radius: 999px !important;
+  font-weight: 900 !important;
+  background: #e8eef8 !important;
+  color: #1e3a8a !important;
+}
+.floorplan-toolbar-help-button:hover { background: #dbeafe !important; }
+.floorplan-help-backdrop[hidden] { display: none !important; }
+.floorplan-help-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  display: grid;
+  place-items: center;
+  padding: 1rem;
+  background: rgba(15, 23, 42, 0.34);
+  backdrop-filter: blur(3px);
+}
+.floorplan-help-card {
+  position: relative;
+  width: min(980px, calc(100vw - 2rem));
+  max-height: min(760px, calc(100vh - 2rem));
+  overflow: auto;
+  border-radius: 22px;
+  border: 1px solid #dbe4ef;
+  background: rgba(255,255,255,0.98);
+  box-shadow: 0 24px 80px rgba(15, 23, 42, 0.28);
+  padding: 1.25rem;
+  color: #172033;
+}
+.floorplan-help-card h2 { margin: 0 2.5rem 1rem 0; font-size: 1.35rem; }
+.floorplan-help-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 0.85rem;
+}
+.floorplan-help-grid section {
+  border: 1px solid #e2e8f0;
+  border-radius: 16px;
+  padding: 0.85rem;
+  background: #f8fafc;
+}
+.floorplan-help-grid h3 { margin: 0 0 0.4rem 0; font-size: 0.98rem; }
+.floorplan-help-grid p { margin: 0.3rem 0; color: #475569; line-height: 1.35; }
+.floorplan-help-grid kbd {
+  padding: 0.05rem 0.35rem;
+  border: 1px solid #cbd5e1;
+  border-bottom-width: 2px;
+  border-radius: 6px;
+  background: #fff;
+  font-weight: 800;
+}
+.floorplan-help-close {
+  position: absolute;
+  top: 0.8rem;
+  right: 0.8rem;
+  width: 36px;
+  height: 36px;
+  display: grid;
+  place-items: center;
+  border-radius: 999px;
+  border: 1px solid #cbd5e1;
+  background: #eef2f7;
+  color: #172033;
+  font-size: 1.25rem;
+  font-weight: 900;
+}
+svg .room-label { cursor: move; }
+svg [class*="dimension"], svg [class*="technical"], svg [class*="measure"] { vector-effect: non-scaling-stroke; }
+
+/* strom update 024b: individual technical dimension line dragging */
+.technical-dimensions .dimension-drag-zone .hit {
+  stroke: transparent !important;
+  stroke-width: 20 !important;
+  cursor: grab;
+  pointer-events: stroke;
+}
+.technical-dimensions .dimension-drag-zone:active .hit {
+  cursor: grabbing;
+}
+.technical-dimensions .dimension-line-x-parts .hit,
+.technical-dimensions .dimension-line-x-total .hit {
+  cursor: ns-resize;
+}
+.technical-dimensions .dimension-line-y-parts .hit,
+.technical-dimensions .dimension-line-y-total .hit {
+  cursor: ew-resize;
+}
+.technical-dimensions .dimension-drag-zone line:not(.hit),
+.technical-dimensions .dimension-drag-zone text {
+  pointer-events: none;
+}
+
+/* strom update 024c: stabile einzelne Drag-Zonen fuer technische Bemaszung */
+.technical-dimensions .dimension-line-x-parts .hit,
+.technical-dimensions .dimension-line-x-total .hit,
+.technical-dimensions .dimension-line-y-parts .hit,
+.technical-dimensions .dimension-line-y-total .hit {
+  stroke: transparent;
+  stroke-width: 22;
+  pointer-events: stroke;
+}
+.technical-dimensions .dimension-line-x-parts .hit,
+.technical-dimensions .dimension-line-x-total .hit {
+  cursor: ns-resize;
+}
+.technical-dimensions .dimension-line-y-parts .hit,
+.technical-dimensions .dimension-line-y-total .hit {
+  cursor: ew-resize;
+}
+
+/* strom update 025b: technische Bemaszung innen und Raumtitel-Drag */
+.technical-dimensions text {
+  dominant-baseline: middle;
+}
+.technical-dimensions.compact text {
+  font-size: 10px;
+}
+.floorplan-canvas .room-label,
+.floorplan-canvas .room-measure {
+  pointer-events: auto;
+  cursor: move;
+}
+.floorplan-toolbar-help-button {
+  margin-left: auto !important;
+  width: 34px !important;
+  height: 34px !important;
+  border-radius: 999px !important;
+  font-weight: 900 !important;
+  background: #e8eef8 !important;
+  color: #1e3a8a !important;
+}
+.floorplan-toolbar-help-button:hover { background: #dbeafe !important; }
+.floorplan-help-backdrop[hidden] { display: none !important; }
+.floorplan-help-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  display: grid;
+  place-items: center;
+  padding: 1rem;
+  background: rgba(15, 23, 42, 0.34);
+  backdrop-filter: blur(3px);
+}
+.floorplan-help-card {
+  position: relative;
+  width: min(980px, calc(100vw - 2rem));
+  max-height: min(760px, calc(100vh - 2rem));
+  overflow: auto;
+  border-radius: 22px;
+  border: 1px solid #dbe4ef;
+  background: rgba(255,255,255,0.98);
+  box-shadow: 0 24px 80px rgba(15, 23, 42, 0.28);
+  padding: 1.25rem;
+  color: #172033;
+}
+.floorplan-help-card h2 { margin: 0 2.5rem 1rem 0; font-size: 1.35rem; }
+.floorplan-help-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 0.85rem;
+}
+.floorplan-help-grid section {
+  border: 1px solid #e2e8f0;
+  border-radius: 16px;
+  padding: 0.85rem;
+  background: #f8fafc;
+}
+.floorplan-help-grid h3 { margin: 0 0 0.4rem 0; font-size: 0.98rem; }
+.floorplan-help-grid p { margin: 0.3rem 0; color: #475569; line-height: 1.35; }
+.floorplan-help-grid kbd {
+  padding: 0.05rem 0.35rem;
+  border: 1px solid #cbd5e1;
+  border-bottom-width: 2px;
+  border-radius: 6px;
+  background: #fff;
+  font-weight: 800;
+}
+.floorplan-help-close {
+  position: absolute;
+  top: 0.8rem;
+  right: 0.8rem;
+  width: 36px;
+  height: 36px;
+  display: grid;
+  place-items: center;
+  border-radius: 999px;
+  border: 1px solid #cbd5e1;
+  background: #eef2f7;
+  color: #172033;
+  font-size: 1.25rem;
+  font-weight: 900;
+}
+
+/* strom update 026: polygon edge drag handles */
+.floorplan-canvas .polygon-edge-handle {
+  fill: none;
+  stroke: transparent;
+  stroke-width: 18px;
+  pointer-events: stroke;
+  cursor: move;
+  vector-effect: non-scaling-stroke;
+}
+.floorplan-canvas .polygon-edge-handle:hover {
+  stroke: rgba(37, 99, 235, 0.32);
+}
+.floorplan-canvas .polygon-edge-handle:active {
+  cursor: grabbing;
+}
+
+/* strom update 027: selected rectangle like polygon and technical dimension line opacity */
+.floorplan-canvas .selected-edit-line {
+  fill: none;
+  stroke: #2563eb;
+  stroke-width: 1.25px;
+  vector-effect: non-scaling-stroke;
+  pointer-events: none;
+  opacity: 0.95;
+}
+.floorplan-canvas .rect-corner-marker {
+  fill: #ffffff;
+  stroke: #2563eb;
+  stroke-width: 2px;
+  vector-effect: non-scaling-stroke;
+  pointer-events: none;
+}
+.floorplan-canvas .room-group.selected .rect-resize-handle {
+  stroke: transparent !important;
+  stroke-width: 18px !important;
+  pointer-events: stroke;
+  cursor: move;
+  vector-effect: non-scaling-stroke;
+}
+.floorplan-canvas .room-group.selected .rect-resize-handle:hover {
+  stroke: rgba(37, 99, 235, 0.16) !important;
+}
+.floorplan-canvas .technical-dimensions line:not(.hit) {
+  stroke-width: 0.7px !important;
+  vector-effect: non-scaling-stroke;
+}
+.floorplan-canvas .technical-dimensions line.measure-line {
+  opacity: 0.5 !important;
+}
+.floorplan-canvas .technical-dimensions line.extension,
+.floorplan-canvas .technical-dimensions line.indicator-line,
+.floorplan-canvas .technical-dimensions line.tick {
+  opacity: 0.25 !important;
+}
+.floorplan-canvas .technical-dimensions line.hit {
+  opacity: 1 !important;
+}
+
+
+
+/* strom update 028: shift wheel zoom, statusbar outside canvas, toolbar before properties */
+.floorplan-layout {
+  display: grid !important;
+  grid-template-rows: auto auto minmax(0, 1fr) auto !important;
+  gap: 0.55rem !important;
+}
+
+.floorplan-layout > .canvas-toolbar-row {
+  grid-row: 1;
+  margin: 0 !important;
+}
+
+.floorplan-layout > .properties-topbar {
+  grid-row: 2;
+  margin: 0 !important;
+}
+
+.floorplan-layout > .canvas-card {
+  grid-row: 3;
+}
+
+.canvas-hint {
+  display: none !important;
+}
+
+.canvas-statusbar {
+  grid-row: 4;
+  min-height: 1.55rem;
+  display: flex;
+  align-items: center;
+  padding: 0.22rem 0.55rem;
+  border: 1px solid rgba(203, 213, 225, 0.86);
+  border-radius: 10px;
+  background: rgba(248, 250, 252, 0.92);
+  color: #64748b;
+  font-size: 0.72rem;
+  font-weight: 750;
+  line-height: 1.15;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  box-shadow: 0 6px 16px rgba(15, 23, 42, 0.045);
+}
+
+.canvas-scroll {
+  overscroll-behavior: contain;
+}
+
+
+/* strom update 029: toolbar icons, fixed rulers, shift wheel zoom fix, tooltip layering */
+.canvas-card {
+  position: relative !important;
+  overflow: hidden;
+}
+
+.canvas-scroll {
+  position: relative !important;
+}
+
+.floorplan-canvas .grid text {
+  display: none !important;
+}
+
+.canvas-rulers {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 38;
+  font-size: 0.64rem;
+  font-weight: 800;
+  color: #475569;
+}
+
+.canvas-ruler-top {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 22px;
+  overflow: hidden;
+  border-bottom: 1px solid rgba(148, 163, 184, 0.34);
+  background: linear-gradient(to bottom, rgba(248, 250, 252, 0.96), rgba(248, 250, 252, 0.78));
+  backdrop-filter: blur(5px);
+}
+
+.canvas-ruler-left {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  width: 32px;
+  overflow: hidden;
+  border-right: 1px solid rgba(148, 163, 184, 0.34);
+  background: linear-gradient(to right, rgba(248, 250, 252, 0.96), rgba(248, 250, 252, 0.78));
+  backdrop-filter: blur(5px);
+}
+
+.canvas-ruler-corner {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 32px;
+  height: 22px;
+  z-index: 2;
+  border-right: 1px solid rgba(148, 163, 184, 0.34);
+  border-bottom: 1px solid rgba(148, 163, 184, 0.34);
+  background: rgba(241, 245, 249, 0.98);
+}
+
+.canvas-ruler-tick {
+  position: absolute;
+  display: block;
+  color: #64748b;
+}
+
+.canvas-ruler-top .canvas-ruler-tick {
+  top: 13px;
+  width: 1px;
+  height: 8px;
+  border-left: 1px solid rgba(100, 116, 139, 0.35);
+}
+
+.canvas-ruler-top .canvas-ruler-tick.major {
+  top: 7px;
+  height: 15px;
+  border-left-color: rgba(51, 65, 85, 0.55);
+}
+
+.canvas-ruler-top .canvas-ruler-tick em {
+  position: absolute;
+  left: 4px;
+  top: -7px;
+  font-style: normal;
+  white-space: nowrap;
+}
+
+.canvas-ruler-left .canvas-ruler-tick {
+  left: 22px;
+  height: 1px;
+  width: 10px;
+  border-top: 1px solid rgba(100, 116, 139, 0.35);
+}
+
+.canvas-ruler-left .canvas-ruler-tick.major {
+  left: 14px;
+  width: 18px;
+  border-top-color: rgba(51, 65, 85, 0.55);
+}
+
+.canvas-ruler-left .canvas-ruler-tick em {
+  position: absolute;
+  right: 21px;
+  top: -7px;
+  min-width: 12px;
+  text-align: right;
+  font-style: normal;
+  white-space: nowrap;
+}
+
+.canvas-toolbar-row {
+  position: relative !important;
+  z-index: 220 !important;
+  overflow: visible !important;
+}
+
+.canvas-toolbox,
+.canvas-toolbox button {
+  overflow: visible !important;
+}
+
+.properties-topbar {
+  position: relative;
+  z-index: 20;
+}
+
+.canvas-toolbox button[data-tooltip]:hover::after,
+.canvas-toolbox button[data-tooltip]:focus-visible::after {
+  z-index: 10000 !important;
+  top: auto !important;
+  bottom: calc(100% + 10px) !important;
+}
+
+.canvas-toolbox button[data-tooltip]:hover::before,
+.canvas-toolbox button[data-tooltip]:focus-visible::before {
+  z-index: 10001 !important;
+  top: auto !important;
+  bottom: calc(100% + 4px) !important;
+  border-bottom-color: transparent !important;
+  border-top-color: rgba(15, 23, 42, 0.94) !important;
+}
+
+
+/* strom update 030: tooltip below toolbar and zoom level restore */
+.floorplan-layout,
+.canvas-toolbar-row,
+.canvas-toolbox,
+.canvas-toolbox button {
+  overflow: visible !important;
+}
+
+.canvas-toolbar-row {
+  position: relative !important;
+  z-index: 60000 !important;
+}
+
+.canvas-toolbox {
+  position: relative !important;
+  z-index: 60001 !important;
+}
+
+.properties-topbar {
+  position: relative !important;
+  z-index: 10 !important;
+}
+
+.canvas-toolbox button[data-tooltip]:hover::after,
+.canvas-toolbox button[data-tooltip]:focus-visible::after {
+  top: calc(100% + 10px) !important;
+  bottom: auto !important;
+  z-index: 70000 !important;
+  pointer-events: none !important;
+}
+
+.canvas-toolbox button[data-tooltip]:hover::before,
+.canvas-toolbox button[data-tooltip]:focus-visible::before {
+  top: calc(100% + 4px) !important;
+  bottom: auto !important;
+  z-index: 70001 !important;
+  border-top-color: transparent !important;
+  border-bottom-color: rgba(15, 23, 42, 0.94) !important;
+  pointer-events: none !important;
+}
+
+.canvas-zoom-level {
+  min-width: 3.25rem;
+  height: 34px;
+  padding: 0 0.55rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid rgba(148, 163, 184, 0.45);
+  border-radius: 999px;
+  background: rgba(248, 250, 252, 0.96);
+  color: #334155;
+  font-size: 0.78rem;
+  font-weight: 900;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.85);
+  user-select: none;
+}
+
+
+/* strom update 031: restore help button and selected zoom control */
+.canvas-toolbar-row {
+  overflow: visible !important;
+}
+
+.floorplan-toolbar-help-button {
+  margin-left: auto !important;
+  width: 34px !important;
+  height: 34px !important;
+  min-width: 34px !important;
+  padding: 0 !important;
+  display: inline-grid !important;
+  place-items: center !important;
+  border-radius: 999px !important;
+  border: 1px solid rgba(148, 163, 184, 0.42) !important;
+  background: #e8eef8 !important;
+  color: #1e3a8a !important;
+  font-weight: 900 !important;
+  box-shadow: none !important;
+}
+
+.floorplan-toolbar-help-button:hover {
+  background: #dbeafe !important;
+}
+
+.floorplan-help-backdrop[hidden] {
+  display: none !important;
+}
+
+.floorplan-help-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 90000;
+  padding: 5vh 1rem;
+  background: rgba(15, 23, 42, 0.42);
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+}
+
+
+/* strom update 034: fixed-size-svg-ui */
+.floorplan-canvas,
+.floorplan-canvas * {
+  vector-effect: non-scaling-stroke;
+}
+
+.floorplan-canvas text,
+.floorplan-canvas .room-label,
+.floorplan-canvas .room-measure,
+.floorplan-canvas .edge-label,
+.floorplan-canvas .technical-dimensions text,
+.floorplan-canvas .recess-offset-dim text,
+.floorplan-canvas .recess-preview text,
+.floorplan-canvas .distance-guides text {
+  font-size: var(--floorplan-text-size, 14.7px) !important;
+  vector-effect: non-scaling-stroke;
+}
+
+.floorplan-canvas .room-label,
+.floorplan-canvas .room-measure,
+.floorplan-canvas .edge-label,
+.floorplan-canvas .technical-dimensions text,
+.floorplan-canvas .recess-offset-dim text,
+.floorplan-canvas .recess-preview text {
+  stroke-width: var(--floorplan-label-stroke, 4.4px) !important;
+}
+
+.floorplan-canvas .technical-dimensions.compact text,
+.floorplan-canvas .grid text {
+  font-size: var(--floorplan-small-text-size, 12.8px) !important;
+}
+
+.floorplan-canvas .vertex-handle,
+.floorplan-canvas .rect-corner-marker {
+  r: var(--floorplan-handle-radius, 10px) !important;
+  stroke-width: var(--floorplan-handle-stroke, 2px) !important;
+  vector-effect: non-scaling-stroke;
+}
+
+.floorplan-canvas .room-anchor circle {
+  r: var(--floorplan-anchor-radius, 2.4px) !important;
+  stroke-width: var(--floorplan-handle-stroke, 2px) !important;
+  vector-effect: non-scaling-stroke;
+}
+
+.floorplan-canvas line,
+.floorplan-canvas polyline,
+.floorplan-canvas polygon,
+.floorplan-canvas path,
+.floorplan-canvas rect {
+  vector-effect: non-scaling-stroke;
+}
+
+
+/* strom update 035: Aussparung Abstand-Richtung */
+.recess-floating .recess-direction-toggle {
+  width: 100%;
+  min-height: 32px;
+  border: 1px solid #cbd5e1;
+  border-radius: 10px;
+  background: #f8fafc;
+  color: #1e3a8a;
+  font-weight: 800;
+  cursor: pointer;
+}
+.recess-floating .recess-direction-toggle:hover {
+  background: #eef4ff;
+}
+
+/* strom update 036: sidebar collapse, group selection, distance tool, layer placeholder */
+.app-shell.sidebar-normal { grid-template-columns: 280px minmax(0, 1fr); }
+.app-shell.sidebar-compact { grid-template-columns: 74px minmax(0, 1fr); }
+.app-shell.sidebar-rail { grid-template-columns: 10px minmax(0, 1fr); gap: 0.45rem; }
+.sidebar { position: relative; transition: width 0.18s ease, padding 0.18s ease; }
+.sidebar.sidebar-compact { padding: 0.72rem 0.48rem; align-items: center; gap: 0.75rem; }
+.sidebar.sidebar-rail { padding: 0; border-radius: 14px; box-shadow: none; background: rgba(255,255,255,0.88); min-width: 10px; }
+.sidebar-collapse-controls { position: absolute; top: 50%; right: -13px; transform: translateY(-50%); z-index: 50; display: grid; gap: 0.28rem; }
+.sidebar-collapse-controls button { width: 24px; height: 42px; padding: 0; display: grid; place-items: center; border-radius: 999px; border: 1px solid #cbd5e1; background: rgba(255,255,255,0.98); color: #1e3a8a; box-shadow: 0 8px 20px rgba(15,23,42,0.12); font-size: 1.15rem; line-height: 1; }
+.sidebar.sidebar-rail .sidebar-collapse-controls { right: -18px; }
+.sidebar.sidebar-rail .sidebar-collapse-controls button { width: 26px; height: 48px; }
+.nav-list.compact { width: 100%; display: grid; justify-items: center; gap: 0.55rem; }
+.nav-list.compact button { width: 44px; height: 44px; padding: 0; display: grid; place-items: center; border-radius: 14px; text-align: center; }
+.nav-list button { display: flex; align-items: center; gap: 0.55rem; }
+.nav-icon { width: 1.3rem; min-width: 1.3rem; display: inline-grid; place-items: center; font-size: 1.08rem; line-height: 1; }
+.nav-label { white-space: nowrap; }
+.sidebar.sidebar-compact .nav-icon { width: auto; min-width: unset; font-size: 1.22rem; }
+@media (max-width: 1100px) {
+  .app-shell.sidebar-normal,
+  .app-shell.sidebar-compact,
+  .app-shell.sidebar-rail { grid-template-columns: 1fr; }
+  .sidebar.sidebar-rail { min-height: 10px; }
+}
+
+.canvas-layer-menu { position: absolute; top: 30px; right: 12px; z-index: 44; pointer-events: auto; }
+.canvas-layer-menu button { height: 32px; padding: 0 0.7rem; border-radius: 999px; border: 1px solid rgba(148,163,184,0.46); background: rgba(248,250,252,0.96); color: #1e3a8a; font-size: 0.76rem; font-weight: 900; box-shadow: 0 10px 22px rgba(15,23,42,0.10); }
+
+.distance-floating-panel { position: absolute; z-index: 46; top: 72px; right: 18px; width: 250px; display: grid; gap: 0.55rem; padding: 0.75rem; border: 1px solid #bfdbfe; border-radius: 16px; background: rgba(255,255,255,0.97); box-shadow: 0 18px 44px rgba(15,23,42,0.18); }
+.distance-floating-panel .floating-header { display: flex; align-items: center; justify-content: space-between; gap: 0.7rem; }
+.distance-floating-panel .floating-header button { width: 28px; height: 28px; padding: 0; border-radius: 999px; background: #e8eef8; color: #1e3a8a; }
+.distance-floating-panel p { margin: 0; color: #64748b; font-size: 0.78rem; line-height: 1.3; font-weight: 700; }
+.distance-floating-panel label { min-width: 0; }
+
+.distance-edge-pickers { pointer-events: all; }
+.distance-edge-picker { stroke: transparent; stroke-width: 14; stroke-linecap: round; fill: none; cursor: crosshair; pointer-events: stroke; vector-effect: non-scaling-stroke; }
+.distance-edge-picker:hover { stroke: rgba(14,165,233,0.55); stroke-width: 8; }
+.distance-edge-picker.first { stroke: rgba(245,158,11,0.88); stroke-width: 7; }
+.distance-edge-picker.paired { stroke: rgba(37,99,235,0.86); stroke-width: 7; }
+.floorplan-canvas .room-group.selected .distance-edge-picker { pointer-events: stroke; }
+
+.canvas-toolbox button[aria-label="Alle Elemente auswaehlen"],
+.canvas-toolbox button[aria-label="Abstand einstellen"] { font-size: 0.95rem; }
+
+/* strom update 039: Aussenwand-Werkzeug */
+.floorplan-canvas .outer-wall-room .room {
+  fill: rgba(15, 23, 42, 0.035) !important;
+  stroke: rgba(15, 23, 42, 0.78) !important;
+  stroke-width: 1.15 !important;
+}
+.floorplan-canvas .outer-wall-room .wall-outline {
+  stroke: rgba(15, 23, 42, 0.88) !important;
+  stroke-width: 1.35 !important;
+}
+.floorplan-canvas .outer-wall-room.selected .room {
+  fill: rgba(37, 99, 235, 0.08) !important;
+  stroke: #1d4ed8 !important;
+}
+.floorplan-canvas .outer-wall-room.selected .wall-outline {
+  stroke: #1d4ed8 !important;
+}
+.floorplan-canvas .outer-wall-draft rect {
+  fill: rgba(15, 23, 42, 0.035) !important;
+  stroke: #1d4ed8 !important;
+  stroke-width: 1.35 !important;
+  stroke-dasharray: 9 6 !important;
+}
+.floorplan-canvas .outer-wall-dimensions line:not(.hit) {
+  stroke: #0f172a !important;
+  stroke-width: 0.75 !important;
+  opacity: 0.55 !important;
+}
+.floorplan-canvas .outer-wall-dimensions line.extension,
+.floorplan-canvas .outer-wall-dimensions line.tick {
+  opacity: 0.32 !important;
+}
+.floorplan-canvas .outer-wall-dimensions text {
+  fill: #0f172a !important;
+  opacity: 0.78 !important;
+  font-weight: 850 !important;
+}
+
+/* strom update 042: dynamic technical text and layer management */
+.layer-room-wrap.ghost-layer .room,
+.layer-room-wrap.ghost-layer .wall-outline,
+.layer-room-wrap.ghost-layer .outer-wall-fill,
+.layer-room-wrap.ghost-layer .outer-wall-stroke {
+  opacity: 0.6;
+}
+.layer-room-wrap.ghost-layer { pointer-events: none; }
+.canvas-layer-menu { min-width: 0; }
+.canvas-layer-menu > button { max-width: 220px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.layer-menu-panel {
+  position: absolute;
+  top: 40px;
+  right: 0;
+  width: 290px;
+  display: grid;
+  gap: 0.55rem;
+  padding: 0.7rem;
+  border: 1px solid rgba(148,163,184,0.48);
+  border-radius: 18px;
+  background: rgba(255,255,255,0.98);
+  box-shadow: 0 22px 52px rgba(15,23,42,0.20);
+  backdrop-filter: blur(10px);
+  color: #0f172a;
+}
+.layer-menu-header { display: flex; align-items: center; justify-content: space-between; gap: 0.7rem; color: #334155; font-size: 0.78rem; }
+.layer-menu-header strong { font-size: 0.95rem; color: #0f172a; }
+.canvas-layer-menu .layer-add,
+.canvas-layer-menu .layer-delete {
+  width: 100%;
+  height: 34px;
+  border-radius: 12px;
+  font-size: 0.78rem;
+  justify-content: center;
+}
+.layer-list { display: grid; gap: 0.35rem; max-height: 260px; overflow: auto; }
+.layer-row {
+  display: grid;
+  grid-template-columns: 26px 30px 1fr 28px;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.36rem;
+  border: 1px solid #e2e8f0;
+  border-radius: 13px;
+  background: #f8fafc;
+}
+.layer-row.active { border-color: #2563eb; background: #eff6ff; box-shadow: inset 3px 0 0 #2563eb; }
+.canvas-layer-menu .layer-row button {
+  height: 28px;
+  width: 28px;
+  padding: 0;
+  border-radius: 9px;
+  box-shadow: none;
+  background: #e8eef8;
+}
+.layer-row input {
+  min-width: 0;
+  border: 1px solid transparent;
+  background: transparent;
+  padding: 0.25rem 0.3rem;
+  border-radius: 8px;
+  font-size: 0.82rem;
+  font-weight: 850;
+  color: #1e293b;
+}
+.layer-row input:focus { border-color: #93c5fd; background: #fff; outline: none; }
+.layer-grip { cursor: grab; color: #64748b; }
+
+/* strom update 043: layer menu corrections, blue active layer, compact dimension text, title drag, full height canvas */
+.layer-row { cursor: default; }
+.layer-row input { user-select: text; cursor: text; }
+.layer-grip { cursor: grab !important; touch-action: none; }
+.layer-grip:active { cursor: grabbing !important; }
+.layer-delete-backdrop {
+  position: absolute !important;
+  inset: 0 !important;
+  z-index: 70 !important;
+}
+.layer-delete-modal .warning-text {
+  color: #b45309;
+  font-weight: 900;
+}
+
+.floorplan-canvas .layer-room-wrap:not(.ghost-layer) .room:not(.hit),
+.floorplan-canvas .layer-room-wrap:not(.ghost-layer) .wall-outline,
+.floorplan-canvas .layer-room-wrap:not(.ghost-layer) .selected-edit-line,
+.floorplan-canvas .layer-room-wrap:not(.ghost-layer) .outer-wall-room .room,
+.floorplan-canvas .layer-room-wrap:not(.ghost-layer) .outer-wall-room .wall-outline {
+  stroke: #2563eb !important;
+}
+.floorplan-canvas .layer-room-wrap:not(.ghost-layer) .room-label,
+.floorplan-canvas .layer-room-wrap:not(.ghost-layer) .room-measure,
+.floorplan-canvas .layer-room-wrap:not(.ghost-layer) .technical-dimensions text,
+.floorplan-canvas .layer-room-wrap:not(.ghost-layer) .outer-wall-dimensions text {
+  fill: #1d4ed8 !important;
+}
+.floorplan-canvas .layer-room-wrap:not(.ghost-layer) .technical-dimensions line:not(.hit),
+.floorplan-canvas .layer-room-wrap:not(.ghost-layer) .outer-wall-dimensions line:not(.hit) {
+  stroke: #2563eb !important;
+}
+.floorplan-canvas .layer-room-wrap.ghost-layer .room,
+.floorplan-canvas .layer-room-wrap.ghost-layer .wall-outline,
+.floorplan-canvas .layer-room-wrap.ghost-layer .room-label,
+.floorplan-canvas .layer-room-wrap.ghost-layer .room-measure,
+.floorplan-canvas .layer-room-wrap.ghost-layer .technical-dimensions line:not(.hit),
+.floorplan-canvas .layer-room-wrap.ghost-layer .technical-dimensions text,
+.floorplan-canvas .layer-room-wrap.ghost-layer .outer-wall-dimensions line,
+.floorplan-canvas .layer-room-wrap.ghost-layer .outer-wall-dimensions text {
+  color: #64748b !important;
+  fill: #64748b !important;
+  stroke: #64748b !important;
+}
+
+.floorplan-canvas .technical-dimensions text {
+  font-size: 12px !important;
+}
+.floorplan-canvas .technical-dimensions .dimension-line-x-parts text,
+.floorplan-canvas .technical-dimensions .dimension-line-y-parts text {
+  font-weight: 400 !important;
+}
+.floorplan-canvas .technical-dimensions .dimension-line-x-total text,
+.floorplan-canvas .technical-dimensions .dimension-line-y-total text {
+  font-weight: 900 !important;
+}
+
+.floorplan-canvas .room-title {
+  cursor: move;
+  pointer-events: all;
+}
+.floorplan-canvas .room-title .room-label,
+.floorplan-canvas .room-title .room-measure {
+  pointer-events: all !important;
+  user-select: none;
+}
+
+.app-shell {
+  height: 100vh !important;
+  min-height: 100vh !important;
+  overflow: hidden !important;
+}
+.main-area {
+  min-height: 0 !important;
+  overflow: hidden !important;
+}
+.workspace {
+  min-height: 0 !important;
+  height: 100% !important;
+  overflow: hidden !important;
+}
+.floorplan-layout {
+  min-height: 0 !important;
+  height: 100% !important;
+}
+.floorplan-layout > .canvas-card {
+  min-height: 0 !important;
+  height: 100% !important;
+}
+.canvas-card {
+  min-height: 0 !important;
+}
+.canvas-scroll {
+  min-height: 0 !important;
+  height: 100% !important;
+}
+
+
+/* strom update 044: layer panel non-blocking, effective visibility eyes, correct ghost preview/order styling */
+.canvas-layer-menu {
+  pointer-events: none !important;
+}
+.canvas-layer-menu > button,
+.layer-menu-panel,
+.layer-menu-panel * {
+  pointer-events: auto !important;
+}
+.layer-row input {
+  -webkit-user-drag: none;
+}
+.layer-row.effectively-hidden {
+  opacity: 0.54;
+}
+.layer-row.preview-visible:not(.active) {
+  background: #f8fafc;
+  border-color: #cbd5e1;
+}
+.canvas-layer-menu .layer-eye.visible {
+  color: #1d4ed8;
+}
+.canvas-layer-menu .layer-eye.hidden {
+  color: #94a3b8;
+}
+.floorplan-canvas .layer-room-wrap.ghost-layer {
+  opacity: 0.5 !important;
+  filter: grayscale(1);
+  pointer-events: none !important;
+}
+.floorplan-canvas .layer-room-wrap.ghost-layer .room,
+.floorplan-canvas .layer-room-wrap.ghost-layer .wall-outline,
+.floorplan-canvas .layer-room-wrap.ghost-layer .selected-edit-line,
+.floorplan-canvas .layer-room-wrap.ghost-layer .outer-wall-room .room,
+.floorplan-canvas .layer-room-wrap.ghost-layer .outer-wall-room .wall-outline,
+.floorplan-canvas .layer-room-wrap.ghost-layer .outer-wall-dimensions line:not(.hit),
+.floorplan-canvas .layer-room-wrap.ghost-layer .technical-dimensions line:not(.hit) {
+  stroke: #64748b !important;
+}
+.floorplan-canvas .layer-room-wrap.ghost-layer .room,
+.floorplan-canvas .layer-room-wrap.ghost-layer .outer-wall-room .room {
+  fill: rgba(148, 163, 184, 0.16) !important;
+}
+.floorplan-canvas .layer-room-wrap.ghost-layer .room-label,
+.floorplan-canvas .layer-room-wrap.ghost-layer .room-measure,
+.floorplan-canvas .layer-room-wrap.ghost-layer .technical-dimensions text,
+.floorplan-canvas .layer-room-wrap.ghost-layer .outer-wall-dimensions text {
+  fill: #64748b !important;
+}
+.floorplan-canvas .room-title {
+  cursor: move !important;
+  pointer-events: all !important;
+}
+.floorplan-canvas .room-title text {
+  pointer-events: all !important;
+}
+
+
+/* strom update 045: layer panel cleanup, ghost contour-only layers, fixed title line spacing, negative workspace */
+.layer-menu-panel {
+  width: 236px !important;
+  gap: 0.45rem !important;
+  padding: 0.55rem !important;
+}
+.layer-menu-header { display: none !important; }
+.canvas-layer-menu .layer-add,
+.canvas-layer-menu .layer-delete {
+  width: 34px !important;
+  height: 34px !important;
+  border-radius: 999px !important;
+  padding: 0 !important;
+  display: inline-grid !important;
+  place-items: center !important;
+  font-size: 1rem !important;
+}
+.layer-menu-actions {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 0.55rem;
+  padding-top: 0.15rem;
+}
+.layer-list { max-height: 300px !important; }
+.layer-row {
+  grid-template-columns: 28px minmax(0, 1fr) 28px !important;
+  cursor: pointer;
+}
+.layer-row .layer-select { display: none !important; }
+.layer-row input { cursor: text; }
+.layer-grip { cursor: grab !important; }
+.layer-grip:active { cursor: grabbing !important; }
+
+.floorplan-canvas .layer-room-wrap.ghost-layer {
+  opacity: 0.5 !important;
+  filter: grayscale(1) !important;
+  pointer-events: none !important;
+}
+.floorplan-canvas .layer-room-wrap.ghost-layer .room,
+.floorplan-canvas .layer-room-wrap.ghost-layer .outer-wall-room .room,
+.floorplan-canvas .layer-room-wrap.ghost-layer .outer-wall-draft rect {
+  fill: transparent !important;
+}
+.floorplan-canvas .layer-room-wrap.ghost-layer .wall-outline,
+.floorplan-canvas .layer-room-wrap.ghost-layer .room,
+.floorplan-canvas .layer-room-wrap.ghost-layer .outer-wall-room .room,
+.floorplan-canvas .layer-room-wrap.ghost-layer .outer-wall-room .wall-outline,
+.floorplan-canvas .layer-room-wrap.ghost-layer .technical-dimensions line:not(.hit),
+.floorplan-canvas .layer-room-wrap.ghost-layer .outer-wall-dimensions line:not(.hit) {
+  stroke: #64748b !important;
+}
+.floorplan-canvas .layer-room-wrap.ghost-layer .room-label,
+.floorplan-canvas .layer-room-wrap.ghost-layer .room-measure,
+.floorplan-canvas .layer-room-wrap.ghost-layer .technical-dimensions text,
+.floorplan-canvas .layer-room-wrap.ghost-layer .outer-wall-dimensions text {
+  fill: #64748b !important;
+}
+.floorplan-canvas .room-title .room-label,
+.floorplan-canvas .room-title .room-measure {
+  dominant-baseline: middle;
+}
+
+
+/* strom update 046: ghost/neighbor layers are contour-only, no visible fill */
+.floorplan-canvas .layer-room-wrap.ghost-layer,
+.floorplan-canvas .layer-room-wrap.ghost-layer .room-group,
+.floorplan-canvas .layer-room-wrap.ghost-layer .ghost-room-group {
+  pointer-events: none !important;
+}
+.floorplan-canvas .layer-room-wrap.ghost-layer .room-group.ghost-room-group > polygon.room,
+.floorplan-canvas .layer-room-wrap.ghost-layer .room-group.ghost-room-group > .room,
+.floorplan-canvas .layer-room-wrap.ghost-layer polygon.room,
+.floorplan-canvas .layer-room-wrap.ghost-layer .outer-wall-room polygon.room {
+  fill: none !important;
+  fill-opacity: 0 !important;
+}
+.floorplan-canvas .layer-room-wrap.ghost-layer .wall-outline,
+.floorplan-canvas .layer-room-wrap.ghost-layer .room-group.ghost-room-group > polyline.wall-outline,
+.floorplan-canvas .layer-room-wrap.ghost-layer .selected-edit-line,
+.floorplan-canvas .layer-room-wrap.ghost-layer .outer-wall-room .wall-outline {
+  fill: none !important;
+  stroke: #64748b !important;
+  stroke-opacity: 1 !important;
+}
+.floorplan-canvas .layer-room-wrap.ghost-layer .room-anchor,
+.floorplan-canvas .layer-room-wrap.ghost-layer .rect-selection,
+.floorplan-canvas .layer-room-wrap.ghost-layer .polygon-edge-handles,
+.floorplan-canvas .layer-room-wrap.ghost-layer .vertex-handle,
+.floorplan-canvas .layer-room-wrap.ghost-layer .rect-corner-marker {
+  display: none !important;
+}
+
+/* strom update 047: user/admin/object shell refinements outside Blueprint */
+.session-panel-head, .admin-head { display: flex; align-items: center; justify-content: space-between; gap: 0.75rem; }
+.session-panel-head h2, .admin-head h1 { margin: 0; }
+.user-modal { max-width: 430px; }
+.user-modal label { display: grid; gap: 0.35rem; margin-top: 0.7rem; }
+.admin-shell { align-items: stretch; }
+.admin-card { width: min(920px, calc(100vw - 2rem)); }
+.admin-user-list { display: grid; gap: 0.6rem; margin-top: 1rem; }
+.admin-user-row { display: grid; grid-template-columns: minmax(220px, 1fr) auto auto; align-items: end; gap: 0.85rem; padding: 0.75rem; border: 1px solid #dbe4ef; border-radius: 16px; background: #f8fafc; }
+.admin-user-row label { display: grid; gap: 0.3rem; margin: 0; }
+.admin-user-row input[type="text"], .admin-user-row input:not([type]) { width: 100%; }
+.admin-user-row-admin { background: #eef6ff; border-color: #bfdbfe; }
+.admin-badge { display: inline-flex; margin-top: 0.35rem; padding: 0.1rem 0.45rem; border-radius: 999px; background: #dbeafe; color: #1e3a8a; font-size: 0.72rem; font-weight: 800; }
+.check-line { display: inline-flex !important; grid-auto-flow: column; align-items: center; gap: 0.35rem; white-space: nowrap; font-size: 0.86rem; color: #334155; }
+.check-line input { width: auto; }
+.choice-list.compact button.foreign-object { background: #fef3c7; color: #92400e; border: 1px solid #f59e0b; display: grid; gap: 0.1rem; }
+.choice-list.compact button.foreign-object.active { background: #f59e0b; color: #fff; }
+.choice-list.compact button small { font-size: 0.68rem; opacity: 0.78; }
+.object-actions { margin-top: 0.65rem; }
+.ghost-danger { background: #fee2e2; color: #991b1b; }
+.ghost-danger:disabled { opacity: 0.45; cursor: not-allowed; }
+.sidebar { min-height: calc(100vh - 2rem); }
+.object-panel { display: flex; flex-direction: column; }
+.sidebar-logout { margin-top: auto; width: 100%; background: #475569; color: #fff; }
+.warning-text { color: #991b1b; font-weight: 750; }
+@media (max-width: 820px) {
+  .admin-user-row { grid-template-columns: 1fr; align-items: stretch; }
+}
+
+/* strom update 048: session/admin user management refinements */
+.login-name-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 0.7rem;
+  align-items: end;
+  margin-bottom: 0.9rem;
+}
+.session-action-row {
+  justify-content: flex-start;
+}
+.admin-settings-box {
+  display: grid;
+  gap: 0.7rem;
+  margin: 0.8rem 0 1rem;
+  padding: 0.9rem;
+  border: 1px solid #dbe4ef;
+  border-radius: 18px;
+  background: rgba(248, 250, 252, 0.9);
+}
+.debug-settings-line {
+  display: grid;
+  grid-template-columns: auto minmax(10rem, 1fr) minmax(9rem, auto);
+  gap: 0.65rem;
+  align-items: center;
+}
+.debug-settings-line input,
+.debug-settings-line select {
+  min-width: 0;
+}
+.admin-user-row .danger {
+  justify-self: end;
+}
+@media (max-width: 760px) {
+  .login-name-row,
+  .debug-settings-line {
+    grid-template-columns: 1fr;
+  }
+}
+
+
+/* strom update 049: logout at sidebar bottom and password-first typed login */
+.sidebar { display: flex; flex-direction: column; }
+.global-sidebar-logout {
+  margin-top: auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.45rem;
+  min-height: 38px;
+  border-radius: 14px;
+  font-weight: 800;
+  letter-spacing: 0.01em;
+}
+.sidebar-compact .global-sidebar-logout {
+  width: 42px;
+  height: 42px;
+  padding: 0;
+  border-radius: 999px;
+  align-self: center;
+}
+.sidebar-normal .global-sidebar-logout { width: 100%; }
+
+
+/* Milestone 2 / 063: Wanddetail 3D orbit wheel pan shading */
+.nav-list button:disabled {
+  opacity: 0.42;
+  cursor: not-allowed;
+  filter: grayscale(0.55);
+}
+.wall-detail-layout .canvas-toolbox {
+  width: fit-content;
+}
+.wall-detail-card {
+  isolation: isolate;
+}
+.wall-rotation-pill,
+.wall-tilt-pill,
+.wall-height-pill {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.18rem;
+  min-width: 66px;
+  min-height: 34px;
+  padding: 0 0.55rem;
+  border-radius: 999px;
+  background: rgba(219, 234, 254, 0.72);
+  border: 1px solid rgba(37, 99, 235, 0.18);
+  color: #1e3a8a;
+  font-size: 0.78rem;
+  font-weight: 900;
+  letter-spacing: 0.01em;
+}
+.wall-tilt-pill {
+  min-width: 86px;
+}
+.wall-height-pill {
+  min-width: 88px;
+}
+.wall-rotation-pill input,
+.wall-tilt-pill input,
+.wall-height-pill input {
+  width: 42px;
+  border: 0;
+  outline: 0;
+  padding: 0;
+  margin: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: right;
+}
+.wall-rotation-pill input::-webkit-outer-spin-button,
+.wall-rotation-pill input::-webkit-inner-spin-button,
+.wall-tilt-pill input::-webkit-outer-spin-button,
+.wall-tilt-pill input::-webkit-inner-spin-button,
+.wall-height-pill input::-webkit-outer-spin-button,
+.wall-height-pill input::-webkit-inner-spin-button {
+  margin: 0;
+}
+.wall-properties-topbar .properties-inline-group.muted strong {
+  color: #64748b;
+  font-weight: 800;
+}
+.wall-properties-topbar .properties-inline-group.wide {
+  min-width: 280px;
+}
+.wall-layer-menu .layer-mode-note {
+  margin: 0.5rem 0 0;
+  max-width: 260px;
+  color: #64748b;
+  font-size: 0.76rem;
+  font-weight: 750;
+  line-height: 1.25;
+}
+.wall-detail-canvas {
+  perspective: 1600px;
+}
+.wall-detail-stage {
+  transform-box: fill-box;
+  transform-origin: 0 0;
+  transition: opacity 0.2s ease;
+}
+.wall-rotation-pivot {
+  pointer-events: none;
+}
+.wall-rotation-pivot circle {
+  fill: rgba(37, 99, 235, 0.12);
+  stroke: #2563eb;
+  stroke-width: 2;
+}
+.wall-rotation-pivot line {
+  stroke: #2563eb;
+  stroke-width: 2;
+  stroke-linecap: round;
+}
+.wall-detail-canvas {
+  cursor: default;
+}
+.wall-detail-canvas.rotate-mode,
+.wall-detail-canvas.rotate-mode .wall-detail-face,
+.wall-detail-canvas.rotate-mode .wall-detail-floor {
+  cursor: grab;
+}
+.wall-detail-canvas .wall-detail-room {
+  transition: opacity 0.6s ease, transform 0.6s ease;
+  transform-box: fill-box;
+  transform-origin: center;
+}
+.wall-detail-layout.wall-start .wall-detail-room {
+  opacity: 0.88;
+}
+.wall-detail-layout.wall-ready .wall-detail-room {
+  opacity: 1;
+}
+.wall-detail-canvas .wall-detail-floor {
+  fill: rgba(248, 250, 252, 0.7);
+  stroke: rgba(71, 85, 105, 0.36);
+  stroke-width: 1.15;
+  cursor: pointer;
+  transition: fill 0.25s ease, stroke 0.25s ease, opacity 0.6s ease;
+}
+.wall-detail-layout.wall-start .wall-detail-floor {
+  opacity: 0.95;
+}
+.wall-detail-layout.wall-ready .wall-detail-floor {
+  opacity: 1;
+}
+.wall-detail-canvas .wall-detail-room.selected .wall-detail-floor {
+  fill: rgba(219, 234, 254, 0.58);
+  stroke: rgba(37, 99, 235, 0.75);
+}
+.wall-detail-canvas .wall-detail-face {
+  --wall-axis-x: 1;
+  --wall-axis-y: 0;
+  --wall-origin-x: 0px;
+  --wall-origin-y: 0px;
+  fill: rgba(255, 255, 255, 0.76);
+  stroke: rgba(30, 58, 138, 0.34);
+  stroke-width: 1.75;
+  stroke-linejoin: round;
+  stroke-linecap: round;
+  cursor: pointer;
+  transform-box: view-box;
+  transform-origin: var(--wall-origin-x) var(--wall-origin-y);
+  backface-visibility: hidden;
+  transition:
+    transform 0.6s cubic-bezier(.2,.85,.2,1),
+    stroke 0.25s ease,
+    stroke-width 0.25s ease,
+    fill 0.25s ease,
+    opacity 0.6s ease;
+}
+.wall-detail-layout.wall-start .wall-detail-face,
+.wall-detail-layout.wall-ready .wall-detail-face {
+  opacity: 1;
+  transform: none;
+}
+.wall-detail-canvas .wall-detail-face:hover,
+.wall-detail-canvas .wall-detail-face.selected {
+  fill: rgba(255, 255, 255, 0.80);
+  stroke: #2563eb;
+  stroke-width: 3.0;
+}
+.wall-detail-canvas .outer-wall-face-3d {
+  fill: rgba(255, 255, 255, 0.80);
+  stroke: rgba(15, 23, 42, 0.40);
+  stroke-width: 1.8;
+  stroke-dasharray: none;
+}
+.wall-detail-canvas .outer-wall-face-3d:hover,
+.wall-detail-canvas .outer-wall-face-3d.selected {
+  fill: rgba(255, 255, 255, 0.82);
+  stroke: #1d4ed8;
+  stroke-width: 3;
+}
+.wall-ceiling-gap {
+  fill: rgba(255, 255, 255, 0.74);
+  stroke: rgba(30, 58, 138, 0.18);
+  stroke-width: 1.15;
+  stroke-linejoin: round;
+  pointer-events: none;
+}
+.wall-detail-canvas .wall-detail-outline {
+  fill: none;
+  stroke: rgba(30, 58, 138, 0.16);
+  stroke-width: 0.95;
+  pointer-events: none;
+}
+.wall-detail-canvas .wall-detail-room-label {
+  fill: #334155;
+  font-weight: 900;
+  paint-order: stroke;
+  stroke: rgba(255, 255, 255, 0.92);
+  stroke-width: var(--floorplan-label-stroke, 4.4px);
+  pointer-events: none;
+}
+.wall-detail-canvas .wall-detail-floor-label {
+  transform-box: view-box;
+  transform-origin: center;
+  font-size: var(--floorplan-text-size, 14px);
+  dominant-baseline: middle;
+  opacity: 0.92;
+}
+.wall-detail-canvas .outer-wall-room .wall-detail-floor {
+  fill: none;
+  stroke: rgba(15, 23, 42, 0.55);
+  stroke-width: 2;
+  stroke-dasharray: 8 7;
+}
+.wall-front-overlay {
+  position: absolute;
+  z-index: 60;
+  left: 420px;
+  top: 78px;
+  width: min(560px, calc(100% - 44px));
+  border: 1px solid rgba(37, 99, 235, 0.25);
+  border-radius: 20px;
+  background: rgba(255, 255, 255, 0.96);
+  box-shadow: 0 24px 55px rgba(15, 23, 42, 0.18);
+  padding: 0.8rem;
+  backdrop-filter: blur(10px);
+  animation: wall-front-move-flatten-in 0.6s cubic-bezier(.2,.85,.2,1) both;
+  transform-origin: 50% 50%;
+  will-change: transform, opacity;
+}
+.wall-front-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 0.65rem;
+  cursor: grab;
+  user-select: none;
+}
+.wall-front-header:active { cursor: grabbing; }
+.wall-front-header strong {
+  display: block;
+  color: #0f172a;
+  font-size: 1.02rem;
+}
+.wall-front-header button {
+  width: 34px;
+  height: 34px;
+  border-radius: 999px;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  font-size: 1.35rem;
+  line-height: 1;
+}
+.wall-front-svg {
+  display: block;
+  width: 100%;
+  height: 260px;
+  border-radius: 14px;
+  background: linear-gradient(180deg, rgba(248,250,252,0.96), rgba(241,245,249,0.78));
+}
+.wall-front-svg rect,
+.wall-front-svg line {
+  fill: none;
+  stroke: #1d4ed8;
+  stroke-width: 2.2;
+}
+.wall-front-svg line {
+  stroke: rgba(30, 64, 175, 0.45);
+  stroke-dasharray: 8 7;
+}
+.wall-front-meta {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.6rem;
+  margin-top: 0.6rem;
+  color: #475569;
+  font-size: 0.84rem;
+  font-weight: 850;
+}
+@keyframes wall-front-move-flatten-in {
+  from {
+    opacity: 0.92;
+    transform:
+      translate(var(--wall-start-dx, 0px), var(--wall-start-dy, 0px))
+      rotate(var(--wall-start-rotate, 0deg))
+      perspective(1300px)
+      rotateX(88deg)
+      scale(var(--wall-start-scale, 0.12), 0.025);
+  }
+  62% {
+    opacity: 1;
+    transform:
+      translate(calc(var(--wall-start-dx, 0px) * 0.12), calc(var(--wall-start-dy, 0px) * 0.12))
+      rotate(calc(var(--wall-start-rotate, 0deg) * 0.15))
+      perspective(1300px)
+      rotateX(18deg)
+      scale(0.92, 0.82);
+  }
+  to {
+    opacity: 1;
+    transform:
+      translate(0, 0)
+      rotate(0deg)
+      perspective(1300px)
+      rotateX(0deg)
+      scale(1, 1);
+  }
+}
+
+.wall-front-overlay {
+  min-width: 360px;
+  max-width: none;
+}
+.wall-front-main {
+  fill: rgba(255, 255, 255, 0.46);
+}
+.wall-front-resize-handle {
+  position: absolute;
+  right: 8px;
+  bottom: 8px;
+  width: 18px;
+  height: 18px;
+  border-right: 3px solid rgba(37, 99, 235, 0.45);
+  border-bottom: 3px solid rgba(37, 99, 235, 0.45);
+  border-radius: 3px;
+  cursor: nwse-resize;
+}
+.wall-front-object {
+  stroke: #1d4ed8;
+  stroke-width: 2;
+  fill: rgba(219, 234, 254, 0.74);
+  pointer-events: none;
+}
+.wall-front-object path,
+.wall-front-object line {
+  stroke: #1d4ed8;
+  fill: none;
+  stroke-width: 1.6;
+  stroke-dasharray: none;
+}
+.wall-front-object.socket {
+  fill: rgba(255, 255, 255, 0.88);
+}
+.wall-object-library {
+  position: absolute;
+  z-index: 62;
+  width: 210px;
+  border: 1px solid rgba(37, 99, 235, 0.24);
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.96);
+  box-shadow: 0 20px 45px rgba(15, 23, 42, 0.17);
+  padding: 0.75rem;
+  backdrop-filter: blur(10px);
+}
+.wall-object-library-header {
+  font-size: 0.88rem;
+  font-weight: 950;
+  color: #0f172a;
+  cursor: grab;
+  user-select: none;
+  margin-bottom: 0.65rem;
+}
+.wall-object-library-header:active { cursor: grabbing; }
+.wall-object-library-items {
+  display: grid;
+  gap: 0.45rem;
+}
+.wall-object-library-items button {
+  width: 100%;
+  justify-content: flex-start;
+  gap: 0.55rem;
+  border-radius: 12px;
+  background: #f8fafc;
+  border-color: rgba(37, 99, 235, 0.18);
+  font-weight: 850;
+  cursor: grab;
+}
+.wall-object-library-items button:active { cursor: grabbing; }
+.wall-object-library-items span {
+  display: inline-flex;
+  width: 24px;
+  justify-content: center;
+  color: #2563eb;
+  font-weight: 950;
+}
+.wall-object-library p {
+  margin: 0.65rem 0 0;
+  color: #64748b;
+  font-size: 0.76rem;
+  font-weight: 750;
+  line-height: 1.25;
+}
+.wall-detail-canvas .wall-detail-face-3d {
+  pointer-events: visiblePainted;
+}
+.wall-detail-canvas .wall-detail-floor-label {
+  opacity: 0.84;
+}
+
+/* Milestone 2 / 070: Wanddetail paired walls + persistent wall objects */
+.wall-detail-canvas .wall-detail-hit-face {
+  fill: rgba(255,255,255,0.001);
+  stroke: none;
+  pointer-events: all;
+  cursor: pointer;
+}
+.wall-detail-canvas .wall-detail-placed-object {
+  stroke: #1d4ed8;
+  stroke-width: 1.8;
+  fill: rgba(219, 234, 254, 0.82);
+  pointer-events: visiblePainted;
+}
+.wall-detail-canvas .wall-detail-opening-object {
+  fill: rgba(255, 255, 255, 0.88);
+  stroke: rgba(29, 78, 216, 0.84);
+}
+.wall-detail-canvas .wall-detail-placed-socket {
+  fill: rgba(255, 255, 255, 0.92);
+}
+.wall-front-object {
+  pointer-events: all;
+  cursor: move;
+}
+.wall-front-object.selected > rect,
+.wall-front-object.selected > circle {
+  stroke: #2563eb;
+  stroke-width: 3;
+  filter: drop-shadow(0 0 4px rgba(37,99,235,0.25));
+}
+.wall-front-object-resize {
+  fill: #2563eb;
+  stroke: white;
+  stroke-width: 1.5;
+  cursor: nwse-resize;
+  pointer-events: all;
+}
+.wall-front-object-dimensions line {
+  stroke: rgba(30,64,175,0.72);
+  stroke-width: 1.1;
+  stroke-dasharray: 4 4;
+}
+.wall-front-object-dimensions text {
+  fill: #1e3a8a;
+  stroke: rgba(255,255,255,0.9);
+  stroke-width: 3;
+  paint-order: stroke;
+  font-size: 10px;
+  font-weight: 850;
+  pointer-events: none;
+}
+.wall-front-delete-object {
+  min-height: 28px;
+  padding: 0 0.55rem;
+  border-radius: 999px;
+  font-size: 0.76rem;
+  font-weight: 850;
+}
+
+
+/* Milestone 2 / 069: Wanddetail front dimensions, library visibility and openings */
+.wall-detail-canvas .wall-detail-opening-outline {
+  fill: rgba(255, 255, 255, 0.18);
+  stroke: rgba(29, 78, 216, 0.72);
+  stroke-width: 1.8;
+  stroke-dasharray: 5 4;
+  pointer-events: visiblePainted;
+}
+.wall-front-object {
+  pointer-events: all;
+  cursor: grab;
+}
+.wall-front-object:active {
+  cursor: grabbing;
+}
+.wall-front-object.selected > rect,
+.wall-front-object.selected > circle {
+  stroke: #2563eb;
+  stroke-width: 3.4;
+  filter: drop-shadow(0 0 5px rgba(37,99,235,0.28));
+}
+.wall-front-object-resize {
+  fill: #2563eb;
+  stroke: white;
+  stroke-width: 1.6;
+  cursor: nwse-resize;
+  pointer-events: all;
+}
+.wall-front-object-dimensions line {
+  stroke: rgba(30,64,175,0.72);
+  stroke-width: 1.1;
+  stroke-dasharray: 4 4;
+  pointer-events: none;
+}
+.wall-front-object-dimensions text {
+  fill: #1e3a8a;
+  stroke: rgba(255,255,255,0.94);
+  stroke-width: 3.2;
+  paint-order: stroke;
+  font-size: 9.4px;
+  font-weight: 900;
+  pointer-events: none;
+}
+.wall-detail-canvas .wall-detail-floor-label text {
+  font-size: var(--floorplan-text-size, 14px);
+  font-weight: 950;
+}
+
+.wall-detail-canvas .wall-detail-opening-outline {
+  display: none;
+}
+.wall-detail-canvas .wall-detail-opening-reveal {
+  fill: rgba(255, 255, 255, 0.74);
+  stroke: rgba(30, 64, 175, 0.34);
+  stroke-width: 1.05;
+  stroke-linejoin: round;
+  pointer-events: visiblePainted;
+}
+.wall-front-object-dimensions text {
+  dominant-baseline: middle;
+}
+.wall-object-library {
+  max-width: calc(100vw - 24px);
+  max-height: calc(100vh - 24px);
+  overflow: auto;
+}
+
+/* Milestone 2 / 070 additions */
+.wall-detail-canvas .wall-detail-face.pair-hover,
+.wall-detail-canvas .wall-detail-face-3d.pair-hover {
+  stroke: #2563eb;
+  stroke-width: 3.4;
+  fill: rgba(219, 234, 254, 0.72);
+}
+.wall-detail-canvas .wall-detail-hit-face.pair-hover {
+  fill: rgba(37, 99, 235, 0.06);
+  stroke: rgba(37, 99, 235, 0.34);
+  stroke-width: 2.2;
+}
+.wall-front-object-edge-handle {
+  fill: rgba(37, 99, 235, 0.001);
+  stroke: none;
+  pointer-events: all;
+}
+.wall-front-object-edge-handle.left,
+.wall-front-object-edge-handle.right { cursor: ew-resize; }
+.wall-front-object-edge-handle.top,
+.wall-front-object-edge-handle.bottom { cursor: ns-resize; }
+.wall-front-object-resize.corner { cursor: nwse-resize; }
+.wall-object-library {
+  box-sizing: border-box;
+}
+
+
+/* Milestone 2 / 073 refinements */
+.wall-detail-canvas .wall-detail-face.opened:not(.selected):not(:hover):not(.pair-hover),
+.wall-detail-canvas .wall-detail-face-3d.opened:not(.selected):not(:hover):not(.pair-hover) {
+  stroke: transparent;
+}
+.wall-detail-canvas .wall-detail-face.opened.selected,
+.wall-detail-canvas .wall-detail-face.opened.pair-hover,
+.wall-detail-canvas .wall-detail-face.opened:hover {
+  stroke: #2563eb;
+}
+.wall-detail-layout.wall-start .wall-detail-face,
+.wall-detail-layout.wall-ready .wall-detail-face {
+  transform: none !important;
+}
+.wall-detail-layout.wall-start .wall-detail-room,
+.wall-detail-layout.wall-ready .wall-detail-room {
+  transform: none !important;
+}
+
+
+/* Milestone 2 / 074: Wanddetail static front, reveal planes, solid hairlines */
+.wall-detail-layout .grid line,
+.wall-detail-layout .grid text,
+.wall-detail-layout .workspace-boundary,
+.wall-detail-layout .wall-detail-face,
+.wall-detail-layout .wall-detail-face-3d,
+.wall-detail-layout .outer-wall-face-3d,
+.wall-detail-layout .wall-detail-outline,
+.wall-detail-layout .wall-front-svg line,
+.wall-detail-layout .wall-front-svg rect,
+.wall-detail-layout .wall-front-object-dimensions line,
+.wall-detail-layout .wall-detail-opening-reveal,
+.wall-detail-layout .wall-detail-hit-face {
+  stroke-dasharray: none !important;
+}
+.wall-front-overlay {
+  animation: wall-front-static-fade-in 0.3s ease-out both !important;
+  transform-origin: 50% 50%;
+}
+@keyframes wall-front-static-fade-in {
+  from { opacity: 0; transform: scale(0.985); }
+  to { opacity: 1; transform: scale(1); }
+}
+.wall-detail-canvas .wall-detail-opening-reveal {
+  stroke-width: 0.85;
+  stroke-linejoin: round;
+  pointer-events: visiblePainted;
+}
+.wall-detail-canvas .wall-detail-opening-side,
+.wall-detail-canvas .wall-detail-opening-top {
+  fill: rgba(255, 255, 255, 0.68);
+  stroke: rgba(30, 64, 175, 0.36);
+}
+.wall-detail-canvas .wall-detail-opening-floor {
+  fill: rgba(248, 250, 252, 0.82);
+  stroke: rgba(30, 64, 175, 0.22);
+}
+.wall-object-library {
+  box-sizing: border-box;
+}
+
+.blueprint-wall-object-connections {
+  pointer-events: none;
+}
+.blueprint-wall-object-connections line {
+  stroke: rgba(37, 99, 235, 0.72);
+  stroke-width: 5;
+  stroke-linecap: round;
+  stroke-dasharray: none;
+}
+.blueprint-wall-object-connections circle {
+  fill: rgba(37, 99, 235, 0.78);
+  stroke: white;
+  stroke-width: 1.5;
+}
+.blueprint-wall-connection-window line {
+  stroke: rgba(14, 165, 233, 0.68);
+}
+.blueprint-wall-connection-window circle {
+  fill: rgba(14, 165, 233, 0.78);
+}
+
+
+/* Milestone 2 / 075: precise passage reveals and blueprint door rectangles */
+.wall-detail-layout .workspace-boundary {
+  display: none !important;
+}
+.wall-detail-layout .wall-detail-opening-reveal,
+.wall-detail-layout .wall-detail-opening-reveal *,
+.wall-detail-layout .wall-front-object-dimensions line {
+  stroke-dasharray: none !important;
+}
+.wall-detail-canvas .wall-detail-opening-side,
+.wall-detail-canvas .wall-detail-opening-top {
+  fill: rgba(255, 255, 255, 0.72);
+  stroke: rgba(30, 64, 175, 0.38);
+  stroke-width: 0.9;
+}
+.wall-detail-canvas .wall-detail-opening-floor {
+  fill: rgba(239, 246, 255, 0.78);
+  stroke: rgba(30, 64, 175, 0.24);
+  stroke-width: 0.85;
+}
+.blueprint-wall-object-connections polygon {
+  fill: rgba(37, 99, 235, 0.18);
+  stroke: rgba(37, 99, 235, 0.82);
+  stroke-width: 3;
+  stroke-linejoin: round;
+  stroke-dasharray: none !important;
+}
+
+
+
+/* 076: Blueprint stair-room placeholder */
+.room-group.stair-room-group .room {
+  fill: rgba(245, 158, 11, 0.12);
+}
+.room-group.stair-room-group .wall-outline {
+  stroke: rgba(180, 83, 9, 0.85);
+}
+.room-stair-label {
+  fill: rgba(146, 64, 14, 0.86);
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  pointer-events: none;
+}
+.stair-floating-window {
+  position: absolute;
+  right: 26px;
+  top: 86px;
+  z-index: 18;
+  width: min(320px, calc(100% - 52px));
+  border: 1px solid rgba(245, 158, 11, 0.42);
+  border-radius: 18px;
+  background: rgba(255, 251, 235, 0.96);
+  box-shadow: 0 18px 45px rgba(15, 23, 42, 0.18);
+  padding: 14px;
+  color: #334155;
+}
+.stair-floating-window header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 12px;
+}
+.stair-floating-window header strong {
+  display: block;
+  margin-top: 2px;
+  color: #111827;
+}
+.stair-floating-window button {
+  width: 30px;
+  height: 30px;
+  border-radius: 999px;
+  border: 1px solid rgba(245, 158, 11, 0.35);
+  background: white;
+  color: #92400e;
+  font-size: 18px;
+  line-height: 1;
+}
+.stair-floating-window p {
+  margin: 12px 0 0;
+  font-size: 13px;
+}
+
+
+/* 077: Blueprint stair-room floating window and indicator fixes */
+.stair-floating-window footer {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 12px;
+}
+.stair-floating-window .stair-confirm-button {
+  width: auto;
+  min-width: 72px;
+  padding: 0 14px;
+  height: 32px;
+  border-radius: 999px;
+  background: #f59e0b;
+  color: #ffffff;
+  border-color: rgba(146, 64, 14, 0.18);
+  font-size: 13px;
+  font-weight: 800;
+}
+.room-stair-indicator {
+  pointer-events: none;
+}
+.room-stair-indicator path {
+  fill: none;
+  stroke: #b45309;
+  stroke-width: 1.6;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  vector-effect: non-scaling-stroke;
+}
+
+/* 078: Treppenraum-Fenster nur mit OK, ueber Canvas, verschiebbar und skalierbar */
+.stair-floating-window {
+  position: absolute !important;
+  right: auto !important;
+  bottom: auto !important;
+  z-index: 55;
+  min-width: 112px;
+  min-height: 48px;
+  display: grid;
+  place-items: center;
+  padding: 10px;
+  border: 1px solid rgba(245, 158, 11, 0.42);
+  border-radius: 16px;
+  background: rgba(255, 251, 235, 0.96);
+  box-shadow: 0 18px 45px rgba(15, 23, 42, 0.18);
+  cursor: move;
+  user-select: none;
+}
+.stair-floating-window.dragging {
+  cursor: grabbing;
+}
+.stair-floating-window .stair-confirm-button {
+  width: auto;
+  min-width: 72px;
+  height: 32px;
+  padding: 0 18px;
+  border-radius: 999px;
+  background: #f59e0b;
+  color: #ffffff;
+  border: 1px solid rgba(146, 64, 14, 0.18);
+  font-size: 13px;
+  font-weight: 800;
+  cursor: pointer;
+}
+.stair-panel-resize-handle {
+  position: absolute;
+  right: 5px;
+  bottom: 5px;
+  width: 13px;
+  height: 13px;
+  border-right: 2px solid rgba(146, 64, 14, 0.45);
+  border-bottom: 2px solid rgba(146, 64, 14, 0.45);
+  cursor: nwse-resize;
+}
+
+/* 080: Treppen-Floating-Window Layouteditor */
+.stair-floating-window {
+  position: absolute !important;
+  right: auto !important;
+  bottom: auto !important;
+  z-index: 65;
+  min-width: 560px !important;
+  min-height: 420px !important;
+  display: grid !important;
+  grid-template-rows: auto auto auto 1fr !important;
+  place-items: stretch !important;
+  padding: 0 !important;
+  overflow: hidden;
+  border: 1px solid rgba(245, 158, 11, 0.45) !important;
+  border-radius: 18px !important;
+  background: rgba(255, 251, 235, 0.98) !important;
+  box-shadow: 0 22px 55px rgba(15, 23, 42, 0.22) !important;
+  cursor: default !important;
+  user-select: none;
+}
+.stair-editor-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 12px;
+  background: linear-gradient(180deg, rgba(255, 247, 237, 0.98), rgba(255, 251, 235, 0.96));
+  border-bottom: 1px solid rgba(245, 158, 11, 0.22);
+  cursor: move;
+}
+.stair-floating-window.dragging .stair-editor-header { cursor: grabbing; }
+.stair-editor-header strong { display: block; font-size: 14px; color: #7c2d12; }
+.stair-editor-ok {
+  width: auto; min-width: 72px; height: 32px; padding: 0 18px; border-radius: 999px;
+  background: #f59e0b; color: #ffffff; border: 1px solid rgba(146, 64, 14, 0.18);
+  font-size: 13px; font-weight: 800; cursor: pointer;
+}
+.stair-editor-toolbar {
+  display: flex; align-items: center; gap: 7px; padding: 8px 10px;
+  background: rgba(255, 255, 255, 0.72); border-bottom: 1px solid rgba(245, 158, 11, 0.16);
+}
+.stair-editor-toolbar button, .stair-editor-library button {
+  border: 1px solid rgba(146, 64, 14, 0.16); background: rgba(255, 255, 255, 0.9);
+  color: #7c2d12; border-radius: 10px; font-weight: 750; cursor: pointer;
+}
+.stair-editor-toolbar button { height: 30px; padding: 0 10px; font-size: 12px; }
+.stair-editor-toolbar button.active { background: #f59e0b; color: #ffffff; }
+.stair-editor-toolbar button:disabled { opacity: 0.45; cursor: not-allowed; }
+.stair-editor-properties {
+  display: flex; align-items: center; gap: 8px; min-height: 42px; padding: 7px 10px;
+  overflow-x: auto; background: rgba(255, 251, 235, 0.8); border-bottom: 1px solid rgba(245, 158, 11, 0.16);
+}
+.stair-editor-properties label {
+  display: inline-flex; align-items: center; gap: 5px; white-space: nowrap; font-size: 12px;
+  color: #7c2d12; font-weight: 750;
+}
+.stair-editor-properties label span { color: #92400e; font-weight: 850; }
+.stair-editor-properties input {
+  width: 72px; height: 28px; border-radius: 9px; border: 1px solid rgba(146, 64, 14, 0.2);
+  background: #ffffff; color: #7c2d12; padding: 0 7px; font-size: 12px; font-weight: 750;
+}
+.stair-editor-empty { color: #92400e; font-size: 12px; font-weight: 700; }
+.stair-editor-body { min-height: 0; display: grid; grid-template-columns: 1fr 176px; gap: 10px; padding: 10px; }
+.stair-editor-canvas-wrap {
+  min-width: 0; min-height: 0; overflow: hidden; border-radius: 14px; background: #ffffff;
+  border: 1px solid rgba(146, 64, 14, 0.12);
+}
+.stair-editor-canvas {
+  width: 100%; height: 100%; display: block;
+  background-image: linear-gradient(rgba(146, 64, 14, 0.06) 1px, transparent 1px), linear-gradient(90deg, rgba(146, 64, 14, 0.06) 1px, transparent 1px);
+  background-size: 26px 26px;
+}
+.stair-editor-room-base { fill: rgba(251, 191, 36, 0.11); stroke: rgba(120, 53, 15, 0.58); stroke-width: 1.4; vector-effect: non-scaling-stroke; }
+.stair-editor-element rect { fill: rgba(245, 158, 11, 0.22); stroke: rgba(146, 64, 14, 0.72); stroke-width: 1.2; vector-effect: non-scaling-stroke; cursor: move; }
+.stair-editor-element.stair rect { fill: rgba(59, 130, 246, 0.16); stroke: rgba(37, 99, 235, 0.68); }
+.stair-editor-element.turn rect { fill: rgba(168, 85, 247, 0.16); stroke: rgba(126, 34, 206, 0.68); }
+.stair-editor-element.selected rect { stroke-width: 2; }
+.stair-editor-element text { font-size: 0.16px; fill: #7c2d12; font-weight: 800; pointer-events: none; user-select: none; }
+.stair-editor-direction line, .stair-editor-direction path {
+  fill: none; stroke: currentColor; stroke-width: 1.4; vector-effect: non-scaling-stroke;
+  stroke-linecap: round; stroke-linejoin: round; color: rgba(37, 99, 235, 0.85);
+}
+.stair-editor-edge-handles line { stroke: rgba(15, 23, 42, 0.5); stroke-width: 9; stroke-opacity: 0.001; vector-effect: non-scaling-stroke; cursor: ew-resize; }
+.stair-editor-edge-handles line:nth-child(3), .stair-editor-edge-handles line:nth-child(4) { cursor: ns-resize; }
+.stair-editor-edge-handles circle { fill: #ffffff; stroke: rgba(146, 64, 14, 0.9); stroke-width: 1.2; vector-effect: non-scaling-stroke; pointer-events: none; }
+.stair-editor-snap-guide { stroke: rgba(14, 165, 233, 0.8); stroke-width: 1; vector-effect: non-scaling-stroke; stroke-linecap: round; }
+.stair-editor-library {
+  min-width: 0; display: flex; flex-direction: column; gap: 8px; padding: 10px; border-radius: 14px;
+  background: rgba(255, 255, 255, 0.72); border: 1px solid rgba(146, 64, 14, 0.12);
+}
+.stair-editor-library button { display: flex; flex-direction: column; align-items: flex-start; gap: 3px; padding: 10px; text-align: left; }
+.stair-editor-library button strong { font-size: 13px; }
+.stair-editor-library button span { font-size: 11px; opacity: 0.72; }
+.stair-panel-resize-handle {
+  position: absolute; right: 6px; bottom: 6px; width: 14px; height: 14px;
+  border-right: 2px solid rgba(146, 64, 14, 0.45); border-bottom: 2px solid rgba(146, 64, 14, 0.45); cursor: nwse-resize;
+}
+
+/* 081: Treppeneditor visuelle Verfeinerung */
+.stair-floating-window .stair-editor-toolbar {
+  gap: 6px;
+}
+.stair-floating-window .stair-editor-toolbar button {
+  width: 34px !important;
+  height: 34px !important;
+  min-width: 34px !important;
+  padding: 0 !important;
+  display: inline-grid;
+  place-items: center;
+  border-radius: 11px;
+  font-size: 0 !important;
+  line-height: 1;
+}
+.stair-floating-window .stair-editor-toolbar button::before {
+  display: block;
+  font-size: 17px;
+  font-weight: 900;
+  line-height: 1;
+}
+.stair-floating-window .stair-editor-toolbar button[data-stair-tool="move"]::before { content: "↔"; }
+.stair-floating-window .stair-editor-toolbar button[data-stair-tool="rotate"]::before { content: "⟳"; }
+.stair-floating-window .stair-editor-toolbar button[data-stair-tool="zoom-out"]::before { content: "−"; }
+.stair-floating-window .stair-editor-toolbar button[data-stair-tool="zoom-in"]::before { content: "+"; }
+.stair-floating-window .stair-editor-toolbar button[data-stair-tool="align"]::before { content: "⌗"; }
+.stair-floating-window .stair-editor-library {
+  display: grid !important;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-auto-rows: 98px;
+  align-content: start;
+  gap: 8px;
+}
+.stair-floating-window .stair-editor-library > .eyebrow {
+  grid-column: 1 / -1;
+  height: 18px;
+}
+.stair-floating-window .stair-editor-library button {
+  min-height: 98px;
+  padding: 7px !important;
+  align-items: stretch !important;
+  justify-content: space-between;
+  text-align: center !important;
+}
+.stair-floating-window .stair-editor-library button strong {
+  display: block;
+  margin-top: 3px;
+  font-size: 10px !important;
+  line-height: 1.1;
+  text-align: center;
+}
+.stair-floating-window .stair-library-graphic {
+  position: relative;
+  display: block;
+  height: 64px;
+  border-radius: 10px;
+  background: rgba(255, 251, 235, 0.92);
+  border: 1px solid rgba(146, 64, 14, 0.12);
+}
+.stair-floating-window .stair-library-graphic::before,
+.stair-floating-window .stair-library-graphic::after {
+  content: "";
+  position: absolute;
+  inset: 18px 14px;
+  border: 1px solid rgba(146, 64, 14, 0.78);
+  border-radius: 3px;
+}
+.stair-floating-window .stair-library-graphic.stair::before {
+  inset: 12px 20px;
+  border-color: rgba(37, 99, 235, 0.82);
+}
+.stair-floating-window .stair-library-graphic.stair::after {
+  inset: auto auto 14px 50%;
+  width: 0;
+  height: 28px;
+  border: none;
+  border-left: 1.5px solid rgba(37, 99, 235, 0.86);
+  transform: translateX(-50%);
+  box-shadow: -8px 0 0 rgba(37, 99, 235, 0.28), 8px 0 0 rgba(37, 99, 235, 0.28);
+}
+.stair-floating-window .stair-library-graphic.turn::before {
+  inset: 13px 16px;
+  border-color: rgba(126, 34, 206, 0.78);
+}
+.stair-floating-window .stair-library-graphic.turn::after {
+  inset: 20px auto auto 22px;
+  width: 25px;
+  height: 22px;
+  border: none;
+  border-right: 2px solid rgba(126, 34, 206, 0.9);
+  border-bottom: 2px solid rgba(126, 34, 206, 0.9);
+  border-radius: 0 0 5px 0;
+}
+.stair-floating-window .stair-editor-room-base,
+.stair-floating-window .stair-editor-element rect,
+.stair-floating-window .stair-editor-direction line,
+.stair-floating-window .stair-editor-direction path,
+.stair-floating-window .stair-editor-snap-guide {
+  vector-effect: non-scaling-stroke;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.stair-floating-window .stair-editor-element rect {
+  stroke-width: 0.8 !important;
+}
+.stair-floating-window .stair-editor-element.selected rect {
+  stroke: rgba(37, 99, 235, 0.95) !important;
+  stroke-width: 1.4 !important;
+  filter: drop-shadow(0 0 3px rgba(37, 99, 235, 0.35));
+}
+.stair-floating-window .stair-editor-element text {
+  font-size: 0.105px !important;
+  font-weight: 800;
+}
+.stair-floating-window .stair-editor-turn-arrow path {
+  stroke-width: 1.5 !important;
+}
+.stair-floating-window .stair-editor-edge-handles line {
+  stroke-width: 11 !important;
+  stroke-opacity: 0.001 !important;
+}
+.stair-floating-window .stair-editor-edge-handles circle {
+  fill: #ffffff !important;
+  stroke: rgba(37, 99, 235, 0.95) !important;
+  stroke-width: 1.15 !important;
+  pointer-events: all !important;
+  cursor: nwse-resize;
+  vector-effect: non-scaling-stroke;
+}
+.stair-floating-window .stair-editor-edge-handles circle.top-right,
+.stair-floating-window .stair-editor-edge-handles circle.bottom-left {
+  cursor: nesw-resize;
+}
+.stair-floating-window .stair-editor-snap-guide {
+  stroke: rgba(14, 165, 233, 0.9) !important;
+  stroke-width: 0.9 !important;
+  stroke-dasharray: none !important;
+}
+
+/* 082: Treppeneditor Persistenz Toolbar Kacheln Bemaszung */
+.stair-floating-window .stair-editor-toolbar.canvas-toolbox {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 8px;
+  border: 1px solid rgba(219, 228, 239, 0.96);
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.96);
+  box-shadow: 0 8px 18px rgba(15, 23, 42, 0.06);
+}
+.stair-floating-window .stair-editor-toolbar.canvas-toolbox button {
+  width: 34px !important;
+  height: 34px !important;
+  min-width: 34px !important;
+  padding: 0 !important;
+  border-radius: 999px !important;
+  display: inline-grid !important;
+  place-items: center !important;
+  font-size: 17px !important;
+  line-height: 1 !important;
+  font-weight: 800 !important;
+}
+.stair-floating-window .stair-editor-toolbar.canvas-toolbox button::before {
+  content: none !important;
+  display: none !important;
+}
+.stair-floating-window .stair-editor-toolbar.canvas-toolbox button.active {
+  background: #2563eb !important;
+  color: #ffffff !important;
+}
+.stair-floating-window .stair-editor-library {
+  display: grid !important;
+  grid-template-columns: repeat(2, 92px) !important;
+  grid-auto-rows: 92px !important;
+  align-content: start;
+  justify-content: center;
+  gap: 8px;
+  padding: 8px;
+}
+.stair-floating-window .stair-editor-library > .eyebrow {
+  grid-column: 1 / -1;
+  width: 100%;
+  height: 16px;
+}
+.stair-floating-window .stair-editor-library button {
+  width: 92px !important;
+  height: 92px !important;
+  min-height: 92px !important;
+  aspect-ratio: 1 / 1;
+  padding: 6px !important;
+  display: flex !important;
+  flex-direction: column !important;
+  justify-content: space-between !important;
+  align-items: stretch !important;
+  border-radius: 14px !important;
+  text-align: center !important;
+}
+.stair-floating-window .stair-editor-library button strong {
+  display: block;
+  margin: 0;
+  font-size: 10px !important;
+  line-height: 1.05 !important;
+  letter-spacing: 0.01em;
+}
+.stair-floating-window .stair-library-graphic {
+  position: relative;
+  display: block;
+  height: 62px;
+  border-radius: 12px;
+  background: linear-gradient(180deg, rgba(255,255,255,0.96), rgba(239,246,255,0.82));
+  border: 1px solid rgba(37, 99, 235, 0.12);
+  overflow: hidden;
+}
+.stair-floating-window .stair-library-graphic::before,
+.stair-floating-window .stair-library-graphic::after {
+  content: "";
+  position: absolute;
+  box-sizing: border-box;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.stair-floating-window .stair-library-graphic.landing::before {
+  left: 18px;
+  top: 18px;
+  width: 28px;
+  height: 24px;
+  border: 1.5px solid rgba(37, 99, 235, 0.84);
+  border-radius: 3px;
+  transform: skew(-8deg);
+}
+.stair-floating-window .stair-library-graphic.landing::after {
+  left: 22px;
+  top: 45px;
+  width: 23px;
+  height: 1.5px;
+  background: rgba(37, 99, 235, 0.32);
+  box-shadow: 7px -8px 0 rgba(37, 99, 235, 0.18);
+}
+.stair-floating-window .stair-library-graphic.stair::before {
+  left: 25px;
+  top: 10px;
+  width: 22px;
+  height: 42px;
+  border: 1.5px solid rgba(37, 99, 235, 0.86);
+  border-radius: 3px;
+  background: repeating-linear-gradient(to bottom, transparent 0 7px, rgba(37,99,235,0.42) 7px 8px);
+}
+.stair-floating-window .stair-library-graphic.stair::after {
+  left: 36px;
+  top: 18px;
+  width: 1.5px;
+  height: 26px;
+  background: rgba(37,99,235,0.86);
+  box-shadow: -5px -1px 0 -2px rgba(37,99,235,0.86), 5px -1px 0 -2px rgba(37,99,235,0.86);
+}
+.stair-floating-window .stair-library-graphic.turn::before {
+  left: 15px;
+  top: 15px;
+  width: 34px;
+  height: 34px;
+  border: 1.5px solid rgba(37, 99, 235, 0.86);
+  border-radius: 4px;
+}
+.stair-floating-window .stair-library-graphic.turn::after {
+  left: 22px;
+  top: 33px;
+  width: 24px;
+  height: 19px;
+  border-right: 2px solid rgba(37, 99, 235, 0.9);
+  border-top: 2px solid rgba(37, 99, 235, 0.9);
+  border-radius: 0 5px 0 0;
+}
+.stair-floating-window .stair-editor-element rect {
+  stroke-width: 0.75 !important;
+  vector-effect: non-scaling-stroke;
+}
+.stair-floating-window .stair-editor-element.selected rect {
+  stroke: rgba(37, 99, 235, 0.98) !important;
+  stroke-width: 1.7 !important;
+  filter: drop-shadow(0 0 3px rgba(37, 99, 235, 0.35));
+}
+.stair-floating-window .stair-editor-step-line,
+.stair-floating-window .stair-editor-direction line,
+.stair-floating-window .stair-editor-direction path {
+  stroke: rgba(37, 99, 235, 0.78);
+  stroke-width: 0.7 !important;
+  fill: none;
+  vector-effect: non-scaling-stroke;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.stair-floating-window .stair-editor-turn-arrow path {
+  stroke-width: 1.15 !important;
+}
+.stair-floating-window .stair-editor-element text {
+  font-size: 0.075px !important;
+  font-weight: 750 !important;
+  letter-spacing: 0.01em;
+}
+.stair-floating-window .stair-editor-edge-handles circle {
+  r: 0.026px !important;
+  fill: #ffffff !important;
+  stroke: rgba(37, 99, 235, 0.96) !important;
+  stroke-width: 0.9 !important;
+  pointer-events: all !important;
+  vector-effect: non-scaling-stroke;
+}
+.stair-floating-window .stair-editor-edge-handles line {
+  stroke-width: 8 !important;
+  stroke-opacity: 0.001 !important;
+}
+.floorplan-canvas .technical-dimensions text,
+.floorplan-canvas .technical-dimensions.compact text,
+.floorplan-canvas .outer-wall-dimensions text,
+.floorplan-canvas .outer-wall-dimensions.compact text {
+  font-size: var(--floorplan-small-text-size, 12.8px) !important;
+}
+
+/* 083: Treppeneditor Masse Andocken Biegungsstufen */
+.stair-floating-window .stair-editor-element.selected rect {
+  stroke-width: 2.15 !important;
+  filter: drop-shadow(0 0 4px rgba(37, 99, 235, 0.4));
+}
+.stair-floating-window .stair-editor-step-count,
+.stair-floating-window .stair-editor-element text.stair-editor-step-count {
+  font-size: 0.058px !important;
+  font-weight: 700 !important;
+  pointer-events: none;
+}
+.stair-floating-window .stair-editor-step-line.turn {
+  stroke-opacity: 0.66;
+}
+.stair-floating-window .stair-editor-element-dimensions line {
+  stroke: rgba(37, 99, 235, 0.42);
+  stroke-width: 0.55 !important;
+  vector-effect: non-scaling-stroke;
+  fill: none;
+  pointer-events: none;
+}
+.stair-floating-window .stair-editor-element-dimensions text {
+  fill: rgba(37, 99, 235, 0.86);
+  font-size: 0.052px !important;
+  font-weight: 760 !important;
+  letter-spacing: 0.01em;
+  paint-order: stroke;
+  stroke: rgba(255, 255, 255, 0.94);
+  stroke-width: 0.018px;
+  pointer-events: none;
+}
+.stair-floating-window .stair-editor-snap-guide {
+  stroke: rgba(37, 99, 235, 0.64) !important;
+  stroke-width: 0.8 !important;
+  stroke-dasharray: none !important;
+  vector-effect: non-scaling-stroke;
+}
+
+/* 084: Treppeneditor Rotation Snap Fan */
+.stair-floating-window .stair-editor-element.selected rect {
+  stroke-width: 2.35 !important;
+}
+.stair-floating-window .stair-editor-turn-arrow path,
+.stair-floating-window .stair-editor-step-line.turn {
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+/* 085: Treppeneditor Richtung ohne Geometrierotation */
+.stair-floating-window .stair-editor-element.selected rect {
+  stroke-width: 2.35 !important;
+}
+.stair-floating-window .stair-editor-direction path,
+.stair-floating-window .stair-editor-direction line,
+.stair-floating-window .stair-editor-step-line {
+  vector-effect: non-scaling-stroke;
+}
+
+/* 087: Treppenlayout Blueprint Stufen und Sichtbarkeit */
+.stair-floating-window .stair-editor-turn-arrow path,
+.stair-floating-window .stair-editor-direction line,
+.stair-floating-window .stair-editor-direction path {
+  stroke-dasharray: none !important;
+}
+.stair-blueprint-layout {
+  pointer-events: none;
+}
+.stair-blueprint-element rect {
+  fill: rgba(245, 158, 11, 0.13);
+  stroke: rgba(146, 64, 14, 0.34);
+  stroke-width: 1;
+  vector-effect: non-scaling-stroke;
+}
+.stair-blueprint-element.stair rect {
+  fill: rgba(59, 130, 246, 0.1);
+  stroke: rgba(37, 99, 235, 0.28);
+}
+.stair-blueprint-element.turn rect {
+  fill: rgba(168, 85, 247, 0.1);
+  stroke: rgba(126, 34, 206, 0.28);
+}
+.stair-blueprint-step,
+.stair-blueprint-direction line,
+.stair-blueprint-direction path {
+  fill: none;
+  stroke: rgba(37, 99, 235, 0.32);
+  stroke-width: 1;
+  vector-effect: non-scaling-stroke;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-dasharray: none;
+}
+.stair-blueprint-element text {
+  fill: rgba(124, 45, 18, 0.72);
+  font-size: 10px;
+  font-weight: 760;
+  paint-order: stroke;
+  stroke: rgba(255, 255, 255, 0.86);
+  stroke-width: 3px;
+}
+.stair-blueprint-visibility {
+  pointer-events: none;
+}
+
+/* 088: Treppen-Floating-Window Etagenkanten */
+.stair-editor-edge-assignment line {
+  stroke: rgba(37, 99, 235, 0.92);
+  stroke-width: 3;
+  vector-effect: non-scaling-stroke;
+  stroke-linecap: round;
+  pointer-events: none;
+}
+.stair-editor-edge-assignment.next-floor line {
+  stroke: rgba(168, 85, 247, 0.9);
+}
+.stair-editor-edge-select {
+  width: 100%;
+  height: 100%;
+  display: grid;
+  grid-template-columns: 0.46fr 0.54fr;
+  align-items: center;
+  gap: 3px;
+  padding: 2px 4px;
+  box-sizing: border-box;
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.96);
+  border: 1px solid rgba(37, 99, 235, 0.28);
+  box-shadow: 0 6px 14px rgba(15, 23, 42, 0.12);
+  font-size: 0.045px;
+  color: #1d4ed8;
+  pointer-events: auto;
+}
+.stair-editor-edge-assignment.next-floor .stair-editor-edge-select {
+  border-color: rgba(168, 85, 247, 0.32);
+  color: #7e22ce;
+}
+.stair-editor-edge-select span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 850;
+}
+.stair-editor-edge-select select {
+  min-width: 0;
+  width: 100%;
+  height: 0.18px;
+  border-radius: 4px;
+  border: 1px solid rgba(37, 99, 235, 0.22);
+  background: #ffffff;
+  color: #334155;
+  font: inherit;
+  font-size: 0.042px;
+}
+.stair-editor-library button[draggable="true"] .stair-library-graphic.current-floor,
+.stair-editor-library button[draggable="true"] .stair-library-graphic.next-floor {
+  position: relative;
+}
+.stair-editor-library button[draggable="true"] .stair-library-graphic.current-floor::before,
+.stair-editor-library button[draggable="true"] .stair-library-graphic.next-floor::before {
+  content: "";
+  position: absolute;
+  left: 20%;
+  right: 20%;
+  top: 48%;
+  border-top: 2px solid currentColor;
+}
+.stair-editor-library button[draggable="true"] .stair-library-graphic.current-floor::after {
+  content: "1";
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  font-size: 13px;
+  font-weight: 900;
+}
+.stair-editor-library button[draggable="true"] .stair-library-graphic.next-floor::after {
+  content: "2";
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  font-size: 13px;
+  font-weight: 900;
+}
+
+/* 092: Treppeneditor Undo Delete Etagenkanten Hover */
+.stair-editor-edge-hover line,
+.stair-editor-edge-assignment line {
+  fill: none;
+  stroke: rgba(37, 99, 235, 0.9);
+  stroke-width: 2.2;
+  vector-effect: non-scaling-stroke;
+  stroke-linecap: round;
+}
+.stair-editor-edge-hover.next-floor line,
+.stair-editor-edge-assignment.next-floor line {
+  stroke: rgba(124, 58, 237, 0.92);
+}
+.stair-editor-edge-hover circle,
+.stair-editor-edge-assignment circle {
+  fill: #ffffff;
+  stroke: rgba(37, 99, 235, 0.95);
+  stroke-width: 1.4;
+  vector-effect: non-scaling-stroke;
+  pointer-events: none;
+}
+.stair-editor-edge-hover.next-floor circle,
+.stair-editor-edge-assignment.next-floor circle {
+  stroke: rgba(124, 58, 237, 0.95);
+}
+.stair-editor-edge-hover line {
+  stroke-width: 3.4;
+  opacity: 0.86;
+}
+.stair-editor-edge-select {
+  width: 100%;
+  height: 100%;
+  display: grid;
+  grid-template-columns: minmax(58px, 0.9fr) minmax(70px, 1.1fr);
+  align-items: center;
+  gap: 4px;
+  padding: 3px 5px;
+  border-radius: 8px;
+  border: 1px solid rgba(37, 99, 235, 0.35);
+  background: rgba(255, 255, 255, 0.96);
+  box-shadow: 0 6px 14px rgba(15, 23, 42, 0.16);
+  font: 700 10px/1.1 system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  color: #1e3a8a;
+  pointer-events: auto;
+}
+.stair-editor-edge-assignment.next-floor .stair-editor-edge-select {
+  border-color: rgba(124, 58, 237, 0.34);
+  color: #4c1d95;
+}
+.stair-editor-edge-select span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.stair-editor-edge-select select {
+  min-width: 0;
+  width: 100%;
+  height: 21px;
+  border: 1px solid rgba(148, 163, 184, 0.55);
+  border-radius: 6px;
+  background: #ffffff;
+  color: #0f172a;
+  font-size: 10px;
+  font-weight: 700;
+}
+.stair-floating-window .stair-editor-toolbar button[data-stair-tool="undo"],
+.stair-floating-window .stair-editor-toolbar button[data-stair-tool="delete"] {
+  color: #7c2d12;
+}
+.stair-floating-window .stair-editor-toolbar button[data-stair-tool="delete"]:not(:disabled) {
+  color: #991b1b;
+}
+
+/* 094: Stair editor delete edge props hover */
+.stair-floating-window .stair-editor-toolbar button[data-stair-tool="undo"],
+.stair-floating-window .stair-editor-toolbar button[data-stair-tool="delete"] {
+  display: inline-grid;
+  place-items: center;
+}
+.stair-floating-window .stair-editor-toolbar button[data-stair-tool="delete"]:not(:disabled) {
+  color: #991b1b;
+}
+.stair-editor-edge-hover line,
+.stair-editor-edge-assignment line {
+  fill: none;
+  stroke: rgba(37, 99, 235, 0.95);
+  stroke-width: 2.4;
+  vector-effect: non-scaling-stroke;
+  stroke-linecap: round;
+}
+.stair-editor-edge-hover.next-floor line,
+.stair-editor-edge-assignment.next-floor line {
+  stroke: rgba(124, 58, 237, 0.95);
+}
+.stair-editor-edge-hover line {
+  stroke-width: 3.4;
+  opacity: 0.9;
+}
+.stair-editor-edge-assignment.selected line {
+  stroke-width: 3.2;
+}
+.stair-editor-edge-hover circle,
+.stair-editor-edge-assignment circle {
+  fill: #ffffff;
+  stroke: rgba(37, 99, 235, 0.95);
+  stroke-width: 1.4;
+  vector-effect: non-scaling-stroke;
+  pointer-events: none;
+}
+.stair-editor-edge-hover.next-floor circle,
+.stair-editor-edge-assignment.next-floor circle {
+  stroke: rgba(124, 58, 237, 0.95);
+}
+.stair-editor-edge-select {
+  width: 100%;
+  height: 100%;
+  display: grid;
+  grid-template-columns: minmax(58px, 0.8fr) minmax(54px, 0.75fr);
+  grid-template-rows: auto auto;
+  align-items: center;
+  gap: 2px 5px;
+  padding: 4px 6px;
+  border-radius: 8px;
+  border: 1px solid rgba(37, 99, 235, 0.38);
+  background: rgba(255, 255, 255, 0.97);
+  box-shadow: 0 7px 16px rgba(15, 23, 42, 0.16);
+  font: 700 10px/1.08 system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  color: #1e3a8a;
+  pointer-events: auto;
+}
+.stair-editor-edge-assignment.next-floor .stair-editor-edge-select {
+  border-color: rgba(124, 58, 237, 0.34);
+  color: #4c1d95;
+}
+.stair-editor-edge-select span,
+.stair-editor-edge-select strong {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.stair-editor-edge-select strong {
+  font-weight: 800;
+}
+.stair-editor-edge-select select {
+  grid-column: 1 / -1;
+  min-width: 0;
+  width: 100%;
+  height: 22px;
+  border: 1px solid rgba(148, 163, 184, 0.55);
+  border-radius: 6px;
+  background: #ffffff;
+  color: #0f172a;
+  font-size: 10px;
+  font-weight: 700;
+}
+.stair-editor-edge-property-panel {
+  border-color: rgba(37, 99, 235, 0.25);
+  background: rgba(239, 246, 255, 0.72);
+}
+.stair-editor-edge-property-panel input,
+.stair-editor-edge-property-panel select {
+  min-width: 88px;
+}
+.stair-editor-edge-property-panel button {
+  min-height: 28px;
+  border-radius: 8px;
+  border: 1px solid rgba(37, 99, 235, 0.25);
+  background: #ffffff;
+  font-weight: 800;
+}
+
+/* 098: Stair editor deep repair build */
+.stair-floating-window .stair-editor-toolbar button[data-stair-tool="undo"],
+.stair-floating-window .stair-editor-toolbar button[data-stair-tool="delete"] {
+  display: inline-grid;
+  place-items: center;
+}
+.stair-floating-window .stair-editor-toolbar button[data-stair-tool="delete"]:not(:disabled) {
+  color: #991b1b;
+}
+.stair-editor-edge-hover line,
+.stair-editor-edge-assignment line {
+  fill: none;
+  stroke: rgba(37, 99, 235, 0.95);
+  stroke-width: 2.4;
+  vector-effect: non-scaling-stroke;
+  stroke-linecap: round;
+}
+.stair-editor-edge-hover.next-floor line,
+.stair-editor-edge-assignment.next-floor line {
+  stroke: rgba(124, 58, 237, 0.95);
+}
+.stair-editor-edge-hover line {
+  stroke-width: 3.4;
+  opacity: 0.9;
+}
+.stair-editor-edge-assignment.selected line {
+  stroke-width: 3.2;
+}
+.stair-editor-edge-hover circle,
+.stair-editor-edge-assignment circle {
+  fill: #ffffff;
+  stroke: rgba(37, 99, 235, 0.95);
+  stroke-width: 1.4;
+  vector-effect: non-scaling-stroke;
+  pointer-events: none;
+}
+.stair-editor-edge-hover.next-floor circle,
+.stair-editor-edge-assignment.next-floor circle {
+  stroke: rgba(124, 58, 237, 0.95);
+}
+.stair-editor-edge-select {
+  width: 100%;
+  height: 100%;
+  display: grid;
+  grid-template-columns: minmax(58px, 0.8fr) minmax(54px, 0.75fr);
+  grid-template-rows: auto auto;
+  align-items: center;
+  gap: 2px 5px;
+  padding: 4px 6px;
+  border-radius: 8px;
+  border: 1px solid rgba(37, 99, 235, 0.38);
+  background: rgba(255, 255, 255, 0.97);
+  box-shadow: 0 7px 16px rgba(15, 23, 42, 0.16);
+  font: 700 10px/1.08 system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  color: #1e3a8a;
+  pointer-events: auto;
+}
+.stair-editor-edge-assignment.next-floor .stair-editor-edge-select {
+  border-color: rgba(124, 58, 237, 0.34);
+  color: #4c1d95;
+}
+.stair-editor-edge-select span,
+.stair-editor-edge-select strong {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.stair-editor-edge-select strong {
+  font-weight: 800;
+}
+.stair-editor-edge-select select {
+  grid-column: 1 / -1;
+  min-width: 0;
+  width: 100%;
+  height: 22px;
+  border: 1px solid rgba(148, 163, 184, 0.55);
+  border-radius: 6px;
+  background: #ffffff;
+  color: #0f172a;
+  font-size: 10px;
+  font-weight: 700;
+}
+.stair-editor-edge-property-panel {
+  border-color: rgba(37, 99, 235, 0.25);
+  background: rgba(239, 246, 255, 0.72);
+}
+.stair-editor-edge-property-panel input,
+.stair-editor-edge-property-panel select {
+  min-width: 88px;
+}
+.stair-editor-edge-property-panel button {
+  min-height: 28px;
+  border-radius: 8px;
+  border: 1px solid rgba(37, 99, 235, 0.25);
+  background: #ffffff;
+  font-weight: 800;
+}
+
+/* 099: Stair editor edge tools refine */
+.stair-floating-window .stair-editor-toolbar {
+  align-items: center;
+  flex-wrap: nowrap;
+}
+.stair-floating-window .stair-editor-toolbar button[data-stair-tool="undo"],
+.stair-floating-window .stair-editor-toolbar button[data-stair-tool="delete"] {
+  width: 34px;
+  min-width: 34px;
+  height: 34px;
+  display: inline-grid;
+  place-items: center;
+  font-size: 15px;
+  line-height: 1;
+}
+.stair-floating-window .stair-editor-toolbar button[data-stair-tool="delete"]:not(:disabled) {
+  color: #991b1b;
+}
+.stair-editor-edge-hit {
+  stroke: rgba(15, 23, 42, 0.001) !important;
+  stroke-width: 18 !important;
+  vector-effect: non-scaling-stroke;
+  pointer-events: stroke;
+}
+.stair-editor-edge-hover line,
+.stair-editor-edge-assignment line:not(.stair-editor-edge-hit) {
+  fill: none;
+  stroke: rgba(37, 99, 235, 0.95);
+  stroke-width: 2.7;
+  vector-effect: non-scaling-stroke;
+  stroke-linecap: round;
+}
+.stair-editor-edge-hover.next-floor line,
+.stair-editor-edge-assignment.next-floor line:not(.stair-editor-edge-hit) {
+  stroke: rgba(124, 58, 237, 0.95);
+}
+.stair-editor-edge-hover line {
+  stroke-width: 4.2;
+  opacity: 0.95;
+}
+.stair-editor-edge-assignment.selected line:not(.stair-editor-edge-hit) {
+  stroke-width: 4.0;
+}
+.stair-editor-edge-hover circle,
+.stair-editor-edge-assignment circle {
+  fill: #ffffff;
+  stroke: rgba(37, 99, 235, 0.95);
+  stroke-width: 1.5;
+  vector-effect: non-scaling-stroke;
+  pointer-events: none;
+}
+.stair-editor-edge-hover.next-floor circle,
+.stair-editor-edge-assignment.next-floor circle {
+  stroke: rgba(124, 58, 237, 0.95);
+}
+.stair-editor-edge-canvas-label {
+  fill: #1e3a8a;
+  paint-order: stroke;
+  stroke: rgba(255, 255, 255, 0.92);
+  stroke-width: 3.2px;
+  font-size: 0.115px;
+  font-weight: 800;
+  pointer-events: none;
+}
+.stair-editor-edge-assignment.next-floor .stair-editor-edge-canvas-label {
+  fill: #4c1d95;
+}
+.stair-editor-edge-select {
+  width: 100%;
+  height: 100%;
+  display: grid;
+  grid-template-columns: minmax(58px, 0.8fr) minmax(54px, 0.75fr);
+  grid-template-rows: auto auto;
+  align-items: center;
+  gap: 2px 5px;
+  padding: 4px 6px;
+  border-radius: 8px;
+  border: 1px solid rgba(37, 99, 235, 0.42);
+  background: rgba(255, 255, 255, 0.98);
+  box-shadow: 0 7px 16px rgba(15, 23, 42, 0.16);
+  font: 700 10px/1.08 system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  color: #1e3a8a;
+  pointer-events: auto;
+}
+.stair-editor-edge-assignment.next-floor .stair-editor-edge-select {
+  border-color: rgba(124, 58, 237, 0.42);
+  color: #4c1d95;
+}
+.stair-editor-edge-select span,
+.stair-editor-edge-select strong {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.stair-editor-edge-select strong {
+  font-weight: 800;
+}
+.stair-editor-edge-select select {
+  grid-column: 1 / -1;
+  min-width: 0;
+  width: 100%;
+  height: 22px;
+  border: 1px solid rgba(148, 163, 184, 0.55);
+  border-radius: 6px;
+  background: #ffffff;
+  color: #0f172a;
+  font-size: 10px;
+  font-weight: 700;
+}
+.stair-editor-edge-property-panel {
+  border-color: rgba(37, 99, 235, 0.25);
+  background: rgba(239, 246, 255, 0.72);
+}
+.stair-editor-edge-property-panel input,
+.stair-editor-edge-property-panel select {
+  min-width: 96px;
+}
+.stair-editor-edge-property-panel button {
+  min-height: 28px;
+  border-radius: 8px;
+  border: 1px solid rgba(37, 99, 235, 0.25);
+  background: #ffffff;
+  font-weight: 800;
+}
+
+.stair-floating-window .canvas-toolbox.stair-editor-toolbar button[data-stair-tool="undo"],
+.stair-floating-window .canvas-toolbox.stair-editor-toolbar button[data-stair-tool="delete"] {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.stair-floating-window .canvas-toolbox.stair-editor-toolbar button[data-stair-tool="delete"]:not(:disabled) {
+  color: #7f1d1d;
+}
+
+/* 105: Stair floating canvas ground plan and floor-edge hover repair */
+.stair-editor-room-base {
+  fill: rgba(251, 243, 227, 0.78);
+  stroke: rgba(120, 53, 15, 0.68);
+  stroke-width: 2.4;
+  vector-effect: non-scaling-stroke;
+  pointer-events: none;
+}
+.stair-editor-room-edge {
+  stroke: rgba(120, 53, 15, 0.92);
+  stroke-width: 2.1;
+  vector-effect: non-scaling-stroke;
+  stroke-linecap: round;
+  pointer-events: none;
+}
+.stair-editor-edge-hit {
+  stroke: rgba(15, 23, 42, 0.001) !important;
+  stroke-width: 20 !important;
+  vector-effect: non-scaling-stroke;
+  pointer-events: stroke;
+}
+.stair-editor-edge-hover line,
+.stair-editor-edge-assignment .stair-editor-edge-visible,
+.stair-editor-edge-assignment line:not(.stair-editor-edge-hit) {
+  fill: none;
+  stroke: rgba(37, 99, 235, 0.98);
+  stroke-width: 3.2;
+  vector-effect: non-scaling-stroke;
+  stroke-linecap: round;
+  pointer-events: stroke;
+}
+.stair-editor-edge-hover.next-floor line,
+.stair-editor-edge-assignment.next-floor .stair-editor-edge-visible,
+.stair-editor-edge-assignment.next-floor line:not(.stair-editor-edge-hit) {
+  stroke: rgba(124, 58, 237, 0.98);
+}
+.stair-editor-edge-hover line {
+  stroke-width: 5.2;
+  opacity: 0.98;
+}
+.stair-editor-edge-assignment.selected .stair-editor-edge-visible,
+.stair-editor-edge-assignment.selected line:not(.stair-editor-edge-hit) {
+  stroke-width: 4.5;
+}
+.stair-editor-edge-hover circle,
+.stair-editor-edge-assignment circle {
+  fill: #ffffff;
+  stroke: rgba(37, 99, 235, 0.98);
+  stroke-width: 1.55;
+  vector-effect: non-scaling-stroke;
+  pointer-events: none;
+}
+.stair-editor-edge-hover.next-floor circle,
+.stair-editor-edge-assignment.next-floor circle {
+  stroke: rgba(124, 58, 237, 0.98);
+}
+.stair-editor-edge-canvas-label {
+  fill: #1e3a8a;
+  paint-order: stroke;
+  stroke: rgba(255, 255, 255, 0.94);
+  stroke-width: 3.4px;
+  font-size: 0.12px;
+  font-weight: 850;
+  pointer-events: none;
+}
+.stair-editor-edge-assignment.next-floor .stair-editor-edge-canvas-label {
+  fill: #4c1d95;
+}
+.stair-editor-edge-assignment foreignObject,
+.stair-editor-edge-select,
+.stair-editor-edge-select * {
+  pointer-events: auto;
+}
+.stair-editor-edge-select {
+  width: 100%;
+  height: 100%;
+  box-sizing: border-box;
+  display: grid;
+  grid-template-columns: minmax(62px, 0.8fr) minmax(58px, 0.75fr);
+  grid-template-rows: auto auto;
+  align-items: center;
+  gap: 3px 6px;
+  padding: 5px 7px;
+  border-radius: 8px;
+  border: 1px solid rgba(37, 99, 235, 0.42);
+  background: rgba(255, 255, 255, 0.99);
+  box-shadow: 0 8px 18px rgba(15, 23, 42, 0.17);
+  font: 750 10px/1.08 system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  color: #1e3a8a;
+}
+.stair-editor-edge-assignment.next-floor .stair-editor-edge-select {
+  border-color: rgba(124, 58, 237, 0.45);
+  color: #4c1d95;
+}
+.stair-editor-edge-select span,
+.stair-editor-edge-select strong {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.stair-editor-edge-select strong {
+  font-weight: 850;
+}
+.stair-editor-edge-select select {
+  grid-column: 1 / -1;
+  min-width: 0;
+  width: 100%;
+  height: 24px;
+  border: 1px solid rgba(148, 163, 184, 0.62);
+  border-radius: 6px;
+  background: #ffffff;
+  color: #0f172a;
+  font-size: 10px;
+  font-weight: 750;
+}
+.stair-editor-edge-property-panel {
+  border-color: rgba(37, 99, 235, 0.25);
+  background: rgba(239, 246, 255, 0.72);
+}
+.stair-editor-edge-property-panel input,
+.stair-editor-edge-property-panel select {
+  min-width: 108px;
+}
+.stair-editor-edge-property-panel button {
+  min-height: 28px;
+  border-radius: 8px;
+  border: 1px solid rgba(37, 99, 235, 0.25);
+  background: #ffffff;
+  font-weight: 850;
+}
+
+/* 109: Stair floating editor forced panel replace and floor-edge tools */
+.stair-floating-window .stair-editor-canvas {
+  background: linear-gradient(180deg, rgba(255, 251, 235, 0.94), rgba(255, 255, 255, 0.99));
+}
+.stair-floating-window .stair-editor-room-base {
+  display: block !important;
+  visibility: visible !important;
+  opacity: 1 !important;
+  fill: rgba(251, 243, 227, 0.78) !important;
+  stroke: rgba(120, 53, 15, 0.44) !important;
+  stroke-width: 1.4 !important;
+  vector-effect: non-scaling-stroke;
+  pointer-events: none;
+}
+.stair-floating-window .stair-editor-room-edge {
+  display: block !important;
+  visibility: visible !important;
+  opacity: 1 !important;
+  fill: none;
+  stroke: rgba(120, 53, 15, 0.92) !important;
+  stroke-width: 2.2 !important;
+  vector-effect: non-scaling-stroke;
+  stroke-linecap: round;
+  pointer-events: none;
+}
+.stair-floating-window .stair-editor-edge-hit {
+  stroke: rgba(15, 23, 42, 0.001) !important;
+  stroke-width: 24 !important;
+  vector-effect: non-scaling-stroke;
+  pointer-events: stroke;
+}
+.stair-floating-window .stair-editor-edge-hover line,
+.stair-floating-window .stair-editor-edge-assignment .stair-editor-edge-visible,
+.stair-floating-window .stair-editor-edge-assignment line:not(.stair-editor-edge-hit) {
+  fill: none;
+  stroke: rgba(37, 99, 235, 0.98) !important;
+  stroke-width: 4.2 !important;
+  vector-effect: non-scaling-stroke;
+  stroke-linecap: round;
+  pointer-events: stroke;
+}
+.stair-floating-window .stair-editor-edge-hover.next-floor line,
+.stair-floating-window .stair-editor-edge-assignment.next-floor .stair-editor-edge-visible,
+.stair-floating-window .stair-editor-edge-assignment.next-floor line:not(.stair-editor-edge-hit) {
+  stroke: rgba(124, 58, 237, 0.98) !important;
+}
+.stair-floating-window .stair-editor-edge-hover line {
+  stroke-width: 7 !important;
+  opacity: 0.98 !important;
+}
+.stair-floating-window .stair-editor-edge-assignment.selected .stair-editor-edge-visible,
+.stair-floating-window .stair-editor-edge-assignment.selected line:not(.stair-editor-edge-hit) {
+  stroke-width: 6 !important;
+}
+.stair-floating-window .stair-editor-edge-hover circle,
+.stair-floating-window .stair-editor-edge-assignment circle {
+  fill: #ffffff;
+  stroke: rgba(37, 99, 235, 0.98) !important;
+  stroke-width: 1.8 !important;
+  vector-effect: non-scaling-stroke;
+  pointer-events: none;
+}
+.stair-floating-window .stair-editor-edge-hover.next-floor circle,
+.stair-floating-window .stair-editor-edge-assignment.next-floor circle {
+  stroke: rgba(124, 58, 237, 0.98) !important;
+}
+.stair-floating-window .stair-editor-edge-canvas-label,
+.stair-floating-window .stair-editor-edge-hover-label {
+  fill: #1e3a8a;
+  paint-order: stroke;
+  stroke: rgba(255, 255, 255, 0.96);
+  stroke-width: 4px;
+  font-size: 12px;
+  font-weight: 850;
+  pointer-events: none;
+}
+.stair-floating-window .stair-editor-edge-assignment.next-floor .stair-editor-edge-canvas-label,
+.stair-floating-window .stair-editor-edge-hover.next-floor .stair-editor-edge-hover-label {
+  fill: #4c1d95;
+}
+.stair-floating-window .stair-editor-edge-assignment foreignObject,
+.stair-floating-window .stair-editor-edge-select,
+.stair-floating-window .stair-editor-edge-select * {
+  pointer-events: auto !important;
+}
+.stair-floating-window .stair-editor-edge-select {
+  width: 100%;
+  height: 100%;
+  box-sizing: border-box;
+  display: grid;
+  grid-template-columns: minmax(78px, 0.9fr) minmax(74px, 0.8fr);
+  grid-template-rows: auto auto;
+  align-items: center;
+  gap: 4px 7px;
+  padding: 6px 8px;
+  border-radius: 9px;
+  border: 1px solid rgba(37, 99, 235, 0.5);
+  background: rgba(255, 255, 255, 0.995);
+  box-shadow: 0 8px 20px rgba(15, 23, 42, 0.2);
+  font: 750 11px/1.1 system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  color: #1e3a8a;
+}
+.stair-floating-window .stair-editor-edge-assignment.next-floor .stair-editor-edge-select {
+  border-color: rgba(124, 58, 237, 0.52);
+  color: #4c1d95;
+}
+.stair-floating-window .stair-editor-edge-select span,
+.stair-floating-window .stair-editor-edge-select strong {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.stair-floating-window .stair-editor-edge-select strong { font-weight: 850; }
+.stair-floating-window .stair-editor-edge-select select {
+  grid-column: 1 / -1;
+  min-width: 0;
+  width: 100%;
+  height: 28px;
+  border: 1px solid rgba(148, 163, 184, 0.68);
+  border-radius: 7px;
+  background: #ffffff;
+  color: #0f172a;
+  font-size: 11px;
+  font-weight: 750;
+}
+.stair-floating-window .canvas-toolbox.stair-editor-toolbar button[data-stair-tool="undo"],
+.stair-floating-window .canvas-toolbox.stair-editor-toolbar button[data-stair-tool="delete"] {
+  font-size: 17px;
+  line-height: 1;
+}
+.stair-floating-window .canvas-toolbox.stair-editor-toolbar button[data-stair-tool="delete"]:not(:disabled) {
+  color: #991b1b;
+}
+.stair-floating-window .stair-editor-edge-property-panel {
+  border-color: rgba(37, 99, 235, 0.28);
+  background: rgba(239, 246, 255, 0.74);
+}
+.stair-floating-window .stair-editor-edge-property-panel input,
+.stair-floating-window .stair-editor-edge-property-panel select {
+  min-width: 112px;
+}
+.stair-floating-window .stair-editor-edge-property-panel button {
+  min-height: 28px;
+  border-radius: 8px;
+  border: 1px solid rgba(37, 99, 235, 0.25);
+  background: #ffffff;
+  font-weight: 850;
+}
+
+/* 112: stair editor final build repair */
+.stair-floating-window .stair-editor-body {
+  align-items: stretch;
+}
+.stair-floating-window .stair-editor-canvas-wrap {
+  position: relative;
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: 320px;
+  border-radius: 14px;
+  overflow: hidden;
+  background: rgba(255, 251, 235, 0.92);
+  border: 1px solid rgba(146, 64, 14, 0.18);
+}
+.stair-floating-window .stair-editor-canvas {
+  width: 100%;
+  height: 100%;
+  min-height: 320px;
+  display: block;
+  background: linear-gradient(180deg, rgba(255, 251, 235, 0.94), rgba(255, 255, 255, 0.99));
+}
+.stair-floating-window .stair-editor-room-base {
+  display: block !important;
+  visibility: visible !important;
+  opacity: 1 !important;
+  fill: rgba(251, 243, 227, 0.78) !important;
+  stroke: rgba(120, 53, 15, 0.46) !important;
+  stroke-width: 1.4 !important;
+  vector-effect: non-scaling-stroke;
+  pointer-events: none;
+}
+.stair-floating-window .stair-editor-room-edge {
+  display: block !important;
+  visibility: visible !important;
+  opacity: 1 !important;
+  stroke: rgba(120, 53, 15, 0.96) !important;
+  stroke-width: 2.6 !important;
+  vector-effect: non-scaling-stroke;
+  stroke-linecap: round;
+  fill: none;
+  pointer-events: none;
+}
+.stair-floating-window .stair-editor-edge-hover line {
+  stroke: rgba(37, 99, 235, 0.98) !important;
+  stroke-width: 7 !important;
+  vector-effect: non-scaling-stroke;
+  stroke-linecap: round;
+  filter: drop-shadow(0 2px 4px rgba(37, 99, 235, 0.25));
+  pointer-events: none;
+}
+.stair-floating-window .stair-editor-edge-hover.next-floor line {
+  stroke: rgba(124, 58, 237, 0.98) !important;
+}
+.stair-floating-window .stair-editor-edge-hover circle {
+  fill: #ffffff;
+  stroke: rgba(37, 99, 235, 0.98);
+  stroke-width: 2.2;
+  vector-effect: non-scaling-stroke;
+  pointer-events: none;
+}
+.stair-floating-window .stair-editor-edge-hover.next-floor circle {
+  stroke: rgba(124, 58, 237, 0.98);
+}
+.stair-floating-window .stair-editor-edge-assignment {
+  cursor: pointer;
+  pointer-events: auto;
+}
+.stair-floating-window .stair-editor-edge-assignment .stair-editor-edge-hit {
+  stroke: transparent;
+  stroke-width: 18;
+  vector-effect: non-scaling-stroke;
+  pointer-events: stroke;
+}
+.stair-floating-window .stair-editor-edge-assignment .stair-editor-edge-visible {
+  stroke: rgba(37, 99, 235, 0.98) !important;
+  stroke-width: 5.4 !important;
+  vector-effect: non-scaling-stroke;
+  stroke-linecap: round;
+  pointer-events: none;
+}
+.stair-floating-window .stair-editor-edge-assignment.next-floor .stair-editor-edge-visible {
+  stroke: rgba(124, 58, 237, 0.98) !important;
+}
+.stair-floating-window .stair-editor-edge-assignment.selected .stair-editor-edge-visible {
+  stroke-width: 7 !important;
+  filter: drop-shadow(0 2px 5px rgba(37, 99, 235, 0.33));
+}
+.stair-floating-window .stair-editor-edge-assignment circle {
+  fill: #ffffff;
+  stroke: rgba(37, 99, 235, 0.98);
+  stroke-width: 2.2;
+  vector-effect: non-scaling-stroke;
+  pointer-events: none;
+}
+.stair-floating-window .stair-editor-edge-assignment.next-floor circle {
+  stroke: rgba(124, 58, 237, 0.98);
+}
+.stair-floating-window .stair-editor-edge-canvas-label,
+.stair-floating-window .stair-editor-edge-hover-label {
+  fill: #1e3a8a;
+  paint-order: stroke;
+  stroke: rgba(255, 255, 255, 0.96);
+  stroke-width: 4px;
+  font-size: 12px;
+  font-weight: 850;
+  pointer-events: none;
+}
+.stair-floating-window .stair-editor-edge-assignment.next-floor .stair-editor-edge-canvas-label,
+.stair-floating-window .stair-editor-edge-hover.next-floor .stair-editor-edge-hover-label {
+  fill: #4c1d95;
+}
+.stair-floating-window .stair-editor-edge-assignment foreignObject,
+.stair-floating-window .stair-editor-edge-select,
+.stair-floating-window .stair-editor-edge-select * {
+  pointer-events: auto !important;
+}
+.stair-floating-window .stair-editor-edge-select {
+  width: 100%;
+  height: 100%;
+  box-sizing: border-box;
+  display: grid;
+  grid-template-columns: minmax(78px, 0.9fr) minmax(74px, 0.8fr);
+  grid-template-rows: auto auto;
+  align-items: center;
+  gap: 4px 7px;
+  padding: 6px 8px;
+  border-radius: 9px;
+  border: 1px solid rgba(37, 99, 235, 0.5);
+  background: rgba(255, 255, 255, 0.995);
+  box-shadow: 0 8px 20px rgba(15, 23, 42, 0.2);
+  font: 750 11px/1.1 system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  color: #1e3a8a;
+}
+.stair-floating-window .stair-editor-edge-assignment.next-floor .stair-editor-edge-select {
+  border-color: rgba(124, 58, 237, 0.52);
+  color: #4c1d95;
+}
+.stair-floating-window .stair-editor-edge-select span,
+.stair-floating-window .stair-editor-edge-select strong {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.stair-floating-window .stair-editor-edge-select strong { font-weight: 850; }
+.stair-floating-window .stair-editor-edge-select select {
+  grid-column: 1 / -1;
+  min-width: 0;
+  width: 100%;
+  height: 28px;
+  border: 1px solid rgba(148, 163, 184, 0.68);
+  border-radius: 7px;
+  background: #ffffff;
+  color: #0f172a;
+  font-size: 11px;
+  font-weight: 750;
+}
+.stair-floating-window .canvas-toolbox.stair-editor-toolbar button[data-stair-tool="undo"],
+.stair-floating-window .canvas-toolbox.stair-editor-toolbar button[data-stair-tool="delete"] {
+  font-size: 17px;
+  line-height: 1;
+}
+.stair-floating-window .canvas-toolbox.stair-editor-toolbar button[data-stair-tool="delete"]:not(:disabled) {
+  color: #991b1b;
+}
+.stair-floating-window .stair-editor-edge-property-panel {
+  border-color: rgba(37, 99, 235, 0.28);
+  background: rgba(239, 246, 255, 0.74);
+}
+.stair-floating-window .stair-editor-edge-property-panel input,
+.stair-floating-window .stair-editor-edge-property-panel select {
+  min-width: 112px;
+}
+.stair-floating-window .stair-editor-edge-property-panel button {
+  min-height: 28px;
+  border-radius: 8px;
+  border: 1px solid rgba(37, 99, 235, 0.25);
+  background: #ffffff;
+  font-weight: 850;
+}
+
+/* 113: Treppeneditor Stabilisierung */
+.stair-floating-window .stair-editor-canvas-wrap {
+  position: relative;
+  min-height: 0;
+  border: 1px solid rgba(146, 64, 14, 0.16);
+  border-radius: 16px;
+  overflow: hidden;
+  background: linear-gradient(135deg, rgba(255, 251, 235, 0.96), rgba(255, 255, 255, 0.88));
+}
+.stair-floating-window .stair-editor-canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+  min-height: 280px;
+  touch-action: none;
+}
+.stair-floating-window .stair-editor-room-base {
+  fill: rgba(251, 191, 36, 0.10) !important;
+  stroke: rgba(120, 53, 15, 0.62) !important;
+  stroke-width: 1.35 !important;
+  vector-effect: non-scaling-stroke;
+  pointer-events: all;
+}
+.stair-floating-window .stair-editor-room-edge {
+  stroke: rgba(120, 53, 15, 0.88);
+  stroke-width: 2.25;
+  vector-effect: non-scaling-stroke;
+  fill: none;
+  pointer-events: none;
+}
+.stair-floating-window .stair-editor-edge-hover line {
+  stroke: #f59e0b;
+  stroke-width: 7;
+  stroke-linecap: round;
+  vector-effect: non-scaling-stroke;
+  filter: drop-shadow(0 2px 6px rgba(245, 158, 11, 0.45));
+}
+.stair-floating-window .stair-editor-edge-hover.next-floor line { stroke: #2563eb; }
+.stair-floating-window .stair-editor-edge-hover circle {
+  fill: #ffffff;
+  stroke: currentColor;
+  stroke-width: 2;
+  vector-effect: non-scaling-stroke;
+}
+.stair-floating-window .stair-editor-edge-hover-label,
+.stair-floating-window .stair-editor-edge-canvas-label {
+  paint-order: stroke;
+  stroke: rgba(255, 255, 255, 0.92);
+  stroke-width: 4px;
+  fill: #78350f;
+  font-size: 0.13px;
+  font-weight: 850;
+  pointer-events: none;
+}
+.stair-floating-window .stair-editor-edge-assignment {
+  cursor: pointer;
+  pointer-events: all;
+}
+.stair-floating-window .stair-editor-edge-hit {
+  stroke: transparent;
+  stroke-width: 22;
+  stroke-linecap: round;
+  vector-effect: non-scaling-stroke;
+  pointer-events: stroke;
+}
+.stair-floating-window .stair-editor-edge-visible {
+  stroke: #d97706;
+  stroke-width: 5;
+  stroke-linecap: round;
+  vector-effect: non-scaling-stroke;
+}
+.stair-floating-window .stair-editor-edge-assignment.next-floor .stair-editor-edge-visible { stroke: #2563eb; }
+.stair-floating-window .stair-editor-edge-assignment.selected .stair-editor-edge-visible {
+  stroke-width: 7;
+  filter: drop-shadow(0 2px 6px rgba(37, 99, 235, 0.25));
+}
+.stair-floating-window .stair-editor-edge-assignment circle {
+  fill: #ffffff;
+  stroke: currentColor;
+  stroke-width: 2;
+  vector-effect: non-scaling-stroke;
+}
+.stair-floating-window .stair-editor-edge-select,
+.stair-floating-window .stair-editor-edge-select * { pointer-events: auto; }
+.stair-floating-window .stair-editor-edge-select {
+  display: grid;
+  gap: 3px;
+  height: 100%;
+  box-sizing: border-box;
+  padding: 7px 8px;
+  border: 1px solid rgba(146, 64, 14, 0.22);
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.96);
+  box-shadow: 0 10px 22px rgba(120, 53, 15, 0.13);
+  font-size: 11px;
+}
+.stair-floating-window .stair-editor-edge-select span,
+.stair-floating-window .stair-editor-edge-select strong {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.stair-floating-window .stair-editor-edge-select strong { font-weight: 850; }
+.stair-floating-window .stair-editor-edge-select select {
+  width: 100%;
+  min-width: 0;
+  border: 1px solid rgba(146, 64, 14, 0.18);
+  border-radius: 8px;
+  background: #fff7ed;
+  font: inherit;
+  padding: 2px 5px;
+}
+.stair-blueprint-layout { pointer-events: none; }
+.stair-blueprint-element rect {
+  fill: rgba(245, 158, 11, 0.13);
+  stroke: rgba(146, 64, 14, 0.34);
+  stroke-width: 1;
+  vector-effect: non-scaling-stroke;
+}
+.stair-blueprint-element.stair rect {
+  fill: rgba(59, 130, 246, 0.1);
+  stroke: rgba(37, 99, 235, 0.28);
+}
+.stair-blueprint-element.turn rect {
+  fill: rgba(168, 85, 247, 0.1);
+  stroke: rgba(126, 34, 206, 0.28);
+}
+.stair-blueprint-step,
+.stair-blueprint-direction line,
+.stair-blueprint-direction path {
+  fill: none;
+  stroke: rgba(120, 53, 15, 0.42);
+  stroke-width: 1;
+  vector-effect: non-scaling-stroke;
+}
+.stair-blueprint-element text {
+  fill: rgba(120, 53, 15, 0.66);
+  font-size: 10px;
+  font-weight: 750;
+  paint-order: stroke;
+  stroke: rgba(255, 255, 255, 0.75);
+  stroke-width: 3px;
+}
+.stair-blueprint-visibility { pointer-events: none; }
+
+.stair-editor-element-hitbox {
+  fill: transparent;
+  stroke: transparent;
+  pointer-events: all;
+}
+
+
+/* 121: Treppe einzeichnen - Objekt- und Grundriss-Sichtbarkeit */
+.stair-floating-window .stair-editor-canvas-wrap {
+  background: #fffaf0 !important;
+  border-color: rgba(120, 53, 15, 0.26) !important;
+}
+.stair-floating-window .stair-editor-canvas {
+  background:
+    linear-gradient(rgba(120, 53, 15, 0.06) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(120, 53, 15, 0.06) 1px, transparent 1px),
+    linear-gradient(180deg, rgba(255, 251, 235, 0.96), rgba(255, 255, 255, 0.99)) !important;
+  background-size: 24px 24px, 24px 24px, auto !important;
+}
+.stair-floating-window .stair-editor-room-base {
+  display: block !important;
+  visibility: visible !important;
+  opacity: 1 !important;
+  fill: rgba(251, 191, 36, 0.16) !important;
+  stroke: rgba(120, 53, 15, 0.92) !important;
+  stroke-width: 3px !important;
+  vector-effect: non-scaling-stroke !important;
+  pointer-events: none !important;
+}
+.stair-floating-window .stair-editor-room-edge {
+  display: block !important;
+  visibility: visible !important;
+  opacity: 1 !important;
+  fill: none !important;
+  stroke: rgba(120, 53, 15, 0.98) !important;
+  stroke-width: 3.5px !important;
+  vector-effect: non-scaling-stroke !important;
+  stroke-linecap: round !important;
+  pointer-events: none !important;
+}
+.stair-floating-window .stair-editor-edge-assignment,
+.stair-floating-window .stair-editor-element {
+  display: block !important;
+  visibility: visible !important;
+  opacity: 1 !important;
+}
+.stair-floating-window .stair-editor-element {
+  pointer-events: all !important;
+}
+.stair-floating-window .stair-editor-element .stair-editor-element-hit {
+  fill: rgba(37, 99, 235, 0.001) !important;
+  stroke: none !important;
+  pointer-events: all !important;
+  cursor: move !important;
+}
+.stair-floating-window .stair-editor-element .stair-editor-element-shape {
+  fill: rgba(245, 158, 11, 0.46) !important;
+  stroke: #92400e !important;
+  stroke-width: 3px !important;
+  vector-effect: non-scaling-stroke !important;
+  pointer-events: none !important;
+  filter: drop-shadow(0 2px 4px rgba(120, 53, 15, 0.20));
+}
+.stair-floating-window .stair-editor-element.stair .stair-editor-element-shape {
+  fill: rgba(37, 99, 235, 0.34) !important;
+  stroke: #2563eb !important;
+}
+.stair-floating-window .stair-editor-element.turn .stair-editor-element-shape {
+  fill: rgba(126, 34, 206, 0.32) !important;
+  stroke: #7e22ce !important;
+}
+.stair-floating-window .stair-editor-element.selected .stair-editor-element-shape {
+  fill: rgba(37, 99, 235, 0.44) !important;
+  stroke: #1d4ed8 !important;
+  stroke-width: 4.5px !important;
+  filter: drop-shadow(0 0 8px rgba(37, 99, 235, 0.42));
+}
+.stair-floating-window .stair-editor-kind-label,
+.stair-floating-window .stair-editor-step-count,
+.stair-floating-window .stair-editor-element text.stair-editor-step-count {
+  fill: #111827 !important;
+  font-size: 0.075px !important;
+  font-weight: 850 !important;
+  paint-order: stroke !important;
+  stroke: rgba(255, 255, 255, 0.96) !important;
+  stroke-width: 0.018px !important;
+  pointer-events: none !important;
+}
+.stair-floating-window .stair-editor-step-line,
+.stair-floating-window .stair-editor-direction line,
+.stair-floating-window .stair-editor-direction path {
+  stroke: #1d4ed8 !important;
+  stroke-width: 1.8px !important;
+  vector-effect: non-scaling-stroke !important;
+  stroke-linecap: round !important;
+  stroke-linejoin: round !important;
+  fill: none !important;
+}
+.stair-floating-window .stair-editor-element-dimensions line {
+  stroke: rgba(29, 78, 216, 0.80) !important;
+  stroke-width: 1.5px !important;
+  vector-effect: non-scaling-stroke !important;
+}
+.stair-floating-window .stair-editor-element-dimensions text {
+  fill: #1d4ed8 !important;
+  font-size: 0.065px !important;
+  stroke: rgba(255, 255, 255, 0.95) !important;
+  stroke-width: 0.016px !important;
+}
+.stair-floating-window .stair-editor-edge-canvas-label,
+.stair-floating-window .stair-editor-edge-hover-label {
+  font-size: 0.078px !important;
+  stroke-width: 0.018px !important;
+  paint-order: stroke !important;
+  pointer-events: none !important;
+}
+.stair-floating-window .stair-editor-edge-assignment .stair-editor-edge-visible {
+  stroke-width: 5px !important;
+  vector-effect: non-scaling-stroke !important;
+}
+.stair-floating-window .stair-editor-edge-assignment .stair-editor-edge-hit {
+  stroke-width: 22px !important;
+  vector-effect: non-scaling-stroke !important;
+  pointer-events: stroke !important;
+}
+
+
+/* 122: Treppe einzeichnen - Stufen, Pfeile und Etagenmarker */
+.stair-floating-window .stair-editor-step-lines,
+.stair-floating-window .stair-editor-direction {
+  pointer-events: none !important;
+}
+.stair-floating-window .stair-editor-step-line,
+.stair-floating-window .stair-editor-step-line.turn {
+  stroke: #1d4ed8 !important;
+  stroke-width: 2.2px !important;
+  vector-effect: non-scaling-stroke !important;
+  stroke-linecap: round !important;
+  stroke-linejoin: round !important;
+  opacity: 0.96 !important;
+}
+.stair-floating-window .stair-editor-element.turn .stair-editor-step-line.turn {
+  stroke: #6d28d9 !important;
+  stroke-width: 2.35px !important;
+}
+.stair-floating-window .stair-editor-direction line,
+.stair-floating-window .stair-editor-direction path,
+.stair-floating-window .stair-editor-direction-bend,
+.stair-floating-window .stair-editor-direction-head {
+  stroke: #1e40af !important;
+  stroke-width: 2.7px !important;
+  vector-effect: non-scaling-stroke !important;
+  stroke-linecap: round !important;
+  stroke-linejoin: round !important;
+  fill: none !important;
+  opacity: 1 !important;
+}
+.stair-floating-window .stair-editor-direction.turn path,
+.stair-floating-window .stair-editor-element.turn .stair-editor-direction path {
+  stroke: #4c1d95 !important;
+  stroke-width: 3px !important;
+}
+.stair-floating-window .stair-editor-edge-assignment {
+  display: block !important;
+  visibility: visible !important;
+  opacity: 1 !important;
+  pointer-events: all !important;
+}
+.stair-floating-window .stair-editor-edge-assignment .stair-editor-edge-hit {
+  stroke: rgba(0, 0, 0, 0.001) !important;
+  stroke-width: 18px !important;
+  vector-effect: non-scaling-stroke !important;
+  pointer-events: stroke !important;
+}
+.stair-floating-window .stair-editor-edge-assignment .stair-editor-edge-visible {
+  stroke: #ea580c !important;
+  stroke-width: 7px !important;
+  stroke-dasharray: 0.12 0.08 !important;
+  vector-effect: non-scaling-stroke !important;
+  stroke-linecap: round !important;
+  filter: drop-shadow(0 0 4px rgba(234, 88, 12, 0.50)) !important;
+  opacity: 1 !important;
+  pointer-events: none !important;
+}
+.stair-floating-window .stair-editor-edge-assignment.next-floor .stair-editor-edge-visible {
+  stroke: #2563eb !important;
+  filter: drop-shadow(0 0 4px rgba(37, 99, 235, 0.50)) !important;
+}
+.stair-floating-window .stair-editor-edge-assignment.selected .stair-editor-edge-visible {
+  stroke-width: 9px !important;
+  stroke-dasharray: none !important;
+}
+.stair-floating-window .stair-editor-edge-end {
+  fill: #fff7ed !important;
+  stroke: #ea580c !important;
+  stroke-width: 3px !important;
+  vector-effect: non-scaling-stroke !important;
+  filter: drop-shadow(0 0 4px rgba(234, 88, 12, 0.55)) !important;
+  pointer-events: none !important;
+}
+.stair-floating-window .stair-editor-edge-assignment.next-floor .stair-editor-edge-end {
+  fill: #eff6ff !important;
+  stroke: #2563eb !important;
+  filter: drop-shadow(0 0 4px rgba(37, 99, 235, 0.55)) !important;
+}
+.stair-floating-window .stair-editor-edge-badge {
+  display: block !important;
+  visibility: visible !important;
+  opacity: 1 !important;
+  pointer-events: none !important;
+  filter: drop-shadow(0 2px 5px rgba(17, 24, 39, 0.24)) !important;
+}
+.stair-floating-window .stair-editor-edge-badge rect {
+  fill: #fff7ed !important;
+  stroke: #ea580c !important;
+  stroke-width: 3px !important;
+  vector-effect: non-scaling-stroke !important;
+}
+.stair-floating-window .stair-editor-edge-assignment.next-floor .stair-editor-edge-badge rect {
+  fill: #eff6ff !important;
+  stroke: #2563eb !important;
+}
+.stair-floating-window .stair-editor-edge-canvas-label {
+  display: block !important;
+  visibility: visible !important;
+  opacity: 1 !important;
+  fill: #111827 !important;
+  font-size: 0.105px !important;
+  font-weight: 900 !important;
+  letter-spacing: 0.002px !important;
+  paint-order: stroke !important;
+  stroke: rgba(255, 255, 255, 0.98) !important;
+  stroke-width: 0.022px !important;
+  dominant-baseline: middle !important;
+  pointer-events: none !important;
+}
+.stair-floating-window .stair-editor-edge-select {
+  border-width: 2px !important;
+  box-shadow: 0 8px 18px rgba(17, 24, 39, 0.18) !important;
+}
+
+
+/* 123: Treppe einzeichnen - Marker ausserhalb und Biegungsgeometrie */
+.stair-floating-window .stair-editor-edge-visible {
+  stroke-width: 6px !important;
+}
+.stair-floating-window .stair-editor-edge-assignment.selected .stair-editor-edge-visible {
+  stroke-width: 8px !important;
+}
+.stair-floating-window .stair-editor-edge-end {
+  stroke-width: 2.4px !important;
+}
+.stair-floating-window .stair-editor-edge-badge {
+  filter: drop-shadow(0 2px 4px rgba(17, 24, 39, 0.18)) !important;
+}
+.stair-floating-window .stair-editor-edge-badge rect {
+  stroke-width: 2.4px !important;
+}
+.stair-floating-window .stair-editor-edge-canvas-label {
+  font-size: 0.078px !important;
+  font-weight: 800 !important;
+  letter-spacing: 0.001px !important;
+  stroke-width: 0.016px !important;
+}
+.stair-floating-window .stair-editor-direction line,
+.stair-floating-window .stair-editor-direction path,
+.stair-floating-window .stair-editor-direction-bend,
+.stair-floating-window .stair-editor-direction-head {
+  stroke-linejoin: round !important;
+}
+
+
+/* 124: Treppe einzeichnen - Drag Marker und korrigierte Stufen */
+.stair-floating-window .stair-editor-edge-badge {
+  cursor: move !important;
+  pointer-events: all !important;
+}
+.stair-floating-window .stair-editor-edge-badge rect,
+.stair-floating-window .stair-editor-edge-badge text {
+  pointer-events: all !important;
+}
+.stair-floating-window .stair-editor-edge-canvas-label {
+  user-select: none !important;
+}
+.stair-floating-window .stair-editor-step-lines.stair .stair-editor-step-line {
+  stroke-width: 2.15px !important;
+}
+.stair-floating-window .stair-editor-step-lines.turn .stair-editor-step-line.turn {
+  stroke-width: 2.3px !important;
+}
+
+
+/* 125: Treppe einzeichnen - Biegungsfaecher und Hover-Texte */
+.stair-floating-window .stair-editor-step-lines.turn .stair-editor-step-line.turn {
+  stroke-linecap: round !important;
+  stroke-linejoin: round !important;
+}
+.stair-floating-window .stair-editor-toolbar button[data-tooltip],
+.stair-floating-window .stair-editor-library button[data-tooltip] {
+  position: relative;
+}
+.stair-floating-window .stair-editor-toolbar button[data-tooltip]:hover::after,
+.stair-floating-window .stair-editor-library button[data-tooltip]:hover::after,
+.stair-floating-window .stair-editor-toolbar button[data-tooltip]:focus-visible::after,
+.stair-floating-window .stair-editor-library button[data-tooltip]:focus-visible::after {
+  content: attr(data-tooltip);
+  position: absolute;
+  z-index: 2000;
+  left: 50%;
+  bottom: calc(100% + 8px);
+  transform: translateX(-50%);
+  min-width: max-content;
+  max-width: 180px;
+  padding: 4px 7px;
+  border-radius: 8px;
+  background: rgba(67, 30, 12, 0.95);
+  color: #fffaf2;
+  font-size: 11px;
+  font-weight: 800;
+  line-height: 1.2;
+  white-space: nowrap;
+  box-shadow: 0 8px 18px rgba(17, 24, 39, 0.22);
+  pointer-events: none;
+}
+.stair-floating-window .stair-editor-library button[data-tooltip]:hover::after,
+.stair-floating-window .stair-editor-library button[data-tooltip]:focus-visible::after {
+  bottom: auto;
+  top: -6px;
+  transform: translate(-50%, -100%);
+}
+
+
+/* 126: Treppe einzeichnen - robuster Biegungsfaecher und Tooltips */
+.stair-floating-window .stair-editor-step-lines.turn .stair-editor-step-line.turn {
+  stroke-linecap: round !important;
+  stroke-linejoin: round !important;
+  stroke-width: 2.45px !important;
+}
+.stair-floating-window .stair-editor-toolbar button[data-tooltip],
+.stair-floating-window .stair-editor-library button[data-tooltip] {
+  position: relative;
+}
+.stair-floating-window .stair-editor-toolbar button[data-tooltip]:hover::after,
+.stair-floating-window .stair-editor-library button[data-tooltip]:hover::after,
+.stair-floating-window .stair-editor-toolbar button[data-tooltip]:focus-visible::after,
+.stair-floating-window .stair-editor-library button[data-tooltip]:focus-visible::after {
+  content: attr(data-tooltip);
+  position: absolute;
+  z-index: 3000;
+  left: 50%;
+  bottom: calc(100% + 8px);
+  transform: translateX(-50%);
+  min-width: max-content;
+  max-width: 190px;
+  padding: 4px 7px;
+  border-radius: 8px;
+  background: rgba(67, 30, 12, 0.96);
+  color: #fffaf2;
+  font-size: 11px;
+  font-weight: 800;
+  line-height: 1.2;
+  white-space: nowrap;
+  box-shadow: 0 8px 18px rgba(17, 24, 39, 0.22);
+  pointer-events: none;
+}
+.stair-floating-window .stair-editor-library button[data-tooltip]:hover::after,
+.stair-floating-window .stair-editor-library button[data-tooltip]:focus-visible::after {
+  bottom: auto;
+  top: -6px;
+  transform: translate(-50%, -100%);
+}
+
+
+/* 127: wall detail stairs */
+.wall-detail-canvas .wall-detail-stair {
+  pointer-events: none;
+  stroke-linejoin: round;
+  stroke-linecap: round;
+}
+.wall-detail-canvas .wall-detail-stair-tread {
+  fill: rgba(219, 234, 254, 0.88);
+  stroke: rgba(29, 78, 216, 0.86);
+  stroke-width: 1.05;
+}
+.wall-detail-canvas .wall-detail-stair-riser {
+  fill: rgba(191, 219, 254, 0.58);
+  stroke: rgba(30, 64, 175, 0.56);
+  stroke-width: 0.95;
+}
+.wall-detail-canvas .wall-detail-stair-landing {
+  fill: rgba(254, 249, 195, 0.78);
+  stroke: rgba(180, 83, 9, 0.74);
+  stroke-width: 1.05;
+}
+
+
+/* 129: wall detail stairs refined */
+.wall-detail-canvas .wall-detail-stair {
+  pointer-events: none;
+  stroke-linejoin: round;
+  stroke-linecap: round;
+}
+.wall-detail-canvas .wall-detail-stair-tread {
+  fill: rgba(219, 234, 254, 0.92);
+  stroke: rgba(37, 99, 235, 0.90);
+  stroke-width: 1.05;
+}
+.wall-detail-canvas .wall-detail-stair-riser {
+  fill: rgba(191, 219, 254, 0.66);
+  stroke: rgba(29, 78, 216, 0.62);
+  stroke-width: 0.95;
+}
+.wall-detail-canvas .wall-detail-stair-landing {
+  fill: rgba(254, 249, 195, 0.80);
+  stroke: rgba(180, 83, 9, 0.76);
+  stroke-width: 1.05;
+}
+
+
+/* 130: wall detail stairs refined */
+.wall-detail-canvas .wall-detail-stair {
+  pointer-events: none;
+  stroke-linejoin: round;
+  stroke-linecap: round;
+}
+.wall-detail-canvas .wall-detail-stair-tread {
+  fill: rgba(219, 234, 254, 0.92);
+  stroke: rgba(37, 99, 235, 0.90);
+  stroke-width: 1.05;
+}
+.wall-detail-canvas .wall-detail-stair-riser {
+  fill: rgba(191, 219, 254, 0.66);
+  stroke: rgba(29, 78, 216, 0.62);
+  stroke-width: 0.95;
+}
+.wall-detail-canvas .wall-detail-stair-landing {
+  fill: rgba(254, 249, 195, 0.80);
+  stroke: rgba(180, 83, 9, 0.76);
+  stroke-width: 1.05;
+}
+
+
+/* 131: wall detail wall opening + geometry fixes */
+.wall-front-full-open-overlay {
+  fill: url(#wall-front-fullopen-hatch);
+  stroke: rgba(180, 83, 9, 0.55);
+  stroke-width: 1.2;
+  pointer-events: none;
+}
+.wall-front-full-open-toggle {
+  appearance: none;
+  border: 1px solid rgba(180, 83, 9, 0.25);
+  background: rgba(255, 255, 255, 0.92);
+  color: #8a4b16;
+  border-radius: 999px;
+  padding: 6px 12px;
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+}
+.wall-front-full-open-toggle.active {
+  background: rgba(245, 158, 11, 0.16);
+  border-color: rgba(180, 83, 9, 0.42);
+}
+.wall-front-open-note {
+  color: #8a4b16;
+  font-weight: 700;
+}
+.wall-detail-canvas .wall-detail-face-3d.full-open {
+  fill-opacity: 0.10 !important;
+  stroke-opacity: 0.42 !important;
+}
+.wall-detail-canvas .wall-detail-face-3d.full-open.selected {
+  fill-opacity: 0.14 !important;
+  stroke-opacity: 0.58 !important;
+}
+
+
+/* 132: robust 3d depth + wall popup + blueprint doors */
+.wall-front-full-open-overlay {
+  fill: url(#wall-front-fullopen-hatch) !important;
+  stroke: rgba(180, 83, 9, 0.68) !important;
+  stroke-width: 1.4px !important;
+  pointer-events: none;
+}
+.wall-detail-canvas .wall-detail-stair {
+  pointer-events: none;
+}
+.wall-detail-canvas .wall-detail-face-3d.full-open {
+  fill-opacity: 0.10 !important;
+  stroke-opacity: 0.46 !important;
+}
+.wall-detail-canvas .wall-detail-hit-face {
+  pointer-events: all;
+}
