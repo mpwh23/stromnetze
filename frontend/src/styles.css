@@ -4588,3 +4588,10 @@ svg [class*="dimension"], svg [class*="technical"], svg [class*="measure"] { vec
 .wall-detail-canvas .wall-detail-hit-face {
   pointer-events: all;
 }
+
+
+/* 133: stair depth, winder risers, outer wall doors */
+.wall-detail-canvas .wall-detail-stair-riser {
+  fill-opacity: 0.82;
+  stroke-opacity: 0.82;
+}

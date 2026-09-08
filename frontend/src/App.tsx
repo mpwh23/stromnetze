@@ -5473,10 +5473,39 @@ function WallDetailEditor({
     return wallFaceVisiblePolygons(face.points, openings).map((polygon, pieceIndex) => ({ face, polygon, pieceIndex, opened: openings.length > 0, fullOpen: false }))
   }), [projectedWallFaces, wallObjectsByKey, floor.id, rooms, introPhase])
 
-  const wallDepthScene = useMemo(() => [
-    ...visibleWallFacePieces.map((entry) => ({ kind: 'wall' as const, depth: entry.face.avgDepth, entry })),
-    ...projectedStairObjects.map((entry) => ({ kind: 'stair' as const, depth: entry.avgDepth, entry })),
-  ].sort((a, b) => b.depth - a.depth), [visibleWallFacePieces, projectedStairObjects])
+  const stairRoomDepthById = useMemo(() => {
+    const result = new Map<string, number>()
+    projectedRooms.forEach((entry) => {
+      if (isStairRoom(entry.room)) result.set(entry.room.id, entry.avgDepth)
+    })
+    return result
+  }, [projectedRooms])
+
+  const wallDepthScene = useMemo(() => {
+    const stairEntries = projectedStairObjects.map((entry) => ({
+      kind: 'stair' as const,
+      depth: entry.avgDepth,
+      layer: 1,
+      entry,
+    }))
+    const wallEntries = visibleWallFacePieces.map((entry) => {
+      const stairRoomDepth = stairRoomDepthById.get(entry.face.room.id)
+      if (stairRoomDepth === undefined) {
+        return { kind: 'wall' as const, depth: entry.face.avgDepth, layer: 1, entry }
+      }
+      const behindStair = entry.face.avgDepth >= stairRoomDepth
+      return {
+        kind: 'wall' as const,
+        depth: entry.face.avgDepth,
+        layer: behindStair ? 2 : 0,
+        entry,
+      }
+    })
+    return [...wallEntries, ...stairEntries].sort((a, b) => {
+      if (a.layer !== b.layer) return b.layer - a.layer
+      return b.depth - a.depth
+    })
+  }, [visibleWallFacePieces, projectedStairObjects, stairRoomDepthById])
 
   const wallPassageRevealsIn3D = useMemo(() => projectedWallFaces.flatMap((face) => {
     const openings = wallObjectsForFace(face, floor.id, rooms, wallObjectsByKey).filter((item) => isRegularWallOpeningObject(item))
@@ -6537,7 +6566,7 @@ function wallObjectsForSelectedWall(
     room.vertices.forEach((_, edgeIndex) => {
       if (room.id === targetRoom.id && edgeIndex === targetEdgeIndex) return
       const sourceEdge = edgePoints(room.vertices, edgeIndex)
-      if (!sourceEdge || !wallEdgePairInfo(targetEdge, sourceEdge)?.paired) return
+      if (!sourceEdge || !wallObjectPairInfo(targetRoom, targetEdge, room, sourceEdge)?.paired) return
       const key = wallObjectKey(floorId, room.id, edgeIndex)
       ;(wallObjectsByKey[key] ?? []).forEach((item) => {
         if (seenIds.has(item.id)) return
@@ -6574,6 +6603,46 @@ function findWallObjectsByGroup(state: Record<string, WallPlacedObject[]>, group
   })
 }
 
+function wallObjectPairInfo(
+  sourceRoom: Room,
+  sourceEdge: { a: PointM; b: PointM },
+  targetRoom: Room,
+  targetEdge: { a: PointM; b: PointM },
+): WallEdgePairInfo | null {
+  const normalPair = wallEdgePairInfo(sourceEdge, targetEdge)
+  if (normalPair?.paired) return normalPair
+  if (!isOuterWallRoom(sourceRoom) && !isOuterWallRoom(targetRoom)) return null
+
+  const ax = sourceEdge.b.x - sourceEdge.a.x
+  const ay = sourceEdge.b.y - sourceEdge.a.y
+  const bx = targetEdge.b.x - targetEdge.a.x
+  const by = targetEdge.b.y - targetEdge.a.y
+  const lenA = Math.hypot(ax, ay)
+  const lenB = Math.hypot(bx, by)
+  if (lenA < 0.2 || lenB < 0.2) return null
+  const dot = (ax * bx + ay * by) / (lenA * lenB)
+  if (Math.abs(dot) < 0.985) return null
+
+  const ux = ax / lenA
+  const uy = ay / lenA
+  const normalA = Math.abs((targetEdge.a.x - sourceEdge.a.x) * uy - (targetEdge.a.y - sourceEdge.a.y) * ux)
+  const normalB = Math.abs((targetEdge.b.x - sourceEdge.a.x) * uy - (targetEdge.b.y - sourceEdge.a.y) * ux)
+  const normalDistance = (normalA + normalB) / 2
+  const allowedNormalDistance = Math.max(
+    0.42,
+    Math.max(sourceRoom.wallThicknessM || 0, targetRoom.wallThicknessM || 0) * 2 + 0.12,
+  )
+  if (normalDistance > allowedNormalDistance) return null
+
+  const t0 = (targetEdge.a.x - sourceEdge.a.x) * ux + (targetEdge.a.y - sourceEdge.a.y) * uy
+  const t1 = (targetEdge.b.x - sourceEdge.a.x) * ux + (targetEdge.b.y - sourceEdge.a.y) * uy
+  const overlap = Math.max(0, Math.min(lenA, Math.max(t0, t1)) - Math.max(0, Math.min(t0, t1)))
+  const requiredOverlap = Math.min(0.30, Math.min(lenA, lenB) * 0.28)
+  if (overlap < requiredOverlap) return null
+
+  return { paired: true, reversed: dot < 0 }
+}
+
 function pairedWallLocations(floorId: string, sourceRoom: Room, sourceEdgeIndex: number, rooms: Room[]): WallFaceLocation[] {
   const sourceEdge = edgePoints(sourceRoom.vertices, sourceEdgeIndex)
   const own = { key: wallObjectKey(floorId, sourceRoom.id, sourceEdgeIndex), roomId: sourceRoom.id, edgeIndex: sourceEdgeIndex, reversed: false }
@@ -6584,7 +6653,7 @@ function pairedWallLocations(floorId: string, sourceRoom: Room, sourceEdgeIndex:
       if (room.id === sourceRoom.id && edgeIndex === sourceEdgeIndex) return
       const otherEdge = edgePoints(room.vertices, edgeIndex)
       if (!otherEdge) return
-      const pair = wallEdgePairInfo(sourceEdge, otherEdge)
+      const pair = wallObjectPairInfo(sourceRoom, sourceEdge, room, otherEdge)
       if (!pair?.paired) return
       pairs.push({ key: wallObjectKey(floorId, room.id, edgeIndex), roomId: room.id, edgeIndex, reversed: pair.reversed, score: wallPairPlacementScore(sourceEdge, otherEdge) })
     })
@@ -6617,7 +6686,7 @@ function wallFaceIsInPair(face: { room: Room; edgeIndex: number }, hovered: Wall
   const hoveredRoom = rooms.find((room) => room.id === hovered.roomId)
   const hoveredEdge = hoveredRoom ? edgePoints(hoveredRoom.vertices, hovered.edgeIndex) : null
   const faceEdge = edgePoints(face.room.vertices, face.edgeIndex)
-  return Boolean(hoveredEdge && faceEdge && wallEdgePairInfo(hoveredEdge, faceEdge)?.paired)
+  return Boolean(hoveredRoom && hoveredEdge && faceEdge && wallObjectPairInfo(hoveredRoom, hoveredEdge, face.room, faceEdge)?.paired)
 }
 
 function cleanRoomName(room: Room) {
@@ -6934,10 +7003,10 @@ function stairElementPolygons3D(room: Room, element: StairEditorElement, roomHei
       polygons.push({
         role: 'riser',
         points: [
+          { x: origin.x, y: origin.y, z: zPrev },
           { x: startPoint.x, y: startPoint.y, z: zPrev },
-          { x: endPoint.x, y: endPoint.y, z: zPrev },
-          { x: endPoint.x, y: endPoint.y, z: zNext },
           { x: startPoint.x, y: startPoint.y, z: zNext },
+          { x: origin.x, y: origin.y, z: zNext },
         ],
       })
     }
@@ -7219,7 +7288,7 @@ function wallObjectsForFace(face: RenderedWallFace, floorId: string, rooms: Room
       const objects = wallObjectsByKey[key] ?? []
       if (objects.length === 0) return
       const otherEdge = edgePoints(room.vertices, edgeIndex)
-      if (!otherEdge || !samePhysicalWallEdge(faceEdge, otherEdge)) return
+      if (!otherEdge || !wallObjectPairInfo(face.room, faceEdge, room, otherEdge)?.paired) return
       objects.forEach((item) => {
         if (item.groupId && ownGroupIds.has(item.groupId)) return
         const projected = projectWallPlacedObjectBetweenRooms(item, room, edgeIndex, face.room, face.edgeIndex)
@@ -7305,7 +7374,7 @@ function findOpeningPartnerFace(
     const candidateRoom = rooms.find((room) => room.id === candidate.room.id) ?? candidate.room
     const candidateEdge = edgePoints(candidateRoom.vertices, candidate.edgeIndex)
     if (!candidateEdge) return []
-    const pair = wallEdgePairInfo(faceEdge, candidateEdge)
+    const pair = wallObjectPairInfo(sourceRoom, faceEdge, candidateRoom, candidateEdge)
     if (!pair?.paired) return []
     const projectedItem = projectWallPlacedObjectBetweenRooms(item, sourceRoom, face.edgeIndex, candidateRoom, candidate.edgeIndex)
     const centerDistance = openingCenterDistance(face.points, item, candidate.points, projectedItem)
