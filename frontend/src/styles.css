@@ -4771,3 +4771,9 @@ svg [class*="dimension"], svg [class*="technical"], svg [class*="measure"] { vec
 .floorplan-layout .canvas-toolbox button.strom-neighbor-snap143.active { background: #2563eb; border-color: #2563eb; color: white; }
 .floorplan-layout .canvas-toolbox button.strom-neighbor-snap143 .strom-ui-icon { flex: 0 0 20px; }
 .floorplan-layout .strom-ghost-snap-hint143b { color: #1d4ed8; font-weight: 700; }
+
+/* STROM144: shared Blueprint layer selector in the real 3D Wanddetail. */
+.building3d-level-picker144 { display: inline-flex; align-items: center; gap: 7px; padding: 3px 8px; border: 1px solid #b7c5d9; border-radius: 7px; background: #fff; white-space: nowrap; }
+.building3d-level-picker144 select { max-width: 240px; min-width: 125px; padding: 5px 7px; border: 1px solid #94a3b8; border-radius: 5px; background: #fff; color: #1e293b; font: inherit; }
+.building3d-level-picker144 .strom-ui-icon { width: 20px; height: 20px; flex: none; }
+.building3d-toolbar .building3d-level-picker144 span { margin-right: 0; color: #334155; }

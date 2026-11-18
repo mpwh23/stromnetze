@@ -5,11 +5,13 @@ import { OrbitControls } from 'three/addons/controls/OrbitControls.js'
 import { getWallObjects, updateWallObject as updateWallObjectApi } from '../api'
 import type { Floor, Room, WallObject, PointM } from '../types'
 import { buildSolidSurface, nearestRoomForWallHit } from '../building/solidGeometry'
+import { cleanWallSurface144 } from '../building/meshCleanup144'
+import StromIcon from './StromIcon'
 import { selectWallEdgeFrom3DHit, type WallHitSelection3D } from '../building/wallHitSelection'
 import { pickWallHoverPlane, buildWallHoverTriangles, type WallHoverPlane } from '../building/wallHoverGeometry'
 import type { ReactNode } from 'react'
 import { buildBuildingModel, type BuildingModel, type BuildingRoom, type BuildingWall, type BuildingOpening } from '../building/model'
-import { active3DFloor, readActiveBlueprintLevel } from '../building/blueprintLevels'
+import { active3DFloor, readActiveBlueprintLevel, listBlueprintLevelOptions144, selectBlueprintLevel144 } from '../building/blueprintLevels'
 // STROM143B_STAIR_AUDIT: StairSolid is rendered and storage availability is displayed.
 // STROM143_STAIRS_FIX: share the exact saved room layouts across 3D views.
 import { build3DStairsAcrossLevels143, type PlacedStairSurface143 } from '../building/stairVisibility143'
@@ -57,7 +59,7 @@ function SolidWallMeshes({ model, onSelectRoom, onSelectWall, transparent }: {
   const geometry = useMemo(() => {
     const surface = buildSolidSurface(model)
     const mesh = new THREE.BufferGeometry()
-    mesh.setAttribute('position', new THREE.Float32BufferAttribute(surface.positions, 3))
+    mesh.setAttribute('position', new THREE.Float32BufferAttribute(cleanWallSurface144(surface.positions).positions, 3))
     mesh.computeVertexNormals()
     mesh.computeBoundingSphere()
     return mesh
@@ -149,7 +151,8 @@ function SolidWallMeshes({ model, onSelectRoom, onSelectWall, transparent }: {
           transparent={transparent}
           opacity={transparent ? 0.34 : 1}
           depthWrite={!transparent}
-          side={THREE.DoubleSide}
+          side={transparent ? THREE.FrontSide : THREE.DoubleSide}
+          forceSinglePass={transparent}
         />
       </mesh>
       {hovered && hoverGeometry && onSelectWall && (
@@ -448,6 +451,19 @@ export default function Building3DWorkspace({ floor, rooms, selectedRoomId, onSe
   // No duplicate per-view geometry state; the local-storage adapter will be
   // replaced by an API-backed canonical level record in a later migration.
   const activeLevel = useMemo(() => readActiveBlueprintLevel(floor, rooms, window.localStorage), [floor, rooms, levelRevision])
+  // STROM144_LEVEL_PICKER: identical layer list, names, heights and active ID as Blueprint.
+  const levelOptions144 = useMemo(() => listBlueprintLevelOptions144(floor, window.localStorage), [floor, levelRevision])
+  function chooseWallDetailLevel144(id: string) {
+    if (!selectBlueprintLevel144(floor, id, window.localStorage)) {
+      setMessage('Ebene konnte nicht ausgewaehlt werden.')
+      return
+    }
+    onSelectRoom('')
+    onSelectWall?.(null)
+    setSelectedDoorId('')
+    window.dispatchEvent(new Event('strom:blueprint-levels-changed'))
+  }
+
   const levelFloor = useMemo(() => active3DFloor(floor, activeLevel), [floor, activeLevel])
   const model = useMemo(() => buildBuildingModel(levelFloor, activeLevel.rooms, objects), [levelFloor, activeLevel, objects])
   const stairData143 = useMemo(() => build3DStairsAcrossLevels143(floor, rooms, activeLevel, window.localStorage), [floor, rooms, activeLevel, levelRevision])
@@ -493,7 +509,20 @@ export default function Building3DWorkspace({ floor, rooms, selectedRoomId, onSe
     <div className="building3d-layout" aria-label="Echtes 3D Gebaeudemodell">
       <div className="building3d-toolbar">
         <strong>{variant === 'wall' ? 'Wanddetail · Echtes 3D' : 'Echtes 3D · Aufbauphase 1'}</strong>
-        <span>Etage: {activeLevel.name} · {Math.round(activeLevel.heightM * 1000)} mm</span>
+        {variant === 'wall' ? (
+          <label className="building3d-level-picker144" title="Blueprint-Ebene im Wanddetail waehlen; verwendet dieselben gespeicherten Ebenen">
+            <StromIcon name="layers-current" size={20} title="Ebenen aus Blueprint" />
+            <span>Ebene</span>
+            <select aria-label="Aktive Blueprint-Ebene im Wanddetail" value={activeLevel.id}
+              onChange={(event) => chooseWallDetailLevel144(event.currentTarget.value)}>
+              {levelOptions144.map((level) => (
+                <option key={level.id} value={level.id}>{level.name} · {Math.round(level.heightM * 1000)} mm</option>
+              ))}
+            </select>
+          </label>
+        ) : (
+          <span>Etage: {activeLevel.name} · {Math.round(activeLevel.heightM * 1000)} mm</span>
+        )}
         <button type="button" title="Transparente Waende umschalten" onClick={() => setTransparent((value) => !value)}>{transparent ? 'Waende deckend' : 'Waende transparent'}</button>
         <button type="button" title="Zum 2D-Blueprint wechseln" onClick={onBackToBlueprint}>Zurueck zum Blueprint (2D)</button>
         {variant === 'wall' && onOpenLegacyWallDetail && (

@@ -3065,7 +3065,11 @@ function toggleRecessOffsetDirection() {
               )
             })}
 
-            <BlueprintWallObjectConnections wallObjects={blueprintWallObjects} rooms={rooms} />
+            {/* STROM144_BLUEPRINT_DOOR_LEVEL: doors are local to the active level, not ghost levels. */}
+            <BlueprintWallObjectConnections
+              wallObjects={blueprintWallObjects.filter((item) => (roomLayerAssignments[item.roomId] ?? defaultLayerId) === activeLayerId)}
+              rooms={activeLayerRooms}
+            />
             {blueprintDoorPreview136 && tool === 'door' && (
               <g className="blueprint-door-preview136" pointerEvents="none" aria-label="Tuer-Vorschau">
                 <line x1={mToX(blueprintDoorPreview136.left.x)} y1={mToY(blueprintDoorPreview136.left.y)} x2={mToX(blueprintDoorPreview136.right.x)} y2={mToY(blueprintDoorPreview136.right.y)} />

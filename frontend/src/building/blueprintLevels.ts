@@ -67,3 +67,33 @@ export function readActiveBlueprintLevel(floor: Floor, rooms: Room[], storage: K
 export function active3DFloor(floor: Floor, level: BlueprintLevelView): Floor {
   return { ...floor, heightM: level.heightM, elevationM: level.elevationM, name: `${floor.name} / ${level.name}` }
 }
+
+
+/** STROM144_LEVEL_OPTIONS: shared Blueprint layer selector for Wanddetail. */
+export type BlueprintLevelOption144 = { id: string; name: string; heightM: number }
+export function listBlueprintLevelOptions144(floor: Floor, storage: KeyValueReader): BlueprintLevelOption144[] {
+  const raw = readJson(storage, `strom.floorplan.layers.${floor.id}.list`)
+  const fallback = clampHeight(Number(floor.heightM), 2.5)
+  const result: BlueprintLevelOption144[] = []
+  if (Array.isArray(raw)) for (const item of raw as unknown[]) {
+    if (!item || typeof item !== 'object') continue
+    const entry = item as Record<string, unknown>
+    if (typeof entry.id !== 'string' || !entry.id || result.some((level) => level.id === entry.id)) continue
+    result.push({
+      id: entry.id,
+      name: typeof entry.name === 'string' && entry.name.trim() ? entry.name : `Ebene ${result.length + 1}`,
+      heightM: clampHeight(Number(entry.heightM), fallback),
+    })
+  }
+  return result.length ? result : [{ id: DEFAULT_LAYER_ID, name: 'Ebene 1', heightM: fallback }]
+}
+
+export function selectBlueprintLevel144(
+  floor: Floor, id: string, storage: KeyValueReader & { setItem(key: string, value: string): void },
+): boolean {
+  if (!listBlueprintLevelOptions144(floor, storage).some((level) => level.id === id)) return false
+  try {
+    storage.setItem(`strom.floorplan.layers.${floor.id}.active`, JSON.stringify(id))
+    return true
+  } catch { return false }
+}
