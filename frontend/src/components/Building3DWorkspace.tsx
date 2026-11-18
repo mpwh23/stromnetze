@@ -5,6 +5,8 @@ import { OrbitControls } from 'three/addons/controls/OrbitControls.js'
 import { getWallObjects, updateWallObject as updateWallObjectApi } from '../api'
 import type { Floor, Room, WallObject, PointM } from '../types'
 import { buildSolidSurface, nearestRoomForWallHit } from '../building/solidGeometry'
+import { selectWallEdgeFrom3DHit, type WallHitSelection3D } from '../building/wallHitSelection'
+import type { ReactNode } from 'react'
 import { buildBuildingModel, type BuildingModel, type BuildingRoom, type BuildingWall, type BuildingOpening } from '../building/model'
 
 const roundMm = (value: number) => Math.round(value * 1000) / 1000
@@ -30,9 +32,10 @@ function FloorMesh({ room, selected, onSelect }: { room: BuildingRoom; selected:
   )
 }
 
-function SolidWallMeshes({ model, onSelectRoom, transparent }: {
+function SolidWallMeshes({ model, onSelectRoom, onSelectWall, transparent }: {
   model: BuildingModel
   onSelectRoom: (id: string) => void
+  onSelectWall?: (wall: WallHitSelection3D | null) => void
   transparent: boolean
 }) {
   // Exactly one boundary mesh is rendered for the union of all walls on the
@@ -51,8 +54,17 @@ function SolidWallMeshes({ model, onSelectRoom, transparent }: {
       geometry={geometry}
       onClick={(event: ThreeEvent<MouseEvent>) => {
         event.stopPropagation()
-        const roomId = nearestRoomForWallHit(model, { x: event.point.x, y: event.point.z })
-        if (roomId) onSelectRoom(roomId)
+        if (onSelectWall && event.delta > 5) return // 3D camera orbit, not a wall click
+        const point = { x: event.point.x, y: event.point.z }
+        // In Wanddetail: click a physical face to open its original wall editor.
+        const hitWall = onSelectWall ? selectWallEdgeFrom3DHit(model, point) : null
+        if (hitWall) {
+          onSelectWall?.(hitWall)
+          onSelectRoom(hitWall.roomId)
+        } else {
+          const roomId = nearestRoomForWallHit(model, point)
+          if (roomId) onSelectRoom(roomId)
+        }
       }}
       castShadow={!transparent}
       receiveShadow
@@ -102,12 +114,13 @@ function SceneControls({ model }: { model: BuildingModel }) {
   return null
 }
 
-function RealBuildingScene({ model, selectedRoomId, selectedDoorId, onSelectRoom, onSelectDoor, transparent }: {
+function RealBuildingScene({ model, selectedRoomId, selectedDoorId, onSelectRoom, onSelectDoor, onSelectWall, transparent }: {
   model: BuildingModel
   selectedRoomId: string
   selectedDoorId: string
   onSelectRoom: (id: string) => void
   onSelectDoor: (id: string) => void
+  onSelectWall?: (wall: WallHitSelection3D | null) => void
   transparent: boolean
 }) {
   const distance = Math.max(8, model.spanM * 1.2)
@@ -116,7 +129,7 @@ function RealBuildingScene({ model, selectedRoomId, selectedDoorId, onSelectRoom
       shadows={!transparent}
       dpr={[1, 1.75]}
       camera={{ position: [model.center.x + distance, model.floorElevationM + distance * 0.8 + model.floorHeightM, model.center.y + distance], fov: 48, near: 0.05, far: Math.max(100, model.spanM * 20) }}
-      onPointerMissed={() => { onSelectDoor(''); onSelectRoom('') }}
+      onPointerMissed={() => { onSelectDoor(''); onSelectRoom(''); onSelectWall?.(null) }}
       gl={{ antialias: true, alpha: false }}
       aria-label="Echte dreidimensionale Gebaeudeansicht"
     >
@@ -126,11 +139,12 @@ function RealBuildingScene({ model, selectedRoomId, selectedDoorId, onSelectRoom
       <hemisphereLight args={['#e8f1ff', '#9698a6', 0.85]} />
       <group position={[0, model.floorElevationM, 0]}>
         {model.rooms.map((room) => (
-          <FloorMesh key={room.id} room={room} selected={selectedRoomId === room.id} onSelect={() => { onSelectRoom(room.id); onSelectDoor('') }} />
+          <FloorMesh key={room.id} room={room} selected={selectedRoomId === room.id} onSelect={() => { onSelectRoom(room.id); onSelectDoor(''); onSelectWall?.(null) }} />
         ))}
         <SolidWallMeshes
           model={model}
           onSelectRoom={(id) => { onSelectRoom(id); onSelectDoor('') }}
+          onSelectWall={onSelectWall}
           transparent={transparent}
         />
         {model.walls.flatMap((wall) => wall.openings
@@ -141,7 +155,11 @@ function RealBuildingScene({ model, selectedRoomId, selectedDoorId, onSelectRoom
               door={door}
               wall={wall}
               selected={selectedDoorId === door.groupId}
-              onSelect={() => { onSelectDoor(door.groupId); onSelectRoom(door.roomId) }}
+              onSelect={() => {
+                onSelectDoor(door.groupId)
+                onSelectRoom(door.roomId)
+                onSelectWall?.({ roomId: door.roomId, edgeIndex: door.edgeIndex })
+              }}
             />
           )))}
       </group>
@@ -248,7 +266,7 @@ function DoorForm({ model, door, rooms, rawObjects, onSaved }: {
   )
 }
 
-export default function Building3DWorkspace({ floor, rooms, selectedRoomId, onSelectRoom, onPersistRoom, onCaptureUndo, onBackToBlueprint, variant = 'house', onOpenLegacyWallDetail }: {
+export default function Building3DWorkspace({ floor, rooms, selectedRoomId, onSelectRoom, onPersistRoom, onCaptureUndo, onBackToBlueprint, variant = 'house', onOpenLegacyWallDetail, onSelectWall, wallEditor, objectsRevision }: {
   floor: Floor
   rooms: Room[]
   selectedRoomId: string
@@ -258,6 +276,9 @@ export default function Building3DWorkspace({ floor, rooms, selectedRoomId, onSe
   onBackToBlueprint: () => void
   variant?: 'house' | 'wall'
   onOpenLegacyWallDetail?: () => void
+  onSelectWall?: (wall: WallHitSelection3D | null) => void
+  wallEditor?: ReactNode
+  objectsRevision?: number
 }) {
   const [objects, setObjects] = useState<WallObject[]>([])
   const [selectedDoorId, setSelectedDoorId] = useState('')
@@ -282,7 +303,7 @@ export default function Building3DWorkspace({ floor, rooms, selectedRoomId, onSe
       setMessage(`Tueren konnten nicht geladen werden: ${error instanceof Error ? error.message : String(error)}`)
     }
   }
-  useEffect(() => { void reloadDoors() }, [floor.id])
+  useEffect(() => { void reloadDoors() }, [floor.id, objectsRevision])
   useEffect(() => { setXmm(Math.round(centroid.x * 1000)); setYmm(Math.round(centroid.y * 1000)) }, [selectedRoomId, centroid.x, centroid.y])
 
   async function shiftSelectedRoom(dxM: number, dyM: number) {
@@ -319,8 +340,8 @@ export default function Building3DWorkspace({ floor, rooms, selectedRoomId, onSe
       </div>
       <div className="building3d-content">
         <div className="building3d-view">
-          <RealBuildingScene model={model} selectedRoomId={selectedRoomId} selectedDoorId={selectedDoorId} onSelectRoom={onSelectRoom} onSelectDoor={setSelectedDoorId} transparent={transparent} />
-          <div className="building3d-help">Linke Maustaste: drehen · Mausrad: zoomen · rechte Maustaste: verschieben · Klick: Raum oder Tuer waehlen</div>
+          <RealBuildingScene model={model} selectedRoomId={selectedRoomId} selectedDoorId={selectedDoorId} onSelectRoom={onSelectRoom} onSelectDoor={setSelectedDoorId} onSelectWall={variant === 'wall' ? onSelectWall : undefined} transparent={transparent} />
+          <div className="building3d-help">{variant === 'wall' ? 'Linke Maustaste: drehen · Mausrad: zoomen · rechte Maustaste: verschieben · Klick: Wand zum Bearbeiten auswaehlen' : 'Linke Maustaste: drehen · Mausrad: zoomen · rechte Maustaste: verschieben · Klick: Raum oder Tuer waehlen'}</div>
         </div>
         <aside className="building3d-inspector">
           <h2>{variant === 'wall' ? 'Wanddetail · Eigenschaften' : '3D-Eigenschaften'}</h2>
@@ -349,6 +370,7 @@ export default function Building3DWorkspace({ floor, rooms, selectedRoomId, onSe
           {message && <p className="building3d-notice" role="status">{message}</p>}
         </aside>
       </div>
+      {variant === 'wall' && wallEditor}
       <div className="building3d-status">Modell: {model.rooms.length} Raumkonturen, {model.walls.length} Wandkanten, {model.doors.length} Tuergruppen · Phase 1: nur eine Etage; Treppen, Dach und Geschossverbindungen folgen schrittweise.</div>
     </div>
   )

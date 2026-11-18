@@ -331,6 +331,8 @@ function roomSnapshotsEqual(a: Room[] | undefined, b: Room[]) {
 export function App() {
   const [viewMode, setViewMode] = useState<ViewMode>('floorplan')
   const [legacyWallDetail, setLegacyWallDetail] = useState(false)
+  const [wall3DSelected, setWall3DSelected] = useState<WallSelection | null>(null) // STROM140_3D_WALL_EDITOR
+  const [wall3DRevision, setWall3DRevision] = useState(0)
   const [users, setUsers] = useState<AppUser[]>([])
   const [objects, setObjects] = useState<UserObject[]>([])
   const [selectedUser, setSelectedUser] = useState<AppUser | null>(null)
@@ -358,6 +360,10 @@ export function App() {
   useEffect(() => {
     roomsRef.current = rooms
   }, [rooms])
+
+  useEffect(() => {
+    setWall3DSelected(null)
+  }, [viewMode, floor?.id])
 
   function captureUndoSnapshot(sourceRooms: Room[] = roomsRef.current) {
     const snapshot = cloneRoomsSnapshot(sourceRooms)
@@ -851,6 +857,22 @@ export function App() {
                 onCaptureUndo={() => captureUndoSnapshot()}
                 onBackToBlueprint={() => handleViewModeClick('floorplan')}
                 onOpenLegacyWallDetail={() => setLegacyWallDetail(true)}
+                onSelectWall={setWall3DSelected}
+                objectsRevision={wall3DRevision}
+                wallEditor={wall3DSelected ? (
+                  <WallDetailEditor
+                    floor={floor}
+                    rooms={rooms}
+                    selectedRoomId={selectedRoomId}
+                    onSelectRoom={setSelectedRoomId}
+                    canUndo={undoStack.length > 0}
+                    onUndo={undoLastAction}
+                    headless
+                    externalSelection={wall3DSelected}
+                    onExternalClose={() => setWall3DSelected(null)}
+                    onWallObjectsChanged={() => setWall3DRevision((v) => v + 1)}
+                  />
+                ) : undefined}
               />
             )
           )}
@@ -5309,6 +5331,10 @@ function WallDetailEditor({
   onSelectRoom,
   canUndo,
   onUndo,
+  headless = false,
+  externalSelection,
+  onExternalClose,
+  onWallObjectsChanged,
 }: {
   floor: Floor
   rooms: Room[]
@@ -5316,6 +5342,10 @@ function WallDetailEditor({
   onSelectRoom: (id: string) => void
   canUndo: boolean
   onUndo: () => void
+  headless?: boolean
+  externalSelection?: WallSelection | null
+  onExternalClose?: () => void
+  onWallObjectsChanged?: () => void
 }) {
   const [zoom, setZoom] = useState(() => loadCanvasViewport(floor.id).zoom)
   const [scrollPosition, setScrollPosition] = useState(() => {
@@ -5326,7 +5356,11 @@ function WallDetailEditor({
   const [activeLayerId, setActiveLayerId] = useState<string>(() => loadActiveLayerId(floor.id, loadFloorplanLayers(floor.id)))
   const [roomLayerAssignments, setRoomLayerAssignments] = useState<Record<string, string>>(() => loadLayerAssignments(floor.id))
   const [layersOpen, setLayersOpen] = useState(false)
-  const [selectedWall, setSelectedWall] = useState<WallSelection | null>(null)
+  const [selectedWall, setSelectedWall] = useState<WallSelection | null>(externalSelection ?? null)
+  // Keep the existing Frontalansicht UI in sync with physical 3D wall clicks.
+  useEffect(() => {
+    if (headless) setSelectedWall(externalSelection ?? null)
+  }, [headless, externalSelection?.roomId, externalSelection?.edgeIndex])
   const [hoveredWall, setHoveredWall] = useState<WallSelection | null>(null)
   const [wallObjectsByKey, setWallObjectsByKey] = useState<Record<string, WallPlacedObject[]>>({})
   const [viewTool, setViewTool] = useState<WallViewTool>('rotate')
@@ -5346,6 +5380,7 @@ function WallDetailEditor({
   const initializedCanvasScrollRef = useRef<string>('')
 
   useEffect(() => {
+    if (headless) { setIntroPhase('ready'); setIntroReady(true); return }
     const nextLayers = loadFloorplanLayers(floor.id)
     setLayers(nextLayers)
     setActiveLayerId(loadActiveLayerId(floor.id, nextLayers))
@@ -5409,9 +5444,10 @@ function WallDetailEditor({
       if (frameId) window.cancelAnimationFrame(frameId)
       if (revealFrameId) window.cancelAnimationFrame(revealFrameId)
     }
-  }, [floor.id])
+  }, [floor.id, headless])
 
   useEffect(() => {
+    if (headless) return
     const viewport = loadCanvasViewport(floor.id)
     setZoom(viewport.zoom)
     setScrollPosition({ left: viewport.left, top: viewport.top })
@@ -5435,11 +5471,14 @@ function WallDetailEditor({
 
   useEffect(() => {
     function handleKeyDown(event: KeyboardEvent) {
-      if (event.key === 'Escape') setSelectedWall(null)
+      if (event.key === 'Escape') {
+        setSelectedWall(null)
+        if (headless) onExternalClose?.()
+      }
     }
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [])
+  }, [headless, onExternalClose])
 
   useEffect(() => {
     void reloadWallObjects()
@@ -5607,6 +5646,7 @@ function WallDetailEditor({
         groupId,
       })))
       await reloadWallObjects()
+      onWallObjectsChanged?.()
     } catch (err) {
       console.warn('Wandobjekt konnte nicht gespeichert werden', err)
       await reloadWallObjects()
@@ -5659,6 +5699,7 @@ function WallDetailEditor({
         groupId,
       })))
       await reloadWallObjects()
+      onWallObjectsChanged?.()
     } catch (err) {
       console.warn('Komplette Wandoeffnung konnte nicht gespeichert werden', err)
       await reloadWallObjects()
@@ -5699,7 +5740,7 @@ function WallDetailEditor({
         w: mapped.w,
         h: mapped.h,
         groupId: mapped.groupId,
-      }).catch((err) => console.warn('Wandobjekt konnte nicht aktualisiert werden', err))
+      }).then(() => onWallObjectsChanged?.()).catch((err) => console.warn('Wandobjekt konnte nicht aktualisiert werden', err))
     })
   }
 
@@ -5715,7 +5756,7 @@ function WallDetailEditor({
       return next
     })
     affected.forEach((entry) => {
-      void deleteWallObjectFromApi(entry.item.id).catch((err) => console.warn('Wandobjekt konnte nicht geloescht werden', err))
+      void deleteWallObjectFromApi(entry.item.id).then(() => onWallObjectsChanged?.()).catch((err) => console.warn('Wandobjekt konnte nicht geloescht werden', err))
     })
   }
 
@@ -6080,6 +6121,31 @@ function WallDetailEditor({
     if (viewTool === 'rotate') return
     onSelectRoom(room.id)
     setSelectedWall(null)
+  }
+
+  const headlessPopupX = typeof window === 'undefined' ? 420 : Math.max(8, Math.min(420, window.innerWidth - 640))
+  if (headless) {
+    return (
+      <div className="building3d-wall-overlay-host" aria-label="Wandbearbeitung in echtem 3D">
+        {selectedWall && selectedWallRoom && (
+          <>
+            <WallFrontOverlay
+              title={selectedWallTitle}
+              lengthM={selectedWallLength}
+              heightM={wallHeightM}
+              motion={{ initialX: headlessPopupX, initialY: 72, startDx: 0, startDy: 0, startRotate: 0, startScale: 1 }}
+              placements={selectedWallObjects}
+              onAddPlacement={addWallObject}
+              onToggleFullWallOpen={toggleFullWallOpen}
+              onUpdatePlacement={updateWallObject}
+              onDeletePlacement={deleteWallObject}
+              onClose={() => { setSelectedWall(null); onExternalClose?.() }}
+            />
+            <WallObjectLibraryFloating baseX={headlessPopupX} baseY={450} />
+          </>
+        )}
+      </div>
+    )
   }
 
   const hintText = selectedWall

@@ -4703,3 +4703,24 @@ svg [class*="dimension"], svg [class*="technical"], svg [class*="measure"] { vec
   .building3d-view { flex: 1 1 auto; min-height: 180px; }
   .building3d-inspector { flex: 0 0 auto; max-height: 32vh; }
 }
+
+
+/* STROM140_3D_WALL_EDITOR: old wall editor UI over the real WebGL model. */
+.building3d-layout:has(.building3d-wall-overlay-host) { position: relative; }
+.building3d-wall-overlay-host {
+  position: absolute;
+  z-index: 80;
+  inset: 0;
+  pointer-events: none;
+  overflow: visible;
+}
+.building3d-wall-overlay-host .wall-front-overlay,
+.building3d-wall-overlay-host .wall-object-library {
+  pointer-events: auto;
+}
+.building3d-wall-overlay-host .wall-front-overlay {
+  max-width: min(560px, calc(100% - 20px));
+}
+@media (max-width: 820px) {
+  .building3d-wall-overlay-host .wall-front-overlay { width: calc(100% - 16px) !important; min-width: 0; }
+}
