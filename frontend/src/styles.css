@@ -4724,3 +4724,34 @@ svg [class*="dimension"], svg [class*="technical"], svg [class*="measure"] { vec
 @media (max-width: 820px) {
   .building3d-wall-overlay-host .wall-front-overlay { width: calc(100% - 16px) !important; min-width: 0; }
 }
+
+
+/* STROM142: restore layer panel layout while preserving ghost contour CSS */
+.floorplan-layout .canvas-layer-menu .layer-row {
+  grid-template-columns: 28px minmax(0, 1fr) 96px 28px !important;
+  align-items: center;
+}
+.floorplan-layout .canvas-layer-menu .layer-height-control {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 2px;
+  min-width: 0;
+  font-size: 10px;
+  font-weight: 600;
+  color: #526581;
+}
+.floorplan-layout .canvas-layer-menu .layer-height-control input {
+  width: 100%;
+  min-width: 0;
+  height: 25px;
+  padding: 3px 4px;
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  border: 1px solid #b6c7de;
+  border-radius: 5px;
+  background: white;
+  color: #1f334b;
+}
+.floorplan-layout .canvas-layer-menu .layer-height-control input:focus { outline: 2px solid #60a5fa; }
+.floorplan-layout .canvas-layer-menu .layer-menu-panel { min-width: 350px; max-width: min(420px, 95vw); }

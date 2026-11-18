@@ -122,7 +122,7 @@ type DistancePair = {
   distanceM: number
 }
 
-type FloorplanLayer = { id: string; name: string; visible: boolean }
+type FloorplanLayer = { id: string; name: string; visible: boolean; heightM?: number }
 type LayerVisibilityMode = 'active' | 'adjacentGhostNoDims' | 'adjacentGhostDims' | 'allGhostNoDims'
 
 const defaultLayerId = 'layer-main'
@@ -228,6 +228,7 @@ function normalizeLayers(input: unknown): FloorplanLayer[] {
       id: typeof item.id === 'string' && item.id ? item.id : `layer-${Date.now()}-${index}`,
       name: typeof item.name === 'string' && item.name.trim() ? item.name.trim() : `Ebene ${index + 1}`,
       visible: item.visible !== false,
+      heightM: Number.isFinite(Number(item.heightM)) && Number(item.heightM) >= 0.1 && Number(item.heightM) <= 10 ? round3(Number(item.heightM)) : undefined,
     }))
   return layers.length > 0 ? layers : defaultFloorplanLayers()
 }
@@ -239,6 +240,13 @@ function loadFloorplanLayers(floorId: string): FloorplanLayer[] {
 function loadActiveLayerId(floorId: string, layers: FloorplanLayer[]): string {
   const stored = safeReadJson<string | null>(layerStorageKey(floorId, 'active'), null)
   return layers.some((layer) => layer.id === stored) ? String(stored) : layers[0]?.id ?? defaultLayerId
+}
+
+// STROM142_BLUEPRINT_LEVELS: retain the user's last visibility mode per Blueprint.
+function loadLayerVisibilityMode(floorId: string): LayerVisibilityMode {
+  const stored = safeReadJson<string | null>(layerStorageKey(floorId, 'visibilityMode'), null)
+  return stored === 'active' || stored === 'adjacentGhostNoDims' || stored === 'adjacentGhostDims' || stored === 'allGhostNoDims'
+    ? stored : 'active'
 }
 
 function loadLayerAssignments(floorId: string): Record<string, string> {
@@ -806,6 +814,7 @@ export function App() {
           )}
           {selectedObject && viewMode === 'floorplan' && floor && (
             <FloorplanEditor
+              key={floor.id}
               floor={floor}
               rooms={rooms}
               selectedRoomId={selectedRoomId}
@@ -1405,7 +1414,7 @@ function FloorplanEditor({
   const [layers, setLayers] = useState<FloorplanLayer[]>(() => loadFloorplanLayers(floor.id))
   const [activeLayerId, setActiveLayerId] = useState<string>(() => loadActiveLayerId(floor.id, loadFloorplanLayers(floor.id)))
   const [roomLayerAssignments, setRoomLayerAssignments] = useState<Record<string, string>>(() => loadLayerAssignments(floor.id))
-  const [layerVisibilityMode, setLayerVisibilityMode] = useState<LayerVisibilityMode>('active')
+  const [layerVisibilityMode, setLayerVisibilityMode] = useState<LayerVisibilityMode>(() => loadLayerVisibilityMode(floor.id))
   const [layersOpen, setLayersOpen] = useState(false)
   const [blueprintWallObjects, setBlueprintWallObjects] = useState<ApiWallObject[]>([])
   const [blueprintDoorWidth136, setBlueprintDoorWidth136] = useState(0.9)
@@ -1436,7 +1445,7 @@ function FloorplanEditor({
     setActiveLayerId(loadActiveLayerId(floor.id, nextLayers))
     setRoomLayerAssignments(loadLayerAssignments(floor.id))
     setTitleOffsets(loadTitleOffsets(floor.id))
-    setLayerVisibilityMode('active')
+    setLayerVisibilityMode(loadLayerVisibilityMode(floor.id))
     setLayerDeleteRequestId('')
     setLayersOpen(false)
   }, [floor.id])
@@ -1448,6 +1457,11 @@ function FloorplanEditor({
   useEffect(() => {
     localStorage.setItem(layerStorageKey(floor.id, 'active'), JSON.stringify(activeLayerId))
   }, [floor.id, activeLayerId])
+
+  useEffect(() => {
+    try { localStorage.setItem(layerStorageKey(floor.id, 'visibilityMode'), JSON.stringify(layerVisibilityMode)) }
+    catch { /* Browser persistence may be disabled */ }
+  }, [floor.id, layerVisibilityMode])
 
   useEffect(() => {
     localStorage.setItem(layerStorageKey(floor.id, 'roomAssignments'), JSON.stringify(roomLayerAssignments))
@@ -1523,14 +1537,16 @@ function FloorplanEditor({
     const layerIds = new Set(layers.map((layer) => layer.id))
     if (!layerIds.has(activeLayerId)) setActiveLayerId(layers[0]?.id ?? defaultLayerId)
     setRoomLayerAssignments((current) => {
-      const next: Record<string, string> = {}
+      const next: Record<string, string> = { ...current }
       let changed = false
       rooms.forEach((room) => {
         const stored = current[room.id]
-        next[room.id] = stored && layerIds.has(stored) ? stored : (activeLayerId && layerIds.has(activeLayerId) ? activeLayerId : layers[0]?.id ?? defaultLayerId)
-        if (next[room.id] !== stored) changed = true
+        // Missing rooms are deliberately NOT purged while the API reloads.
+        const mapped = stored && layerIds.has(stored)
+          ? stored
+          : (activeLayerId && layerIds.has(activeLayerId) ? activeLayerId : layers[0]?.id ?? defaultLayerId)
+        if (mapped !== stored) { next[room.id] = mapped; changed = true }
       })
-      if (Object.keys(current).length !== Object.keys(next).length) changed = true
       return changed ? next : current
     })
   }, [rooms, layers, activeLayerId])
@@ -1560,7 +1576,7 @@ function FloorplanEditor({
     const layerVisible = layer?.visible !== false
     const index = layerIndexMap.get(layerId) ?? 0
     const active = layerId === activeLayerId
-    if (active) return { visible: true, ghost: false, dimensions: true, interactive: true }
+    if (active) return { visible: layerVisible, ghost: false, dimensions: true, interactive: layerVisible }
     if (!layerVisible) return { visible: false, ghost: false, dimensions: false, interactive: false }
     if (layerVisibilityMode === 'active') return { visible: false, ghost: false, dimensions: false, interactive: false }
     if (layerVisibilityMode === 'allGhostNoDims') return { visible: true, ghost: true, dimensions: false, interactive: false }
@@ -2590,7 +2606,7 @@ function toggleRecessOffsetDirection() {
       finalName = `${cleanedName} ${suffix}`
       suffix += 1
     }
-    const layer: FloorplanLayer = { id: `layer-${Date.now()}`, name: finalName, visible: true }
+    const layer: FloorplanLayer = { id: `layer-${Date.now()}`, name: finalName, visible: true, heightM: activeLayer.heightM ?? floor.heightM }
     setLayers((current) => [...current, layer])
     setActiveLayerId(layer.id)
     setLayerVisibilityMode('active')
@@ -2598,13 +2614,14 @@ function toggleRecessOffsetDirection() {
   }
 
   function addLayer() {
-    const layer: FloorplanLayer = { id: `layer-${Date.now()}`, name: `Ebene ${layers.length + 1}`, visible: true }
+    const layer: FloorplanLayer = { id: `layer-${Date.now()}`, name: `Ebene ${layers.length + 1}`, visible: true, heightM: activeLayer.heightM ?? floor.heightM }
     setLayers((current) => [...current, layer])
     setActiveLayerId(layer.id)
     setLayerVisibilityMode('active')
   }
 
   function selectLayer(id: string) {
+    setLayers((current) => current.map((layer) => layer.id === id && !layer.visible ? { ...layer, visible: true } : layer))
     setActiveLayerId(id)
     setAllSelected(false)
     onSelectRoom('')
@@ -2613,7 +2630,22 @@ function toggleRecessOffsetDirection() {
   }
 
   function toggleLayerVisibility(id: string) {
+    const target = layers.find((layer) => layer.id === id)
+    if (!target) return
+    // In 'only current' mode, clicking an inactive eye should SHOW the chosen
+    // level, not silently flip its internal flag to false.
+    if (id !== activeLayerId && layerVisibilityMode === 'active') {
+      if (!target.visible) setLayers((current) => current.map((layer) => layer.id === id ? { ...layer, visible: true } : layer))
+      setLayerVisibilityMode('allGhostNoDims')
+      return
+    }
     setLayers((current) => current.map((layer) => layer.id === id ? { ...layer, visible: !layer.visible } : layer))
+  }
+
+  function setLayerHeightM(id: string, millimetres: number) {
+    if (!Number.isFinite(millimetres)) return
+    const heightM = clamp(round3(millimetres / 1000), 0.1, 10)
+    setLayers((current) => current.map((layer) => layer.id === id ? { ...layer, heightM } : layer))
   }
 
   function renameLayer(id: string, name: string) {
@@ -2770,7 +2802,7 @@ function toggleRecessOffsetDirection() {
 
       <div className="canvas-card">
         <div className={`canvas-layer-menu ${layersOpen ? 'open' : ''}`} aria-label="Ebenen">
-          <button type="button" title="Ebenen" onClick={() => setLayersOpen((current) => !current)}><StromIcon name="chevron-down" title="Ebenenmenue" /> {activeLayer.name}</button>
+          <button type="button" title="Ebenen und Geschosshoehen bearbeiten" onClick={() => setLayersOpen((current) => !current)}><StromIcon name="chevron-down" title="Ebenenmenue" /> {activeLayer.name} · {Math.round((activeLayer.heightM ?? floor.heightM) * 1000)} mm</button>
           {layersOpen && (
             <div className="layer-menu-panel">
               <div className="layer-list">
@@ -2798,6 +2830,23 @@ function toggleRecessOffsetDirection() {
                         onFocus={() => selectLayer(layer.id)}
                         onChange={(event) => renameLayer(layer.id, event.target.value)}
                       />
+                      <label className="layer-height-control" title="Geschosshoehe dieser Ebene in Millimetern">
+                        <span>Höhe (mm)</span>
+                        <input
+                          key={`${layer.id}-${Math.round((layer.heightM ?? floor.heightM) * 1000)}`}
+                          aria-label={`Geschosshoehe ${layer.name} in Millimetern`}
+                          type="number"
+                          min="100"
+                          max="10000"
+                          step="10"
+                          defaultValue={Math.round((layer.heightM ?? floor.heightM) * 1000)}
+                          onMouseDown={(event) => event.stopPropagation()}
+                          onClick={(event) => event.stopPropagation()}
+                          onDragStart={(event) => event.preventDefault()}
+                          onBlur={(event) => setLayerHeightM(layer.id, Number(event.currentTarget.value))}
+                          onKeyDown={(event) => { if (event.key === 'Enter') event.currentTarget.blur() }}
+                        />
+                      </label>
                       <button
                         type="button"
                         className="layer-grip"

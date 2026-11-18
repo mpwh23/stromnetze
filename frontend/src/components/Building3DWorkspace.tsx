@@ -9,12 +9,15 @@ import { selectWallEdgeFrom3DHit, type WallHitSelection3D } from '../building/wa
 import { pickWallHoverPlane, buildWallHoverTriangles, type WallHoverPlane } from '../building/wallHoverGeometry'
 import type { ReactNode } from 'react'
 import { buildBuildingModel, type BuildingModel, type BuildingRoom, type BuildingWall, type BuildingOpening } from '../building/model'
+import { active3DFloor, readActiveBlueprintLevel } from '../building/blueprintLevels'
+import { buildStair3DSurfaces, type Stair3DSurface } from '../building/stair3d'
 
 const roundMm = (value: number) => Math.round(value * 1000) / 1000
 const fmtMm = (value: number) => Math.round(value * 1000).toLocaleString('de-DE')
 const clamp = (value: number, min: number, max: number) => Math.max(min, Math.min(max, value))
 
 function FloorMesh({ room, selected, onSelect }: { room: BuildingRoom; selected: boolean; onSelect: () => void }) {
+  const [hovered, setHovered] = useState(false)
   const shape = useMemo(() => {
     const s = new THREE.Shape()
     room.vertices.forEach((point, index) => {
@@ -26,9 +29,9 @@ function FloorMesh({ room, selected, onSelect }: { room: BuildingRoom; selected:
   }, [room.vertices])
   if (room.kind === 'outer') return null
   return (
-    <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.015, 0]} onClick={(event: ThreeEvent<MouseEvent>) => { event.stopPropagation(); onSelect() }}>
+    <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.015, 0]} onPointerOver={() => setHovered(true)} onPointerOut={() => setHovered(false)} onClick={(event: ThreeEvent<MouseEvent>) => { event.stopPropagation(); onSelect() }}>
       <shapeGeometry args={[shape]} />
-      <meshStandardMaterial color={selected ? '#d3e6ff' : room.kind === 'stair' ? '#f5e7fb' : '#e9edf2'} side={THREE.DoubleSide} roughness={0.87} />
+      <meshStandardMaterial color={selected ? '#5797ec' : hovered ? '#a9cdfa' : room.kind === 'stair' ? '#e2ebf9' : '#e9edf2'} emissive={selected ? '#2563eb' : '#000000'} emissiveIntensity={selected ? 0.16 : 0} side={THREE.DoubleSide} roughness={0.87} />
     </mesh>
   )
 }
@@ -171,6 +174,45 @@ function SolidWallMeshes({ model, onSelectRoom, onSelectWall, transparent }: {
   )
 }
 
+// STROM142_STAIRS3D: extruded tread footprints derived from the existing
+// Treppe-einzeichnen layout. This is true 3D geometry, not stacked SVG.
+function StairSolid({ surface, selected, onSelect }: {
+  surface: Stair3DSurface
+  selected: boolean
+  onSelect: () => void
+}) {
+  const geometry = useMemo(() => {
+    const shape = new THREE.Shape()
+    surface.points.forEach((point, index) => {
+      if (index === 0) shape.moveTo(point.x, -point.y)
+      else shape.lineTo(point.x, -point.y)
+    })
+    shape.closePath()
+    const solid = new THREE.ExtrudeGeometry(shape, {
+      depth: Math.max(0.014, surface.elevationM), bevelEnabled: false, steps: 1, curveSegments: 1,
+    })
+    solid.rotateX(-Math.PI / 2)
+    solid.computeVertexNormals()
+    return solid
+  }, [surface])
+  useEffect(() => () => geometry.dispose(), [geometry])
+  return (
+    <mesh
+      geometry={geometry}
+      position={[0, 0, 0]}
+      onClick={(event: ThreeEvent<MouseEvent>) => { event.stopPropagation(); onSelect() }}
+      castShadow
+      receiveShadow
+    >
+      <meshStandardMaterial
+        color={selected ? '#598fe4' : surface.kind === 'landing' ? '#c4d7ef' : '#9fbade'}
+        roughness={0.78}
+        metalness={0.03}
+      />
+    </mesh>
+  )
+}
+
 function DoorHandle({ door, wall, selected, onSelect }: { door: BuildingOpening; wall: BuildingWall; selected: boolean; onSelect: () => void }) {
   const t = door.centerM / wall.lengthM
   const x = wall.start.x + (wall.end.x - wall.start.x) * t
@@ -204,8 +246,9 @@ function SceneControls({ model }: { model: BuildingModel }) {
   return null
 }
 
-function RealBuildingScene({ model, selectedRoomId, selectedDoorId, onSelectRoom, onSelectDoor, onSelectWall, transparent }: {
+function RealBuildingScene({ model, stairs, selectedRoomId, selectedDoorId, onSelectRoom, onSelectDoor, onSelectWall, transparent }: {
   model: BuildingModel
+  stairs: Stair3DSurface[]
   selectedRoomId: string
   selectedDoorId: string
   onSelectRoom: (id: string) => void
@@ -230,6 +273,14 @@ function RealBuildingScene({ model, selectedRoomId, selectedDoorId, onSelectRoom
       <group position={[0, model.floorElevationM, 0]}>
         {model.rooms.map((room) => (
           <FloorMesh key={room.id} room={room} selected={selectedRoomId === room.id} onSelect={() => { onSelectRoom(room.id); onSelectDoor(''); onSelectWall?.(null) }} />
+        ))}
+        {stairs.map((surface) => (
+          <StairSolid
+            key={surface.key}
+            surface={surface}
+            selected={surface.roomId === selectedRoomId}
+            onSelect={() => { onSelectRoom(surface.roomId); onSelectDoor(''); onSelectWall?.(null) }}
+          />
         ))}
         <SolidWallMeshes
           model={model}
@@ -377,8 +428,24 @@ export default function Building3DWorkspace({ floor, rooms, selectedRoomId, onSe
   const [message, setMessage] = useState('')
   const [xMm, setXmm] = useState(0)
   const [yMm, setYmm] = useState(0)
-  const model = useMemo(() => buildBuildingModel(floor, rooms, objects), [floor, rooms, objects])
-  const selectedRoom = rooms.find((room) => room.id === selectedRoomId) ?? null
+  const [levelRevision, setLevelRevision] = useState(0)
+  useEffect(() => {
+    const refresh = () => setLevelRevision((value) => value + 1)
+    window.addEventListener('storage', refresh)
+    window.addEventListener('strom:blueprint-levels-changed', refresh)
+    return () => {
+      window.removeEventListener('storage', refresh)
+      window.removeEventListener('strom:blueprint-levels-changed', refresh)
+    }
+  }, [floor.id])
+  // Same Blueprint layer IDs, room assignments, and heights are read by 3D.
+  // No duplicate per-view geometry state; the local-storage adapter will be
+  // replaced by an API-backed canonical level record in a later migration.
+  const activeLevel = useMemo(() => readActiveBlueprintLevel(floor, rooms, window.localStorage), [floor, rooms, levelRevision])
+  const levelFloor = useMemo(() => active3DFloor(floor, activeLevel), [floor, activeLevel])
+  const model = useMemo(() => buildBuildingModel(levelFloor, activeLevel.rooms, objects), [levelFloor, activeLevel, objects])
+  const stairs = useMemo(() => buildStair3DSurfaces(activeLevel.rooms, activeLevel.heightM, window.localStorage), [activeLevel, levelRevision])
+  const selectedRoom = activeLevel.rooms.find((room) => room.id === selectedRoomId) ?? null
   const selectedDoor = model.doors.find((door) => door.groupId === selectedDoorId) ?? null
   const movable = Boolean(selectedRoom && !selectedRoom.name.startsWith('__strom_outer_wall__') && selectedRoom.roomType !== 'stair')
   const centroid = useMemo(() => {
@@ -419,7 +486,7 @@ export default function Building3DWorkspace({ floor, rooms, selectedRoomId, onSe
     <div className="building3d-layout" aria-label="Echtes 3D Gebaeudemodell">
       <div className="building3d-toolbar">
         <strong>{variant === 'wall' ? 'Wanddetail · Echtes 3D' : 'Echtes 3D · Aufbauphase 1'}</strong>
-        <span>Etage: {model.floorName}</span>
+        <span>Etage: {activeLevel.name} · {Math.round(activeLevel.heightM * 1000)} mm</span>
         <button type="button" title="Transparente Waende umschalten" onClick={() => setTransparent((value) => !value)}>{transparent ? 'Waende deckend' : 'Waende transparent'}</button>
         <button type="button" title="Zum 2D-Blueprint wechseln" onClick={onBackToBlueprint}>Zurueck zum Blueprint (2D)</button>
         {variant === 'wall' && onOpenLegacyWallDetail && (
@@ -430,7 +497,7 @@ export default function Building3DWorkspace({ floor, rooms, selectedRoomId, onSe
       </div>
       <div className="building3d-content">
         <div className="building3d-view">
-          <RealBuildingScene model={model} selectedRoomId={selectedRoomId} selectedDoorId={selectedDoorId} onSelectRoom={onSelectRoom} onSelectDoor={setSelectedDoorId} onSelectWall={variant === 'wall' ? onSelectWall : undefined} transparent={transparent} />
+          <RealBuildingScene model={model} stairs={stairs} selectedRoomId={selectedRoomId} selectedDoorId={selectedDoorId} onSelectRoom={onSelectRoom} onSelectDoor={setSelectedDoorId} onSelectWall={variant === 'wall' ? onSelectWall : undefined} transparent={transparent} />
           <div className="building3d-help">{variant === 'wall' ? 'Linke Maustaste: drehen · Mausrad: zoomen · rechte Maustaste: verschieben · Klick: Wand zum Bearbeiten auswaehlen' : 'Linke Maustaste: drehen · Mausrad: zoomen · rechte Maustaste: verschieben · Klick: Raum oder Tuer waehlen'}</div>
         </div>
         <aside className="building3d-inspector">
@@ -461,7 +528,7 @@ export default function Building3DWorkspace({ floor, rooms, selectedRoomId, onSe
         </aside>
       </div>
       {variant === 'wall' && wallEditor}
-      <div className="building3d-status">Modell: {model.rooms.length} Raumkonturen, {model.walls.length} Wandkanten, {model.doors.length} Tuergruppen · Phase 1: nur eine Etage; Treppen, Dach und Geschossverbindungen folgen schrittweise.</div>
+      <div className="building3d-status">Modell: {model.rooms.length} Raumkonturen, {model.walls.length} Wandkanten, {model.doors.length} Tuergruppen, {stairs.length} Stufen-/Absatzvolumen · Blueprint-Ebene: {activeLevel.name} von {activeLevel.layerCount}. Weitere Etagen werden spaeter gleichzeitig gestapelt.</div>
     </div>
   )
 }
