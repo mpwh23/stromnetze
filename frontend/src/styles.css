@@ -4760,3 +4760,14 @@ svg [class*="dimension"], svg [class*="technical"], svg [class*="measure"] { vec
 .floorplan-layout .strom-neighbor-snap143 { display: inline-flex; align-items: center; gap: 4px; white-space: nowrap; font-size: 11px; }
 .floorplan-layout .strom-neighbor-snap143 .strom-ui-icon { width: 18px; height: 18px; }
 .floorplan-layout .strom-neighbor-snap143 span { font-weight: 500; }
+
+/* STROM143B: discoverable SVG switch for direct ghost-layer snapping. */
+.floorplan-layout .canvas-toolbox button.strom-neighbor-snap143 {
+  display: inline-flex !important; align-items: center; justify-content: center; gap: 5px;
+  width: auto !important; min-width: 146px; padding: 0 10px !important;
+  border: 1px solid #93b3df; border-radius: 16px; white-space: nowrap;
+  font-size: 12px; font-weight: 700; color: #1e3a8a;
+}
+.floorplan-layout .canvas-toolbox button.strom-neighbor-snap143.active { background: #2563eb; border-color: #2563eb; color: white; }
+.floorplan-layout .canvas-toolbox button.strom-neighbor-snap143 .strom-ui-icon { flex: 0 0 20px; }
+.floorplan-layout .strom-ghost-snap-hint143b { color: #1d4ed8; font-weight: 700; }

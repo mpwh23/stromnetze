@@ -10,6 +10,7 @@ import { pickWallHoverPlane, buildWallHoverTriangles, type WallHoverPlane } from
 import type { ReactNode } from 'react'
 import { buildBuildingModel, type BuildingModel, type BuildingRoom, type BuildingWall, type BuildingOpening } from '../building/model'
 import { active3DFloor, readActiveBlueprintLevel } from '../building/blueprintLevels'
+// STROM143B_STAIR_AUDIT: StairSolid is rendered and storage availability is displayed.
 // STROM143_STAIRS_FIX: share the exact saved room layouts across 3D views.
 import { build3DStairsAcrossLevels143, type PlacedStairSurface143 } from '../building/stairVisibility143'
 
@@ -534,7 +535,7 @@ export default function Building3DWorkspace({ floor, rooms, selectedRoomId, onSe
         </aside>
       </div>
       {variant === 'wall' && wallEditor}
-      <div className="building3d-status">Modell: {model.rooms.length} Raumkonturen, {model.walls.length} Wandkanten, {model.doors.length} Tuergruppen, {stairs.length} Stufen-/Absatzvolumen aus {stairData143.savedLayouts} gespeicherten Treppenlayouts ({stairData143.activeLayouts} auf aktiver Ebene) · Blueprint-Ebene: {activeLevel.name} von {activeLevel.layerCount}. Weitere Etagen werden spaeter gleichzeitig gestapelt.</div>
+      <div className="building3d-status">Modell: {model.rooms.length} Raumkonturen, {model.walls.length} Wandkanten, {model.doors.length} Tuergruppen, {stairs.length} Stufen-/Absatzvolumen aus {stairData143.savedLayouts} gespeicherten Treppenlayouts ({stairData143.activeLayouts} auf aktiver Ebene){stairData143.savedLayouts === 0 ? ' · Hinweis: keine Treppenlayouts im Browser-Speicher gefunden' : ''} · Blueprint-Ebene: {activeLevel.name} von {activeLevel.layerCount}. Weitere Etagen werden spaeter gleichzeitig gestapelt.</div>
     </div>
   )
 }

@@ -1,98 +1,110 @@
 import type { PointM } from '../types'
 
-/** Read-only anchors (metres) from rooms on visible Blueprint layers. */
+/** 143b: Ghost-level snapping is geometric alignment, never wall clearance. */
 export type NeighborSnapTarget = { vertices: PointM[] }
 export type SnapHandle143 = 'left' | 'right' | 'top' | 'bottom'
-const LIMIT = 0.18
-const rounded = (value: number) => Math.round(value * 1000) / 1000
+type DragAxis143 = 'x' | 'y' | null
+const LIMIT = 0.18 // metres; snap capture radius, NOT an offset
+const EPS = 1e-7
+const r3 = (v: number) => Math.round(v * 1000) / 1000
 function bounds(vertices: PointM[]) {
   if (!vertices.length) return null
-  return {
-    minX: Math.min(...vertices.map((p) => p.x)), maxX: Math.max(...vertices.map((p) => p.x)),
-    minY: Math.min(...vertices.map((p) => p.y)), maxY: Math.max(...vertices.map((p) => p.y)),
-  }
+  return { minX: Math.min(...vertices.map(p => p.x)), maxX: Math.max(...vertices.map(p => p.x)),
+    minY: Math.min(...vertices.map(p => p.y)), maxY: Math.max(...vertices.map(p => p.y)) }
 }
-function nearest(value: number, candidates: number[]): number {
-  let best = value, score = LIMIT
-  for (const target of candidates) {
-    const error = Math.abs(target - value)
-    if (error < score - 1e-8) { score = error; best = target }
-  }
-  return rounded(best)
+function closestOnSegment(p: PointM, a: PointM, b: PointM): PointM {
+  const dx = b.x - a.x, dy = b.y - a.y
+  const t = dx * dx + dy * dy > EPS
+    ? Math.max(0, Math.min(1, ((p.x - a.x) * dx + (p.y - a.y) * dy) / (dx * dx + dy * dy))) : 0
+  return { x: a.x + t * dx, y: a.y + t * dy }
 }
-function segmentProjection(point: PointM, a: PointM, b: PointM) {
-  const dx = b.x-a.x, dy = b.y-a.y
-  const length = dx*dx + dy*dy
-  const t = length > 1e-12 ? Math.max(0, Math.min(1, ((point.x-a.x)*dx+(point.y-a.y)*dy)/length)) : 0
-  return { x: a.x + t*dx, y: a.y + t*dy }
-}
+function distance(a: PointM, b: PointM) { return Math.hypot(a.x - b.x, a.y - b.y) }
 
-/**
- * Point/vertex creation: snap to nearby exact corners or polygon edges,
- * including oblique walls. No snap across an unrelated distant room.
- */
-export function snapPointToVisibleRooms143(point: PointM, targets: NeighborSnapTarget[], wallM: number): PointM {
-  if (!targets.length) return point
-  let closest = point, distance = LIMIT
+/** Corner to corner, or corner to a true edge; exact coordinates, no wall spacing. */
+export function snapPointToVisibleRooms143(point: PointM, targets: NeighborSnapTarget[], _wallM = 0): PointM {
+  let best = point, score = LIMIT
   for (const target of targets) {
-    for (let i=0; i<target.vertices.length; i++) {
-      const a=target.vertices[i], b=target.vertices[(i+1)%target.vertices.length]
-      for (const p of [a, segmentProjection(point,a,b)]) {
-        const d=Math.hypot(p.x-point.x,p.y-point.y)
-        if (d < distance - 1e-8) { closest=p; distance=d }
+    const vs = target.vertices
+    for (let i = 0; i < vs.length; i++) {
+      const candidates = [vs[i], closestOnSegment(point, vs[i], vs[(i + 1) % vs.length])]
+      for (const candidate of candidates) {
+        const d = distance(point, candidate)
+        if (d < score - EPS) { best = candidate; score = d }
       }
     }
   }
-  if (closest !== point) return { x: rounded(closest.x), y: rounded(closest.y) }
-  // The user-specified W is an optional wall-to-wall clearance, not a global grid.
-  const clearance = Math.min(0.6, Math.max(0, wallM))
-  if (clearance < 0.001) return point
-  let best=point, score=LIMIT
-  for (const target of targets) {
-    for (let i=0; i<target.vertices.length; i++) {
-      const a=target.vertices[i], b=target.vertices[(i+1)%target.vertices.length]
-      const dx=b.x-a.x, dy=b.y-a.y, length=Math.hypot(dx,dy)
-      if (length < 1e-8) continue
-      const normal={x:-dy/length,y:dx/length}
-      for (const sign of [-1,1]) {
-        const p=segmentProjection(point,{x:a.x+sign*normal.x*clearance,y:a.y+sign*normal.y*clearance},{x:b.x+sign*normal.x*clearance,y:b.y+sign*normal.y*clearance})
-        const d=Math.hypot(p.x-point.x,p.y-point.y)
-        if (d<score-1e-8) {score=d;best=p}
-      }
-    }
-  }
-  return best===point ? point : {x:rounded(best.x),y:rounded(best.y)}
+  return best === point ? point : { x: r3(best.x), y: r3(best.y) }
 }
 
-/** Snap only the dragged rectangle edge; leave its opposite edge untouched. */
-export function snapRectangleHandle143(vertices: PointM[], handle: SnapHandle143, targets: NeighborSnapTarget[], wallM: number): PointM[] {
+/** Move a selected rectangle edge to a visible ghost edge (0 mm gap). */
+export function snapRectangleHandle143(vertices: PointM[], handle: SnapHandle143, targets: NeighborSnapTarget[], _wallM = 0): PointM[] {
   const b = bounds(vertices)
-  if (!b || !targets.length) return vertices
+  if (!b) return vertices
   const vertical = handle === 'left' || handle === 'right'
   const current = handle === 'left' ? b.minX : handle === 'right' ? b.maxX : handle === 'top' ? b.minY : b.maxY
-  const wall = Math.max(0, Math.min(0.6,wallM))
-  const candidates: number[] = []
+  let snapped = current, score = LIMIT
   for (const target of targets) {
-    const other=bounds(target.vertices)
+    const other = bounds(target.vertices)
     if (!other) continue
-    // Do not snap to a room on the far side of the canvas.
-    const overlap = vertical
+    const overlaps = vertical
       ? b.minY <= other.maxY + LIMIT && b.maxY >= other.minY - LIMIT
       : b.minX <= other.maxX + LIMIT && b.maxX >= other.minX - LIMIT
-    if (!overlap) continue
-    const coords = vertical ? [other.minX,other.maxX] : [other.minY,other.maxY]
-    for (const value of coords) candidates.push(value, value-wall, value+wall)
-    for (const p of target.vertices) candidates.push(vertical ? p.x : p.y)
+    if (!overlaps) continue
+    const coords = vertical ? [other.minX, other.maxX] : [other.minY, other.maxY]
+    for (const p of target.vertices) coords.push(vertical ? p.x : p.y)
+    for (const value of coords) {
+      const error = Math.abs(value - current)
+      if (error < score - EPS) { score = error; snapped = value }
+    }
   }
-  const snapped = nearest(current,candidates)
-  if (Math.abs(snapped-current) < 0.0005) return vertices
+  if (Math.abs(snapped - current) < 0.0005) return vertices
   const next = { ...b }
-  if (handle==='left') next.minX=Math.min(next.maxX-0.1,snapped)
-  else if (handle==='right') next.maxX=Math.max(next.minX+0.1,snapped)
-  else if (handle==='top') next.minY=Math.min(next.maxY-0.1,snapped)
-  else next.maxY=Math.max(next.minY+0.1,snapped)
+  if (handle === 'left') next.minX = Math.min(next.maxX - 0.1, snapped)
+  if (handle === 'right') next.maxX = Math.max(next.minX + 0.1, snapped)
+  if (handle === 'top') next.minY = Math.min(next.maxY - 0.1, snapped)
+  if (handle === 'bottom') next.maxY = Math.max(next.minY + 0.1, snapped)
   return [
-    {x:rounded(next.minX),y:rounded(next.minY)}, {x:rounded(next.maxX),y:rounded(next.minY)},
-    {x:rounded(next.maxX),y:rounded(next.maxY)}, {x:rounded(next.minX),y:rounded(next.maxY)},
+    { x: r3(next.minX), y: r3(next.minY) }, { x: r3(next.maxX), y: r3(next.minY) },
+    { x: r3(next.maxX), y: r3(next.maxY) }, { x: r3(next.minX), y: r3(next.maxY) },
   ]
+}
+
+/** Move an entire room/group rigidly: corner-to-corner or parallel edge-to-edge. */
+export function snapMovedVerticesToVisibleRooms143(vertices: PointM[], targets: NeighborSnapTarget[], axis: DragAxis143 = null): PointM[] {
+  if (!vertices.length || !targets.length) return vertices
+  let bestDx = 0, bestDy = 0, score = LIMIT
+  const trySnap = (dx: number, dy: number) => {
+    if ((axis === 'x' && Math.abs(dy) > EPS) || (axis === 'y' && Math.abs(dx) > EPS)) return
+    const d = Math.hypot(dx, dy)
+    if (d > EPS && d < score - EPS) { bestDx = dx; bestDy = dy; score = d }
+  }
+  for (const target of targets) {
+    for (const sourcePoint of vertices) {
+      for (let j = 0; j < target.vertices.length; j++) {
+        const a = target.vertices[j], b = target.vertices[(j + 1) % target.vertices.length]
+        const near = closestOnSegment(sourcePoint, a, b)
+        trySnap(near.x - sourcePoint.x, near.y - sourcePoint.y)
+        trySnap(a.x - sourcePoint.x, a.y - sourcePoint.y)
+      }
+    }
+    // Align edges when they overlap but no vertex is near the opposing edge.
+    for (let i = 0; i < vertices.length; i++) {
+      const a = vertices[i], b = vertices[(i + 1) % vertices.length]
+      for (let j = 0; j < target.vertices.length; j++) {
+        const c = target.vertices[j], d = target.vertices[(j + 1) % target.vertices.length]
+        const sourceVertical = Math.abs(a.x - b.x) < EPS
+        const targetVertical = Math.abs(c.x - d.x) < EPS
+        if (sourceVertical && targetVertical && Math.max(Math.min(a.y, b.y), Math.min(c.y, d.y)) <= Math.min(Math.max(a.y, b.y), Math.max(c.y, d.y)) + EPS) {
+          trySnap(c.x - a.x, 0)
+        }
+        const sourceHorizontal = Math.abs(a.y - b.y) < EPS
+        const targetHorizontal = Math.abs(c.y - d.y) < EPS
+        if (sourceHorizontal && targetHorizontal && Math.max(Math.min(a.x, b.x), Math.min(c.x, d.x)) <= Math.min(Math.max(a.x, b.x), Math.max(c.x, d.x)) + EPS) {
+          trySnap(0, c.y - a.y)
+        }
+      }
+    }
+  }
+  if (score === LIMIT) return vertices
+  return vertices.map(p => ({ x: r3(p.x + bestDx), y: r3(p.y + bestDy) }))
 }
