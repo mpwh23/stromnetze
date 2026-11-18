@@ -119,10 +119,10 @@ function RealBuildingScene({ model, selectedRoomId, selectedDoorId, onSelectRoom
           <FloorMesh key={room.id} room={room} selected={selectedRoomId === room.id} onSelect={() => { onSelectRoom(room.id); onSelectDoor('') }} />
         ))}
         {model.walls.map((wall) => (
-          <WallMeshes key={wall.id} wall={wall} selected={selectedRoomId === wall.roomId} onSelect={() => { onSelectRoom(wall.roomId); onSelectDoor('') }} transparent={transparent} />
+          <WallMeshes key={wall.id} wall={wall} selected={wall.roomIds?.includes(selectedRoomId) ?? (selectedRoomId === wall.roomId)} onSelect={() => { onSelectRoom(wall.roomId); onSelectDoor('') }} transparent={transparent} />
         ))}
         {model.walls.flatMap((wall) => wall.openings
-          .filter((opening) => opening.type === 'door' && model.doors.some((door) => door.id === opening.id))
+          .filter((opening) => opening.type === 'door' && opening.centerM >= -0.0001 && opening.centerM <= wall.lengthM + 0.0001 && model.doors.some((door) => door.id === opening.id))
           .map((door) => (
             <DoorHandle
               key={`${wall.id}/${door.id}`}
