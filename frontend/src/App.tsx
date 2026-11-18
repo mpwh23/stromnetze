@@ -1,4 +1,5 @@
 import { type CSSProperties, ChangeEvent as ReactChangeEvent, DragEvent as ReactDragEvent, MouseEvent as ReactMouseEvent, WheelEvent as ReactWheelEvent, useEffect, useMemo, useRef, useState } from 'react'
+import StromIcon from './components/StromIcon'
 import {
   createObject,
   createRoom,
@@ -36,7 +37,7 @@ const viewModes: { id: ViewMode; label: string }[] = [
   { id: 'threeD', label: '3D Haus' },
 ]
 
-type Tool = 'select' | 'rectangle' | 'outerwall' | 'polygon' | 'recess' | 'distance' | 'stair'
+type Tool = 'select' | 'rectangle' | 'outerwall' | 'polygon' | 'recess' | 'distance' | 'stair' | 'door'
 type DragAxis = 'x' | 'y' | null
 type RectHandle = 'left' | 'right' | 'top' | 'bottom'
 type RecessEdge = 'top' | 'right' | 'bottom' | 'left'
@@ -273,12 +274,11 @@ function visibilityModeLabel(mode: LayerVisibilityMode) {
 }
 
 function visibilityModeIcon(mode: LayerVisibilityMode) {
-  if (mode === 'active') return '①'
-  if (mode === 'adjacentGhostNoDims') return '◐'
-  if (mode === 'adjacentGhostDims') return '◑'
-  return '◎'
+  const name = mode === 'active' ? 'layers-current'
+    : mode === 'adjacentGhostNoDims' ? 'layers-neighbor'
+      : mode === 'adjacentGhostDims' ? 'layers-neighbor-dim' : 'layers-all'
+  return <StromIcon name={name} title={visibilityModeLabel(mode)} />
 }
-
 
 type Bounds = { minX: number; maxX: number; minY: number; maxY: number }
 type RectM = Bounds & { width: number; height: number }
@@ -727,12 +727,12 @@ export function App() {
     <div className={`app-shell sidebar-${sidebarMode}`}>
       <aside className={`sidebar sidebar-${sidebarMode}`}>
         <div className="sidebar-collapse-controls" aria-label="Seitenleiste einklappen">
-          {sidebarMode === 'normal' && <button title="Seitenleiste kompakt" aria-label="Seitenleiste kompakt" onClick={() => setSidebarMode('compact')}>›</button>}
+          {sidebarMode === 'normal' && <button title="Seitenleiste kompakt" aria-label="Seitenleiste kompakt" onClick={() => setSidebarMode('compact')}><StromIcon name="chevron-right" title="Seitenleiste erweitern" /></button>}
           {sidebarMode === 'compact' && <>
-            <button title="Seitenleiste ausklappen" aria-label="Seitenleiste ausklappen" onClick={() => setSidebarMode('normal')}>›</button>
-            <button title="Seitenleiste minimieren" aria-label="Seitenleiste minimieren" onClick={() => setSidebarMode('rail')}>‹</button>
+            <button title="Seitenleiste ausklappen" aria-label="Seitenleiste ausklappen" onClick={() => setSidebarMode('normal')}><StromIcon name="chevron-right" title="Seitenleiste erweitern" /></button>
+            <button title="Seitenleiste minimieren" aria-label="Seitenleiste minimieren" onClick={() => setSidebarMode('rail')}><StromIcon name="chevron-left" title="Seitenleiste einklappen" /></button>
           </>}
-          {sidebarMode === 'rail' && <button title="Seitenleiste kompakt anzeigen" aria-label="Seitenleiste kompakt anzeigen" onClick={() => setSidebarMode('compact')}>›</button>}
+          {sidebarMode === 'rail' && <button title="Seitenleiste kompakt anzeigen" aria-label="Seitenleiste kompakt anzeigen" onClick={() => setSidebarMode('compact')}><StromIcon name="chevron-right" title="Seitenleiste erweitern" /></button>}
         </div>
 
         {sidebarMode === 'normal' && <>
@@ -773,7 +773,7 @@ export function App() {
 
         {sidebarMode !== 'rail' && (
           <button type="button" className="sidebar-logout global-sidebar-logout" title="Logout" onClick={switchUser}>
-            <span className="nav-icon" aria-hidden="true">⇥</span>
+            <span className="nav-icon"><StromIcon name="logout" title="Logout" /></span>
             {sidebarMode === 'normal' && <span>Logout</span>}
           </button>
         )}
@@ -1335,6 +1335,10 @@ function FloorplanEditor({
   const [layerVisibilityMode, setLayerVisibilityMode] = useState<LayerVisibilityMode>('active')
   const [layersOpen, setLayersOpen] = useState(false)
   const [blueprintWallObjects, setBlueprintWallObjects] = useState<ApiWallObject[]>([])
+  const [blueprintDoorWidth136, setBlueprintDoorWidth136] = useState(0.9)
+  const [blueprintDoorHeight136, setBlueprintDoorHeight136] = useState(2.1)
+  const [blueprintDoorNotice136, setBlueprintDoorNotice136] = useState('')
+  const [blueprintDoorSaving136, setBlueprintDoorSaving136] = useState(false)
   const [draggedLayerId, setDraggedLayerId] = useState<string>('')
   const [layerDeleteRequestId, setLayerDeleteRequestId] = useState<string>('')
   const [titleOffsets, setTitleOffsets] = useState<Record<string, TitleOffset>>(() => loadTitleOffsets(floor.id))
@@ -1473,6 +1477,10 @@ function FloorplanEditor({
     () => rooms.filter((room) => (roomLayerAssignments[room.id] ?? defaultLayerId) === activeLayerId),
     [rooms, roomLayerAssignments, activeLayerId],
   )
+  const blueprintDoorWallHeight136 = loadWallHeightM(floor.id, floor.heightM)
+  const blueprintDoorPreview136 = tool === 'door' && cursorPoint
+    ? blueprintDoorCandidate136(cursorPoint, activeLayerRooms, blueprintDoorWidth136) : null
+
 
   function renderStateForLayer(layerId: string) {
     const layer = layers.find((item) => item.id === layerId)
@@ -1669,6 +1677,57 @@ function FloorplanEditor({
     await onPersistRoom(nextRoom)
   }
 
+  async function placeBlueprintDoor136(point: PointM) {
+    if (blueprintDoorSaving136) return
+    setBlueprintDoorNotice136('')
+    const widthM = blueprintDoorWidth136
+    const heightM = blueprintDoorHeight136
+    if (!Number.isFinite(widthM) || widthM < 0.3) {
+      setBlueprintDoorNotice136('Bitte eine Tuerbreite ab 300 mm eingeben.')
+      return
+    }
+    if (!Number.isFinite(heightM) || heightM < 0.5 || heightM > blueprintDoorWallHeight136 + 0.0001) {
+      setBlueprintDoorNotice136(`Tuerhoehe muss zwischen 500 mm und ${Math.round(blueprintDoorWallHeight136 * 1000)} mm liegen.`)
+      return
+    }
+    const match = blueprintDoorCandidate136(point, activeLayerRooms, widthM)
+    if (!match) {
+      setBlueprintDoorNotice136('Keine ausreichend lange gemeinsame Wand an dieser Stelle gefunden. Bitte direkt auf die gemeinsame Wand klicken.')
+      return
+    }
+    const h = Math.round(heightM / blueprintDoorWallHeight136 * 1e6) / 1e6
+    const y = Math.round((1 - h / 2) * 1e6) / 1e6
+    const groupId = `blueprint-door-${Date.now()}-${Math.round(Math.random() * 1000000)}`
+    const created: ApiWallObject[] = []
+    setBlueprintDoorSaving136(true)
+    try {
+      for (const face of match.faces) {
+        const record = await createWallObject({
+          floorId: floor.id,
+          roomId: face.roomId,
+          edgeIndex: face.edgeIndex,
+          objectType: 'door',
+          x: face.x,
+          y,
+          w: face.w,
+          h,
+          groupId,
+        })
+        created.push(record)
+      }
+      setBlueprintWallObjects(await getWallObjects(floor.id))
+      setBlueprintDoorNotice136(`Tuer gespeichert: ${Math.round(widthM * 1000)} x ${Math.round(heightM * 1000)} mm, Unterkante 0 mm. Im Wanddetail sichtbar.`)
+    } catch (err) {
+      await Promise.allSettled(created.map((record) => deleteWallObjectFromApi(record.id)))
+      try { setBlueprintWallObjects(await getWallObjects(floor.id)) } catch { /* original error takes precedence */ }
+      const message = err instanceof Error ? err.message : String(err)
+      setBlueprintDoorNotice136(`Tuer konnte nicht gespeichert werden: ${message}`)
+      onError(message)
+    } finally {
+      setBlueprintDoorSaving136(false)
+    }
+  }
+
   function handleCanvasClick(event: ReactMouseEvent<SVGSVGElement>) {
     event.preventDefault()
     if (suppressCanvasClickRef.current) {
@@ -1677,6 +1736,11 @@ function FloorplanEditor({
     }
     const point = eventToMeters(event)
     if (!point) return
+
+    if (tool === 'door') {
+      void placeBlueprintDoor136(point)
+      return
+    }
 
     if (tool === 'rectangle' || tool === 'outerwall') {
       if (!rectDraft) {
@@ -2023,6 +2087,7 @@ if (dimensionDrag) {
 
   async function chooseTool(nextTool: Tool) {
     if (nextTool === 'recess' && !selectedRoom) return
+    setBlueprintDoorNotice136('')
     if (nextTool === 'stair') {
       if (!selectedRoom || isOuterWallRoom(selectedRoom)) return
       setTool('stair')
@@ -2044,7 +2109,7 @@ if (dimensionDrag) {
     setDistanceFirstEdge(null)
     setDistancePair(null)
     if (nextTool !== 'select') setAllSelected(false)
-    if (nextTool === 'distance') onSelectRoom('')
+    if (nextTool === 'distance' || nextTool === 'door') onSelectRoom('')
     if (nextTool === 'recess' && selectedRoom) {
       setRecessBaseRoomId(selectedRoom.id)
       setRecessDraft(defaultRecessDraftForRoom(selectedRoom, defaultRecessEdge(selectedRoom)))
@@ -2553,6 +2618,8 @@ function toggleRecessOffsetDirection() {
           ? 'Aussparung: zeichnen oder Werte im Fenster setzen. Andere Objekte sind bis OK gesperrt.'
           : tool === 'stair'
             ? 'Treppe einzeichnen: OK bestaetigt die Umwandlung des ausgewaehlten Objekts in einen Treppenraum.'
+            : tool === 'door'
+              ? 'Tuer: Breite und Hoehe in mm eingeben, dann eine gemeinsame Wand zweier Raeume anklicken. Tueren beginnen immer bei 0 mm Fussbodenhoehe.'
             : 'Abstand: erste Kante waehlen, zweite parallele Kante eines anderen Objekts waehlen, Abstand in mm eingeben.'
 
   const editorPropertiesMode: EditorPropertiesMode = tool === 'rectangle'
@@ -2580,41 +2647,42 @@ function toggleRecessOffsetDirection() {
     <div className="floorplan-layout">
       <div className="canvas-toolbar-row">
         <div className="canvas-toolbox" aria-label="Blueprint Werkzeuge">
-          <button title="Letzte Aktion rueckgaengig" data-tooltip="Rueckgaengig" aria-label="Letzte Aktion rueckgaengig" disabled={!canUndo} onMouseDown={(event) => event.preventDefault()} onClick={onUndo}>↶</button>
+          <button title="Letzte Aktion rueckgaengig" data-tooltip="Rueckgaengig" aria-label="Letzte Aktion rueckgaengig" disabled={!canUndo} onMouseDown={(event) => event.preventDefault()} onClick={onUndo}><StromIcon name="undo" title="Rueckgaengig" /></button>
           {(['select', 'rectangle', 'outerwall', 'polygon'] as Tool[]).map((item) => (
             <button key={item} title={toolLabel(item)} data-tooltip={toolLabel(item)} aria-label={toolLabel(item)} className={tool === item ? 'active' : ''} onMouseDown={(event) => event.preventDefault()} onClick={() => void chooseTool(item)}>
               {toolIcon(item)}
             </button>
           ))}
-          <button title="Alle Elemente der aktuellen Ebene auswaehlen" data-tooltip="Alle auswaehlen" aria-label="Alle Elemente der aktuellen Ebene auswaehlen" disabled={activeLayerRooms.length === 0} className={allSelected ? 'active' : ''} onMouseDown={(event) => event.preventDefault()} onClick={selectAllRooms}>▣</button>
-          <button title="Abstand zwischen zwei Kanten einstellen" data-tooltip="Abstand einstellen" aria-label="Abstand einstellen" className={tool === 'distance' ? 'active' : ''} disabled={rooms.length < 2} onMouseDown={(event) => event.preventDefault()} onClick={() => void chooseTool('distance')}>⇔</button>
+          <button title="Alle Elemente der aktuellen Ebene auswaehlen" data-tooltip="Alle auswaehlen" aria-label="Alle Elemente der aktuellen Ebene auswaehlen" disabled={activeLayerRooms.length === 0} className={allSelected ? 'active' : ''} onMouseDown={(event) => event.preventDefault()} onClick={selectAllRooms}><StromIcon name="select" title="Alle auswaehlen" /></button>
+          <button title="Abstand zwischen zwei Kanten einstellen" data-tooltip="Abstand einstellen" aria-label="Abstand einstellen" className={tool === 'distance' ? 'active' : ''} disabled={rooms.length < 2} onMouseDown={(event) => event.preventDefault()} onClick={() => void chooseTool('distance')}><StromIcon name="measure" title="Abstand messen" /></button>
           <button title="Aussparung / Wandvorsprung subtraktiv einzeichnen" data-tooltip="Aussparung / Wandvorsprung" aria-label="Aussparung" className={tool === 'recess' ? 'active' : ''} disabled={!selectedRoom && tool !== 'recess'} onMouseDown={(event) => event.preventDefault()} onClick={() => void chooseTool('recess')}>
-            ▱
+            <StromIcon name="cutout" title="Aussparung" />
           </button>
-          <button title="Treppe einzeichnen" data-tooltip="Treppe einzeichnen" aria-label="Treppe einzeichnen" className={tool === 'stair' ? 'active' : ''} disabled={!selectedRoom || isOuterWallRoom(selectedRoom)} onMouseDown={(event) => event.preventDefault()} onClick={() => void chooseTool('stair')}>⇵</button>
+          <button title="Treppe einzeichnen" data-tooltip="Treppe einzeichnen" aria-label="Treppe einzeichnen" className={tool === 'stair' ? 'active' : ''} disabled={!selectedRoom || isOuterWallRoom(selectedRoom)} onMouseDown={(event) => event.preventDefault()} onClick={() => void chooseTool('stair')}><StromIcon name="stair-run" title="Treppe einzeichnen" /></button>
+          <button type="button" title="Tuer zwischen Raeumen einsetzen (Breite / Hoehe in mm)" data-tooltip="Tuer einsetzen" aria-label="Tuer zwischen Raeumen einsetzen" className={tool === 'door' ? 'active' : ''} disabled={activeLayerRooms.length < 2 || blueprintDoorSaving136} onMouseDown={(event) => event.preventDefault()} onClick={() => void chooseTool('door')}><StromIcon name="door" title="Tuer einsetzen" /></button>
           <button title="Ausgewaehlten Raum loeschen" data-tooltip="Loeschen" aria-label="Ausgewaehlten Raum loeschen" disabled={!selectedRoom && !allSelected} onMouseDown={(event) => event.preventDefault()} onClick={() => void deleteSelectedFromCanvas()}>
-            🗑
+            <StromIcon name="trash" title="Loeschen" />
           </button>
           <button title="Alle Elemente loeschen" data-tooltip="Alle loeschen" aria-label="Alle Elemente loeschen" disabled={rooms.length === 0} onMouseDown={(event) => event.preventDefault()} onClick={() => void deleteAllRoomsFromCanvas()}> 
-            🧹
+            <StromIcon name="broom" title="Alle Elemente loeschen" />
           </button>
           <span className="tool-divider" />
           <label className="snap-control" title="Objekte beim Verschieben andocken">
             <input type="checkbox" checked={snapEnabled} onChange={(event) => setSnapEnabled(event.target.checked)} />
-            ↔
+            <StromIcon name="snap" title="Snapping umschalten" />
           </label>
           <label className="wall-control" title="Wandstaerke fuer Andocken">
-            W
+            <StromIcon name="outer-wall" title="Wandstaerke" />
             <input type="number" step="0.01" min="0" value={snapWallThicknessM} onChange={(event) => setSnapWallThicknessM(toNumber(event.target.value, 0))} />
           </label>
           <span className="tool-divider" />
-          <button title="Verkleinern" data-tooltip="Zoom verkleinern" aria-label="Canvas verkleinern" onMouseDown={(event) => event.preventDefault()} onClick={() => changeZoom(zoom - 0.15)}>−</button>
-          <button title="Scale to 100%" data-tooltip="Scale 100%" aria-label="Scale to 100%" className={Math.abs(zoom - 1) < 0.001 ? 'active' : ''} onMouseDown={(event) => event.preventDefault()} onClick={scaleCanvasTo100}>1:1</button>
+          <button title="Verkleinern" data-tooltip="Zoom verkleinern" aria-label="Canvas verkleinern" onMouseDown={(event) => event.preventDefault()} onClick={() => changeZoom(zoom - 0.15)}><StromIcon name="zoom-out" title="Herauszoomen" /></button>
+          <button title="Scale to 100%" data-tooltip="Scale 100%" aria-label="Scale to 100%" className={Math.abs(zoom - 1) < 0.001 ? 'active' : ''} onMouseDown={(event) => event.preventDefault()} onClick={scaleCanvasTo100}><StromIcon name="one-to-one" title="100 Prozent Ansicht" /></button>
           <span className="canvas-zoom-level" aria-label="Zoomstufe">{Math.round(zoom * 100)}%</span>
-          <button title="Vergroessern" data-tooltip="Zoom vergroessern" aria-label="Canvas vergroessern" onMouseDown={(event) => event.preventDefault()} onClick={() => changeZoom(zoom + 0.15)}>+</button>
-          <button title="Alle Elemente zentrieren" data-tooltip="Center all" aria-label="Alle Elemente zentrieren" disabled={rooms.length === 0} onMouseDown={(event) => event.preventDefault()} onClick={centerAllRooms}>⛶</button>
-          <button title="Auf ausgewaehltes Objekt zoomen" data-tooltip="Auswahl zoomen" aria-label="Auf ausgewaehltes Objekt zoomen" disabled={!selectedRoom} onMouseDown={(event) => event.preventDefault()} onClick={zoomToSelectedRoom}>⌖</button>
-          <button title="Technische Bemassung an/aus" data-tooltip="Technische Bemassung" aria-label="Technische Bemassung umschalten" className={dimensionsVisible ? 'active' : ''} onMouseDown={(event) => event.preventDefault()} onClick={() => setDimensionsVisible((current) => !current)}>⌁</button>
+          <button title="Vergroessern" data-tooltip="Zoom vergroessern" aria-label="Canvas vergroessern" onMouseDown={(event) => event.preventDefault()} onClick={() => changeZoom(zoom + 0.15)}><StromIcon name="zoom-in" title="Hineinzoomen" /></button>
+          <button title="Alle Elemente zentrieren" data-tooltip="Center all" aria-label="Alle Elemente zentrieren" disabled={rooms.length === 0} onMouseDown={(event) => event.preventDefault()} onClick={centerAllRooms}><StromIcon name="fit" title="Alles einpassen" /></button>
+          <button title="Auf ausgewaehltes Objekt zoomen" data-tooltip="Auswahl zoomen" aria-label="Auf ausgewaehltes Objekt zoomen" disabled={!selectedRoom} onMouseDown={(event) => event.preventDefault()} onClick={zoomToSelectedRoom}><StromIcon name="target" title="Auf Auswahl zoomen" /></button>
+          <button title="Technische Bemassung an/aus" data-tooltip="Technische Bemassung" aria-label="Technische Bemassung umschalten" className={dimensionsVisible ? 'active' : ''} onMouseDown={(event) => event.preventDefault()} onClick={() => setDimensionsVisible((current) => !current)}><StromIcon name="measure" title="Bemassung umschalten" /></button>
           <button title={visibilityModeLabel(layerVisibilityMode)} data-tooltip={visibilityModeLabel(layerVisibilityMode)} aria-label="Ebenen-Sichtbarkeit umschalten" onMouseDown={(event) => event.preventDefault()} onClick={cycleLayerVisibilityMode}>{visibilityModeIcon(layerVisibilityMode)}</button>
         </div>
       </div>
@@ -2629,7 +2697,7 @@ function toggleRecessOffsetDirection() {
 
       <div className="canvas-card">
         <div className={`canvas-layer-menu ${layersOpen ? 'open' : ''}`} aria-label="Ebenen">
-          <button type="button" title="Ebenen" onClick={() => setLayersOpen((current) => !current)}>☰ {activeLayer.name}</button>
+          <button type="button" title="Ebenen" onClick={() => setLayersOpen((current) => !current)}><StromIcon name="chevron-down" title="Ebenenmenue" /> {activeLayer.name}</button>
           {layersOpen && (
             <div className="layer-menu-panel">
               <div className="layer-list">
@@ -2646,7 +2714,7 @@ function toggleRecessOffsetDirection() {
                       onDragOver={(event) => event.preventDefault()}
                       onDrop={(event) => { event.preventDefault(); moveLayerBefore(draggedLayerId, layer.id); setDraggedLayerId('') }}
                     >
-                      <button type="button" className={`layer-eye ${effectivelyVisible ? 'visible' : 'hidden'}`} title={effectivelyVisible ? 'Ebene aktuell sichtbar - klicken zum manuellen Ausblenden' : 'Ebene aktuell ausgeblendet - klicken zum manuellen Einblenden'} onClick={(event) => { event.stopPropagation(); toggleLayerVisibility(layer.id) }}>{effectivelyVisible ? '👁' : '◌'}</button>
+                      <button type="button" className={`layer-eye ${effectivelyVisible ? 'visible' : 'hidden'}`} title={effectivelyVisible ? 'Ebene aktuell sichtbar - klicken zum manuellen Ausblenden' : 'Ebene aktuell ausgeblendet - klicken zum manuellen Einblenden'} onClick={(event) => { event.stopPropagation(); toggleLayerVisibility(layer.id) }}><StromIcon name={effectivelyVisible ? 'eye' : 'eye-off'} title={effectivelyVisible ? 'Ebene sichtbar' : 'Ebene ausgeblendet'} /></button>
                       <input
                         aria-label="Ebenenname"
                         draggable={false}
@@ -2666,14 +2734,14 @@ function toggleRecessOffsetDirection() {
                         onDragStart={(event) => { event.dataTransfer.effectAllowed = 'move'; setDraggedLayerId(layer.id) }}
                         onDragEnd={() => setDraggedLayerId('')}
                         onMouseDown={(event) => event.stopPropagation()}
-                      >⋮⋮</button>
+                      ><StromIcon name="drag-dots" title="Ebene verschieben" /></button>
                     </div>
                   )
                 })}
               </div>
               <div className="layer-menu-actions" aria-label="Ebenenaktionen">
-                <button type="button" className="layer-add round-icon" title="Neue Ebene" aria-label="Neue Ebene" onClick={addLayer}>＋</button>
-                <button type="button" className="layer-delete round-icon" title="Ausgewaehlte Ebene loeschen" aria-label="Ausgewaehlte Ebene loeschen" disabled={layers.length <= 1} onClick={requestDeleteActiveLayer}>🗑</button>
+                <button type="button" className="layer-add round-icon" title="Neue Ebene" aria-label="Neue Ebene" onClick={addLayer}><StromIcon name="new-object" title="Neue Ebene" /></button>
+                <button type="button" className="layer-delete round-icon" title="Ausgewaehlte Ebene loeschen" aria-label="Ausgewaehlte Ebene loeschen" disabled={layers.length <= 1} onClick={requestDeleteActiveLayer}><StromIcon name="trash" title="Ebene loeschen" /></button>
               </div>
             </div>
           )}
@@ -2726,10 +2794,25 @@ function toggleRecessOffsetDirection() {
           />
         )}
 
+        {tool === 'door' && (
+          <div className="canvas-settings blueprint-door-settings136" aria-label="Tuerparameter">
+            <strong>Tuer einsetzen</strong>
+            <label title="Tuerbreite in Millimetern">Breite (mm)
+              <MmNumberInput valueM={blueprintDoorWidth136} minM={0.3} disabled={blueprintDoorSaving136} onChangeM={(value) => setBlueprintDoorWidth136(Math.max(0.3, round3(value)))} />
+            </label>
+            <label title="Tuerhoehe in Millimetern">Hoehe (mm)
+              <MmNumberInput valueM={blueprintDoorHeight136} minM={0.5} disabled={blueprintDoorSaving136} onChangeM={(value) => setBlueprintDoorHeight136(Math.max(0.5, round3(value)))} />
+            </label>
+            <span title="Die Unterkante liegt fest bei 0 mm Fussbodenhoehe">Unterkante: 0 mm</span>
+            <button type="button" title="Tuerwerkzeug beenden" onClick={() => void chooseTool('select')}>Fertig</button>
+            {blueprintDoorNotice136 && <span className="blueprint-door-notice136" role="status">{blueprintDoorNotice136}</span>}
+          </div>
+        )}
+
         <CanvasRulers zoom={zoom} scrollLeft={scrollPosition.left} scrollTop={scrollPosition.top} />
         <div className="canvas-scroll" ref={canvasScrollRef} onWheelCapture={handleCanvasWheel} onScroll={handleCanvasScroll}>
           <svg
-            className={`canvas floorplan-canvas ${tool === 'select' ? 'select-mode' : ''}`}
+            className={`canvas floorplan-canvas ${tool === 'select' ? 'select-mode' : ''} ${tool === 'door' ? 'blueprint-door-active136' : ''}`}
             style={{
               width: `${canvas.width * zoom}px`,
               height: `${canvas.height * zoom}px`,
@@ -2748,7 +2831,7 @@ function toggleRecessOffsetDirection() {
             onDoubleClick={handleCanvasDoubleClick}
             onMouseMove={handleMouseMove}
             onMouseUp={() => void handleMouseUp()}
-            onMouseLeave={() => void handleMouseUp()}
+            onMouseLeave={() => { if (tool === 'door') setCursorPoint(null); void handleMouseUp() }}
             onMouseDown={handleCanvasMouseDown}
           >
             <Grid />
@@ -2786,6 +2869,12 @@ function toggleRecessOffsetDirection() {
             })}
 
             <BlueprintWallObjectConnections wallObjects={blueprintWallObjects} rooms={rooms} />
+            {blueprintDoorPreview136 && tool === 'door' && (
+              <g className="blueprint-door-preview136" pointerEvents="none" aria-label="Tuer-Vorschau">
+                <line x1={mToX(blueprintDoorPreview136.left.x)} y1={mToY(blueprintDoorPreview136.left.y)} x2={mToX(blueprintDoorPreview136.right.x)} y2={mToY(blueprintDoorPreview136.right.y)} />
+                <circle cx={mToX((blueprintDoorPreview136.left.x + blueprintDoorPreview136.right.x) / 2)} cy={mToY((blueprintDoorPreview136.left.y + blueprintDoorPreview136.right.y) / 2)} r="4" />
+              </g>
+            )}
 
             {rectPreview && (
               <g className={`draft-shape ${tool === 'outerwall' ? 'outer-wall-draft' : ''}`}>
@@ -3961,14 +4050,14 @@ function StairLayoutPanel({ room, rect, dragging, onBeginWindowMove, onBeginWind
         <button type="button" className="stair-editor-ok" onMouseDown={(event) => event.stopPropagation()} onClick={onConfirm}>OK</button>
       </header>
       <div className="canvas-toolbox stair-editor-toolbar" aria-label="Treppenwerkzeuge" onMouseDown={(event) => event.stopPropagation()}>
-        <button type="button" className={tool === 'move' ? 'active' : ''} title="Verschieben" data-tooltip="Verschieben" aria-label="Verschieben" data-stair-tool="move" onClick={() => setTool('move')}>↖</button>
-        <button type="button" title="Drehen 90 Grad" data-tooltip="Drehen 90 Grad" aria-label="Drehen 90 Grad" data-stair-tool="rotate" onClick={rotateSelected} disabled={!selectedElement}>⟳</button>
-        <button type="button" title="Biegung spiegeln" data-tooltip="Biegung spiegeln" aria-label="Biegung spiegeln" data-stair-tool="mirror" onClick={mirrorSelected} disabled={!selectedElement || selectedElement.kind !== 'turn'}>⇄</button>
-        <button type="button" title="Canvas herauszoomen" data-tooltip="Canvas herauszoomen" aria-label="Canvas herauszoomen" data-stair-tool="zoom-out" onClick={() => setZoom((current) => clamp(round3(current / 1.1), 0.45, 3.5))}>−</button>
-        <button type="button" title="Canvas hineinzoomen" data-tooltip="Canvas hineinzoomen" aria-label="Canvas hineinzoomen" data-stair-tool="zoom-in" onClick={() => setZoom((current) => clamp(round3(current * 1.1), 0.45, 3.5))}>+</button>
-        <button type="button" className={tool === 'align' ? 'active' : ''} title="Linien ausrichten" data-tooltip="Linien ausrichten" aria-label="Linien ausrichten" data-stair-tool="align" onClick={() => setTool((current) => current === 'align' ? 'move' : 'align')}>⇔</button>
-        <button type="button" title="Rueckgaengig" data-tooltip="Rueckgaengig" aria-label="Letzte Aktion rueckgaengig" data-stair-tool="undo" onMouseDown={(event) => event.preventDefault()} onClick={undoStairEditor} disabled={!stairEditorUndoStack.length}>↶</button>
-        <button type="button" title="Loeschen" data-tooltip="Loeschen" aria-label="Ausgewaehltes Element loeschen" data-stair-tool="delete" onMouseDown={(event) => event.preventDefault()} onClick={deleteSelectedStairElement} disabled={!(selectedElement || selectedEdgeAssignment)}>⌫</button>
+        <button type="button" className={tool === 'move' ? 'active' : ''} title="Verschieben" data-tooltip="Verschieben" aria-label="Verschieben" data-stair-tool="move" onClick={() => setTool('move')}><StromIcon name="move" title="Verschieben" /></button>
+        <button type="button" title="Drehen 90 Grad" data-tooltip="Drehen 90 Grad" aria-label="Drehen 90 Grad" data-stair-tool="rotate" onClick={rotateSelected} disabled={!selectedElement}><StromIcon name="rotate-90" title="90 Grad drehen" /></button>
+        <button type="button" title="Biegung spiegeln" data-tooltip="Biegung spiegeln" aria-label="Biegung spiegeln" data-stair-tool="mirror" onClick={mirrorSelected} disabled={!selectedElement || selectedElement.kind !== 'turn'}><StromIcon name="mirror" title="Biegung spiegeln" /></button>
+        <button type="button" title="Canvas herauszoomen" data-tooltip="Canvas herauszoomen" aria-label="Canvas herauszoomen" data-stair-tool="zoom-out" onClick={() => setZoom((current) => clamp(round3(current / 1.1), 0.45, 3.5))}><StromIcon name="zoom-out" title="Herauszoomen" /></button>
+        <button type="button" title="Canvas hineinzoomen" data-tooltip="Canvas hineinzoomen" aria-label="Canvas hineinzoomen" data-stair-tool="zoom-in" onClick={() => setZoom((current) => clamp(round3(current * 1.1), 0.45, 3.5))}><StromIcon name="zoom-in" title="Hineinzoomen" /></button>
+        <button type="button" className={tool === 'align' ? 'active' : ''} title="Linien ausrichten" data-tooltip="Linien ausrichten" aria-label="Linien ausrichten" data-stair-tool="align" onClick={() => setTool((current) => current === 'align' ? 'move' : 'align')}><StromIcon name="align" title="Ausrichten" /></button>
+        <button type="button" title="Rueckgaengig" data-tooltip="Rueckgaengig" aria-label="Letzte Aktion rueckgaengig" data-stair-tool="undo" onMouseDown={(event) => event.preventDefault()} onClick={undoStairEditor} disabled={!stairEditorUndoStack.length}><StromIcon name="undo" title="Rueckgaengig" /></button>
+        <button type="button" title="Loeschen" data-tooltip="Loeschen" aria-label="Ausgewaehltes Element loeschen" data-stair-tool="delete" onMouseDown={(event) => event.preventDefault()} onClick={deleteSelectedStairElement} disabled={!(selectedElement || selectedEdgeAssignment)}><StromIcon name="trash" title="Loeschen" /></button>
       </div>
       <div className="stair-editor-properties" onMouseDown={(event) => event.stopPropagation()}>
         {selectedEdgeAssignment && (
@@ -4890,6 +4979,75 @@ function Grid() {
   return <g className="grid">{lines}</g>
 }
 
+
+// Update 136: Door placement in physical coordinates, for differently sized wall faces.
+type BlueprintDoorFace136 = { roomId: string; edgeIndex: number; x: number; w: number }
+type BlueprintDoorCandidate136 = {
+  faces: [BlueprintDoorFace136, BlueprintDoorFace136]
+  left: PointM
+  right: PointM
+  score: number
+}
+
+function blueprintDoorCandidate136(point: PointM, rooms: Room[], widthM: number): BlueprintDoorCandidate136 | null {
+  if (rooms.length < 2 || !Number.isFinite(widthM) || widthM <= 0) return null
+  const edges = rooms.flatMap((room) => room.vertices.flatMap((_, edgeIndex) => {
+    const edge = edgePoints(room.vertices, edgeIndex)
+    return edge ? [{ room, edgeIndex, edge }] : []
+  }))
+  let winner: BlueprintDoorCandidate136 | null = null
+  for (let i = 0; i < edges.length; i += 1) {
+    const first = edges[i]
+    const dx = first.edge.b.x - first.edge.a.x
+    const dy = first.edge.b.y - first.edge.a.y
+    const len = Math.hypot(dx, dy)
+    if (len < widthM + 0.001) continue
+    const ux = dx / len
+    const uy = dy / len
+    const candidateAt = (t: number) => ({ x: first.edge.a.x + t * ux, y: first.edge.a.y + t * uy })
+    for (let j = i + 1; j < edges.length; j += 1) {
+      const second = edges[j]
+      if (first.room.id === second.room.id) continue
+      if (!wallObjectPairInfo(first.room, first.edge, second.room, second.edge)?.paired) continue
+      const bx = second.edge.b.x - second.edge.a.x
+      const by = second.edge.b.y - second.edge.a.y
+      const secondLength = Math.hypot(bx, by)
+      if (secondLength < widthM + 0.001) continue
+      const vx = bx / secondLength
+      const vy = by / secondLength
+      const projection = (p: PointM) => (p.x - first.edge.a.x) * ux + (p.y - first.edge.a.y) * uy
+      const otherStart = projection(second.edge.a)
+      const otherEnd = projection(second.edge.b)
+      const sharedStart = Math.max(0, Math.min(otherStart, otherEnd))
+      const sharedEnd = Math.min(len, Math.max(otherStart, otherEnd))
+      if (sharedEnd - sharedStart < widthM + 0.001) continue
+      const alongClick = projection(point)
+      const chosen = clamp(alongClick, sharedStart + widthM / 2, sharedEnd - widthM / 2)
+      const center = candidateAt(chosen)
+      const crossA = Math.abs((point.x - center.x) * uy - (point.y - center.y) * ux)
+      const centerOnSecond = (center.x - second.edge.a.x) * vx + (center.y - second.edge.a.y) * vy
+      if (centerOnSecond - widthM / 2 < -0.003 || centerOnSecond + widthM / 2 > secondLength + 0.003) continue
+      const distToSecond = Math.abs((point.x - second.edge.a.x) * vy - (point.y - second.edge.a.y) * vx)
+      const distToFirst = Math.abs((point.x - first.edge.a.x) * uy - (point.y - first.edge.a.y) * ux)
+      const nearest = Math.min(distToFirst, distToSecond)
+      if (nearest > 0.28) continue
+      const alongError = Math.abs(alongClick - chosen)
+      if (alongError > widthM / 2 + 0.45) continue
+      const wallOffset = Math.abs((second.edge.a.x - first.edge.a.x) * uy - (second.edge.a.y - first.edge.a.y) * ux)
+      const score = nearest * 3 + alongError + distToFirst + distToSecond + wallOffset * 0.3 + crossA * 0.1
+      const faceA = { roomId: first.room.id, edgeIndex: first.edgeIndex, x: Math.round(chosen / len * 1e6) / 1e6, w: Math.round(widthM / len * 1e6) / 1e6 }
+      const faceB = { roomId: second.room.id, edgeIndex: second.edgeIndex, x: Math.round(centerOnSecond / secondLength * 1e6) / 1e6, w: Math.round(widthM / secondLength * 1e6) / 1e6 }
+      const result = {
+        faces: [faceA, faceB] as [BlueprintDoorFace136, BlueprintDoorFace136],
+        left: candidateAt(chosen - widthM / 2),
+        right: candidateAt(chosen + widthM / 2),
+        score,
+      }
+      if (!winner || score < winner.score) winner = result
+    }
+  }
+  return winner
+}
 
 function BlueprintWallObjectConnections({ wallObjects, rooms }: { wallObjects: ApiWallObject[]; rooms: Room[] }) {
   const byGroup = wallObjects
@@ -7791,10 +7949,10 @@ function roomToPayload(room: Room) {
 }
 
 function viewModeIcon(mode: ViewMode) {
-  if (mode === 'floorplan') return '▦'
-  if (mode === 'wall') return '▤'
-  if (mode === 'board') return '⚡'
-  return '⌂'
+  const name = mode === 'floorplan' ? 'blueprint'
+    : mode === 'wall' ? 'wall-detail'
+      : mode === 'board' ? 'lightning' : 'cube'
+  return <StromIcon name={name} title={viewModes.find((entry) => entry.id === mode)?.label ?? mode} size={22} />
 }
 
 function toolLabel(tool: Tool) {
@@ -7803,17 +7961,19 @@ function toolLabel(tool: Tool) {
   if (tool === 'outerwall') return 'Aussenwand zeichnen'
   if (tool === 'polygon') return 'Polygonraum zeichnen'
   if (tool === 'recess') return 'Aussparung / Wandvorsprung'
+  if (tool === 'door') return 'Tuer zwischen Raeumen einsetzen'
   return 'Abstand zwischen Kanten'
 }
 
 function toolIcon(tool: Tool) {
-  if (tool === 'select') return '↖'
-  if (tool === 'rectangle') return '▭'
-  if (tool === 'outerwall') return '▤'
-  if (tool === 'polygon') return '⬠'
-  if (tool === 'recess') return '▱'
-  if (tool === 'stair') return '⇵'
-  return '⇔'
+  const name = tool === 'select' ? 'select'
+    : tool === 'rectangle' ? 'room-rect'
+      : tool === 'outerwall' ? 'outer-wall'
+        : tool === 'polygon' ? 'polygon'
+          : tool === 'recess' ? 'cutout'
+            : tool === 'stair' ? 'stair-run'
+              : tool === 'door' ? 'door' : 'measure'
+  return <StromIcon name={name} title={toolLabel(tool)} />
 }
 
 function mToX(meter: number) { return canvas.margin + (meter - canvas.minM) * canvas.scale }

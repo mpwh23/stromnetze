@@ -4621,3 +4621,19 @@ svg [class*="dimension"], svg [class*="technical"], svg [class*="measure"] { vec
   fill: rgba(254, 249, 195, 0.46);
   stroke: rgba(180, 83, 9, 0.82);
 }
+
+
+/* Update 136: SVG design icons, Blueprint door-tool and interactive preview. */
+.strom-ui-icon { display: inline-block; flex: none; vertical-align: middle; overflow: visible; color: inherit; }
+.canvas-toolbox button .strom-ui-icon { width: 21px; height: 21px; }
+.nav-icon .strom-ui-icon { width: 22px; height: 22px; }
+.layer-menu-panel .strom-ui-icon { width: 18px; height: 18px; }
+.snap-control .strom-ui-icon, .wall-control .strom-ui-icon { width: 19px; height: 19px; }
+.blueprint-door-settings136 { gap: 0.7rem; align-items: center; flex-wrap: wrap; }
+.blueprint-door-settings136 label { min-width: 112px; display: grid; gap: 0.2rem; }
+.blueprint-door-settings136 label input { width: 104px; }
+.blueprint-door-settings136 strong { color: #1e3a8a; white-space: nowrap; }
+.blueprint-door-notice136 { max-width: 400px; font-size: 0.8rem; font-weight: 600; color: #1e40af; }
+.floorplan-canvas.blueprint-door-active136 { cursor: crosshair; }
+.floorplan-canvas .blueprint-door-preview136 line { stroke: #2563eb; stroke-width: 5px; stroke-dasharray: 7 4; pointer-events: none; }
+.floorplan-canvas .blueprint-door-preview136 circle { fill: #fff; stroke: #2563eb; stroke-width: 2px; pointer-events: none; }
