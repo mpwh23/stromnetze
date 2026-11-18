@@ -16,6 +16,7 @@ import { active3DFloor, readActiveBlueprintLevel, listBlueprintLevelOptions144, 
 // STROM143_STAIRS_FIX: share the exact saved room layouts across 3D views.
 import { build3DStairsAcrossLevels143, type PlacedStairSurface143 } from '../building/stairVisibility143'
 import { buildStair3DSurfaces } from '../building/stair3d'
+import { readStairDirections147 } from '../building/stairOverlay147'
 
 const roundMm = (value: number) => Math.round(value * 1000) / 1000
 const fmtMm = (value: number) => Math.round(value * 1000).toLocaleString('de-DE')
@@ -210,7 +211,9 @@ function StairSolid({ surface, selected, onSelect }: {
   }, [surface])
   useEffect(() => () => geometry.dispose(), [geometry])
   return (
-    <mesh
+    <group scale={[1, surface.direction147 === 'down' ? -1 : 1, 1]}>
+      {/* STROM147_DOWN_SCENE: wraps all existing stair meshes; no geometry changes. */}
+      <mesh
       geometry={geometry}
       position={[0, surface.levelOffsetM, 0]}
       onClick={(event: ThreeEvent<MouseEvent>) => { event.stopPropagation(); if (Math.abs(surface.levelOffsetM) < 0.001) onSelect() }}
@@ -227,6 +230,7 @@ function StairSolid({ surface, selected, onSelect }: {
         metalness={0.03}
       />
     </mesh>
+    </group>
   )
 }
 
@@ -527,6 +531,7 @@ export default function Building3DWorkspace({ floor, rooms, selectedRoomId, onSe
       const saved146: unknown = JSON.parse(window.localStorage.getItem(`strom.floorplan.layers.${floor.id}.roomAssignments`) || '{}')
       if (saved146 && typeof saved146 === 'object' && !Array.isArray(saved146)) assignments146 = saved146 as Record<string, string>
     } catch { /* unreadable legacy storage is treated as main layer */ }
+    const directions147 = readStairDirections147(floor.id, window.localStorage)
     let elevation146 = Number(floor.elevationM) || 0
     return levelOptions144.map((item146, idx146) => {
       const floorRooms146 = rooms.filter((room146) => (assignments146[room146.id] || 'layer-main') === item146.id)
@@ -538,7 +543,7 @@ export default function Building3DWorkspace({ floor, rooms, selectedRoomId, onSe
       return { id: item146.id,
         model: buildBuildingModel(layerFloor146, floorRooms146, floorObjects146),
         stairs: buildStair3DSurfaces(floorRooms146, item146.heightM, window.localStorage).map((surface146) => ({
-          ...surface146, levelId: item146.id, levelOffsetM: 0,
+          ...surface146, levelId: item146.id, levelOffsetM: 0, direction147: directions147[surface146.roomId] === 'down' ? 'down' : 'up',
         })),
         offsetM: showAllLevels146 && separateLevels146 ? idx146 * 1.15 : 0 }
     })

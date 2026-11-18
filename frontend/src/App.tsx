@@ -2,6 +2,7 @@ import { type CSSProperties, ChangeEvent as ReactChangeEvent, DragEvent as React
 import StromIcon from './components/StromIcon'
 import { snapPointToVisibleRooms143, snapRectangleHandle143, snapMovedVerticesToVisibleRooms143 } from './building/neighborSnap143'
 import { snapRectEdge146, snapTranslatedEdge146 } from './building/edgeSnap146'
+import { readStairDirections147, sameStairFootprint147, stairDirectionKey147, type StairDirection147 } from './building/stairOverlay147'
 import Building3DWorkspace from './components/Building3DWorkspace'
 import {
   createObject,
@@ -1432,6 +1433,8 @@ function FloorplanEditor({
   const [layerDeleteRequestId, setLayerDeleteRequestId] = useState<string>('')
   const [titleOffsets, setTitleOffsets] = useState<Record<string, TitleOffset>>(() => loadTitleOffsets(floor.id))
   const [titleDrag, setTitleDrag] = useState<{ roomId: string; startClientX: number; startClientY: number; startOffset: TitleOffset } | null>(null)
+  const [stairDirections147, setStairDirections147] = useState<Record<string, StairDirection147>>(
+    () => readStairDirections147(floor.id, window.localStorage))
   const [stairPanelOpen, setStairPanelOpen] = useState(false)
   const [stairPanelRect, setStairPanelRect] = useState({ left: 24, top: 24, width: 820, height: 540 })
   const [stairPanelDrag, setStairPanelDrag] = useState<{ mode: 'move' | 'resize'; startClientX: number; startClientY: number; startRect: { left: number; top: number; width: number; height: number } } | null>(null)
@@ -1440,7 +1443,21 @@ function FloorplanEditor({
   const suppressCanvasClickRef = useRef(false)
   const initializedCanvasScrollRef = useRef<string>('')
 
+  useEffect(() => {
+    setStairDirections147(readStairDirections147(floor.id, window.localStorage))
+  }, [floor.id])
+
   const selectedRoom = rooms.find((room) => room.id === selectedRoomId) ?? null
+  // STROM147_STAIR_DIRECTIONS: one physical location, two independent stair-room records.
+  const stairRoomsHere147 = selectedRoom && isStairRoom(selectedRoom)
+    ? rooms.filter((room) => isStairRoom(room)
+      && (roomLayerAssignments[room.id] ?? defaultLayerId) === (roomLayerAssignments[selectedRoom.id] ?? defaultLayerId)
+      && sameStairFootprint147(room, selectedRoom))
+    : []
+  const stairUp147 = stairRoomsHere147.find((room) => stairDirections147[room.id] === 'up') ?? null
+  const stairDown147 = stairRoomsHere147.find((room) => stairDirections147[room.id] === 'down') ?? null
+  const selectedStairDirection147 = selectedRoom ? stairDirections147[selectedRoom.id] : undefined
+
   const recessBaseRoom = recessBaseRoomId ? rooms.find((room) => room.id === recessBaseRoomId) ?? null : null
   const rectPreview = rectDraft ? normalizeRect(rectDraft.start, rectDraft.end) : null
   const rectPreviewArea = rectPreview ? rectPreview.width * rectPreview.height : 0
@@ -1720,6 +1737,57 @@ function FloorplanEditor({
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
   }, [tool, selectedRoom, allSelected, roomDrag, groupDrag, polygonEdgeDrag, vertexDrag, rectHandleDrag, zoom, onDeleteSelectedRoom, onPersistRoom, onCaptureUndoSnapshot])
+
+  function storeStairDirections147(next: Record<string, StairDirection147>) {
+    // Existing level assignments and stair element storage remain unchanged.
+    try {
+      window.localStorage.setItem(stairDirectionKey147(floor.id), JSON.stringify(next))
+      setStairDirections147(next)
+      window.dispatchEvent(new Event('strom:blueprint-levels-changed'))
+    } catch (err) { onError(`Treppenrichtung konnte nicht gespeichert werden: ${String(err)}`) }
+  }
+
+  function chooseStairDirection147(direction: StairDirection147) {
+    if (!selectedRoom || !isStairRoom(selectedRoom)) return
+    const other = direction === 'up' ? stairUp147 : stairDown147
+    if (other) { onSelectRoom(other.id); return }
+    const currentDirection = stairDirections147[selectedRoom.id]
+    const matchingUnassigned = stairRoomsHere147.find((room) => room.id !== selectedRoom.id && !stairDirections147[room.id])
+    if (currentDirection && currentDirection !== direction && matchingUnassigned) {
+      storeStairDirections147({ ...stairDirections147, [matchingUnassigned.id]: direction })
+      onSelectRoom(matchingUnassigned.id)
+      return
+    }
+    const next: Record<string, StairDirection147> = { ...stairDirections147, [selectedRoom.id]: direction }
+    if (!currentDirection && matchingUnassigned) next[matchingUnassigned.id] = direction === 'up' ? 'down' : 'up'
+    storeStairDirections147(next)
+    onSelectRoom(selectedRoom.id)
+  }
+
+  async function createOtherStair147() {
+    if (!selectedRoom || !isStairRoom(selectedRoom) || !selectedStairDirection147) return
+    if (stairRoomsHere147.length > 1 || (stairUp147 && stairDown147)) return
+    const opposite: StairDirection147 = selectedStairDirection147 === 'up' ? 'down' : 'up'
+    try {
+      onError(null)
+      onCaptureUndoSnapshot()
+      // RoomType=stair: the existing solid-wall builder excludes stair rooms.
+      // Do not duplicate the physical walls or the existing stair layout data.
+      const created = await createRoom({
+        floorId: floor.id,
+        name: `${selectedRoom.name} (${opposite === 'up' ? 'aufwärts' : 'abwärts'})`,
+        shapeType: selectedRoom.shapeType,
+        roomType: 'stair',
+        wallThicknessM: selectedRoom.wallThicknessM,
+        vertices: selectedRoom.vertices.map((point) => ({ ...point })),
+      })
+      setRoomLayerAssignments((current) => ({ ...current, [created.id]: activeLayerId }))
+      storeStairDirections147({ ...stairDirections147, [created.id]: opposite })
+      setStairPanelOpen(false)
+      await onReload()
+      onSelectRoom(created.id)
+    } catch (err) { onError(err instanceof Error ? err.message : String(err)) }
+  }
 
   async function finishRectangle(rect: RectM) {
     if (rect.width < 0.1 || rect.height < 0.1) {
@@ -3013,6 +3081,28 @@ function toggleRecessOffsetDirection() {
           </div>
         )}
 
+        {selectedRoom && isStairRoom(selectedRoom) && (roomLayerAssignments[selectedRoom.id] ?? defaultLayerId) === activeLayerId && (
+          <div className="strom-stair-direction-floating147" aria-label="Treppenraumrichtung">
+            <div className="strom-stair-direction-title147">Treppenraum · Richtung</div>
+            <div className="strom-stair-direction-actions147">
+              <button type="button" className={selectedStairDirection147 === 'up' ? 'active' : ''}
+                title="Aufwärts: führt von dieser Ebene zur nächsthöheren"
+                aria-pressed={selectedStairDirection147 === 'up'}
+                onClick={() => chooseStairDirection147('up')}><StromIcon name="stair-run" title="Aufwärts" size={18} /> Aufwärts</button>
+              <button type="button" className={selectedStairDirection147 === 'down' ? 'active' : ''}
+                title="Abwärts: führt von dieser Ebene zur nächsttieferen"
+                aria-pressed={selectedStairDirection147 === 'down'}
+                onClick={() => chooseStairDirection147('down')}><StromIcon name="stair-run" title="Abwärts" size={18} className="strom-stair-down-icon147" /> Abwärts</button>
+            </div>
+            {!selectedStairDirection147 && <small>Richtung für diesen Treppenraum zuerst festlegen</small>}
+            {selectedStairDirection147 && stairRoomsHere147.length === 1 && (
+              <button type="button" className="strom-stair-create147" title="Zweiten unabhängigen Treppenraum auf derselben Grundfläche erstellen; vorhandene Stufen nicht kopieren"
+                onClick={() => void createOtherStair147()}><StromIcon name="new-object" title="Gegenrichtung anlegen" size={18} /> Gegenrichtung anlegen</button>
+            )}
+            {stairRoomsHere147.length > 2 && <small>Hinweis: Mehr als zwei überlappende Treppenräume gefunden</small>}
+            {stairRoomsHere147.length === 2 && <small>Aufwärts: {stairUp147 ? 'vorhanden' : 'offen'} · Abwärts: {stairDown147 ? 'vorhanden' : 'offen'}</small>}
+          </div>
+        )}
         <CanvasRulers zoom={zoom} scrollLeft={scrollPosition.left} scrollTop={scrollPosition.top} />
         <div className="canvas-scroll" ref={canvasScrollRef} onWheelCapture={handleCanvasWheel} onScroll={handleCanvasScroll}>
           <svg
@@ -6959,11 +7049,9 @@ function WallFrontPlacedObject({
     const frame = Math.max(2, Math.min(7, Math.min(w, h) * 0.12))
     return (
       <g className={`${className} wall-front-window146`} onMouseDown={(event) => onBeginDrag(event, item, 'move')}>
-        <title>Fenster – Rahmen mit Glas und Mittelsprosse</title>
+        <title>Fenster – Frontalansicht ohne Fensterkreuz</title>
         <rect className="wall-front-window-frame146" x={left} y={top} width={w} height={h} rx={1.5} />
         <rect className="wall-front-window-glass146" x={left + frame} y={top + frame} width={Math.max(2, w - 2 * frame)} height={Math.max(2, h - 2 * frame)} rx={0.6} />
-        <line className="wall-front-window-mullion146" x1={cx} y1={top + frame} x2={cx} y2={top + h - frame} />
-        {w > h * 1.3 && <line className="wall-front-window-transom146" x1={left + frame} y1={cy} x2={left + w - frame} y2={cy} />}
         <line className="wall-front-window-sill146" x1={left - 3} y1={top + h} x2={left + w + 3} y2={top + h} />
         {resizeHandle}{dimensions}
       </g>

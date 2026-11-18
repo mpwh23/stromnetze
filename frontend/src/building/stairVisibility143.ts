@@ -6,6 +6,7 @@ export type PlacedStairSurface143 = Stair3DSurface & {
   /** Offset relative to the currently rendered level, applied by the 3D group. */
   levelOffsetM: number
   levelId: string
+  direction147?: 'up' | 'down'
 }
 export type StairSceneData143 = { surfaces: PlacedStairSurface143[]; savedLayouts: number; activeLayouts: number }
 
@@ -27,6 +28,10 @@ const heightM = (value: unknown, fallback: number) => {
 export function build3DStairsAcrossLevels143(floor: Floor, rooms: Room[], activeLevel: BlueprintLevelView, storage: KeyValueReader): StairSceneData143 {
   const prefix = `strom.floorplan.layers.${floor.id}.`
   const rawLayers = readJson(storage, prefix + 'list')
+  const rawDirections147 = readJson(storage, prefix + 'stairDirections147')
+  const directions147 = rawDirections147 && typeof rawDirections147 === 'object' && !Array.isArray(rawDirections147)
+    ? rawDirections147 as Record<string, unknown> : {}
+
   const fallback = heightM(floor.heightM, 2.5)
   const levels = Array.isArray(rawLayers)
     ? rawLayers.flatMap((item: unknown) => {
@@ -59,7 +64,7 @@ export function build3DStairsAcrossLevels143(floor: Floor, rooms: Room[], active
     const offset = Math.round((levelBottom - activeLevel.elevationM) * 1000) / 1000
     const levelRooms = groups.get(level.id) ?? []
     for (const surface of buildStair3DSurfaces(levelRooms, level.heightM, storage)) {
-      surfaces.push({ ...surface, levelId: level.id, levelOffsetM: offset })
+      surfaces.push({ ...surface, levelId: level.id, levelOffsetM: offset, direction147: directions147[surface.roomId] === 'down' ? 'down' : 'up' })
     }
     levelBottom += level.heightM
   }

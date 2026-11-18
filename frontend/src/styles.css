@@ -4834,3 +4834,25 @@ svg [class*="dimension"], svg [class*="technical"], svg [class*="measure"] { vec
 .building3d-stacked-options146 button { display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; }
 .building3d-stacked-options146 button.active { background: #2457b7; color: white; border-color: #2457b7; }
 .building3d-stacked-options146 button:disabled { opacity: .45; cursor: not-allowed; }
+
+/* STROM147: compact floating stair direction chooser in the Blueprint only. */
+.canvas-card { position: relative; }
+.strom-stair-direction-floating147 {
+  position: absolute; top: 64px; left: 18px; z-index: 45;
+  display: flex; flex-direction: column; gap: 8px;
+  width: max-content; max-width: min(340px, calc(100% - 35px));
+  padding: 12px; border: 1px solid #b8c9e7; border-radius: 12px;
+  background: rgba(255,255,255,.97); color: #243955;
+  box-shadow: 0 7px 25px rgba(30,51,88,.14);
+}
+.strom-stair-direction-title147 { font-weight: 800; font-size: 12px; letter-spacing: .025em; }
+.strom-stair-direction-actions147 { display: flex; flex-wrap: wrap; gap: 5px; }
+.strom-stair-direction-actions147 button, .strom-stair-create147 {
+  display:inline-flex; align-items:center; gap:6px;
+  border: 1px solid #b4c8e4; border-radius: 8px; background: #f3f7ff;
+  padding: 8px 11px; color: #234467; cursor: pointer; font-weight: 650;
+}
+.strom-stair-direction-actions147 button.active { background: #275ec6; border-color: #275ec6; color: #fff; }
+.strom-stair-create147 { background: #e5efff; }
+.strom-stair-down-icon147 { transform: rotate(180deg); }
+.strom-stair-direction-floating147 small { color: #62738d; font-size: 11px; }
