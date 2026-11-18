@@ -4755,3 +4755,8 @@ svg [class*="dimension"], svg [class*="technical"], svg [class*="measure"] { vec
 }
 .floorplan-layout .canvas-layer-menu .layer-height-control input:focus { outline: 2px solid #60a5fa; }
 .floorplan-layout .canvas-layer-menu .layer-menu-panel { min-width: 350px; max-width: min(420px, 95vw); }
+
+/* STROM143: snapping against visible Blueprint ghost levels, opt-in. */
+.floorplan-layout .strom-neighbor-snap143 { display: inline-flex; align-items: center; gap: 4px; white-space: nowrap; font-size: 11px; }
+.floorplan-layout .strom-neighbor-snap143 .strom-ui-icon { width: 18px; height: 18px; }
+.floorplan-layout .strom-neighbor-snap143 span { font-weight: 500; }

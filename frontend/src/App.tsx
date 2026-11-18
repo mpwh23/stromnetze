@@ -1,5 +1,6 @@
 import { type CSSProperties, ChangeEvent as ReactChangeEvent, DragEvent as ReactDragEvent, MouseEvent as ReactMouseEvent, WheelEvent as ReactWheelEvent, useEffect, useMemo, useRef, useState } from 'react'
 import StromIcon from './components/StromIcon'
+import { snapPointToVisibleRooms143, snapRectangleHandle143 } from './building/neighborSnap143'
 import Building3DWorkspace from './components/Building3DWorkspace'
 import {
   createObject,
@@ -1404,6 +1405,8 @@ function FloorplanEditor({
     return { left: viewport.left, top: viewport.top }
   })
   const [snapEnabled, setSnapEnabled] = useState(true)
+  // STROM143_CROSS_LEVEL_SNAP: opt-in; keep the original snapping as the default.
+  const [snapVisibleNeighbors143, setSnapVisibleNeighbors143] = useState<boolean>(() => safeReadJson<boolean>(layerStorageKey(floor.id, 'snapVisibleNeighbors143'), false))
   const [snapWallThicknessM, setSnapWallThicknessM] = useState(0.12)
   const [recessDraft, setRecessDraft] = useState<RecessDraft | null>(null)
   const [recessBaseRoomId, setRecessBaseRoomId] = useState<string>('')
@@ -1466,6 +1469,17 @@ function FloorplanEditor({
   useEffect(() => {
     localStorage.setItem(layerStorageKey(floor.id, 'roomAssignments'), JSON.stringify(roomLayerAssignments))
   }, [floor.id, roomLayerAssignments])
+
+  useEffect(() => {
+    // The toggle is independent of the main snap switch, and per-floor persistent.
+    try { localStorage.setItem(layerStorageKey(floor.id, 'snapVisibleNeighbors143'), JSON.stringify(snapVisibleNeighbors143)) }
+    catch { /* private browsing may disable localStorage */ }
+  }, [floor.id, snapVisibleNeighbors143])
+
+  useEffect(() => {
+    // "storage" does not fire in the same tab: keep 3D in sync via explicit event.
+    window.dispatchEvent(new Event('strom:blueprint-levels-changed'))
+  }, [floor.id, layers, activeLayerId, roomLayerAssignments])
 
   useEffect(() => {
     localStorage.setItem(titleOffsetStorageKey(floor.id), JSON.stringify(titleOffsets))
@@ -1566,6 +1580,33 @@ function FloorplanEditor({
     () => rooms.filter((room) => (roomLayerAssignments[room.id] ?? defaultLayerId) === activeLayerId),
     [rooms, roomLayerAssignments, activeLayerId],
   )
+
+  function visibleNeighborSnapTargets143(excludeIds: string[] = []) {
+    if (!snapEnabled || !snapVisibleNeighbors143) return []
+    const excluded = new Set(excludeIds)
+    return rooms
+      .filter((room) => !excluded.has(room.id))
+      .filter((room) => {
+        const levelId = roomLayerAssignments[room.id] ?? defaultLayerId
+        const state = renderStateForLayer(levelId)
+        return levelId !== activeLayerId && state.visible && state.ghost
+      })
+      .map((room) => ({ room, vertices: room.vertices }))
+  }
+
+  function allSnapTargets143(excludeIds: string[] = []) {
+    const excluded = new Set(excludeIds)
+    const ownLayer = rooms.filter((room) => !excluded.has(room.id) && (roomLayerAssignments[room.id] ?? defaultLayerId) === activeLayerId)
+      .map((room) => ({ room, vertices: room.vertices }))
+    return [...ownLayer, ...visibleNeighborSnapTargets143(excludeIds)]
+  }
+
+  function pointSnap143(point: PointM): PointM {
+    if (!snapEnabled || !snapVisibleNeighbors143) return point
+    const targets = allSnapTargets143()
+    return snapPointToVisibleRooms143(point, targets, snapWallThicknessM)
+  }
+
   const blueprintDoorWallHeight136 = loadWallHeightM(floor.id, floor.heightM)
   const blueprintDoorPreview136 = tool === 'door' && cursorPoint
     ? blueprintDoorCandidate136(cursorPoint, activeLayerRooms, blueprintDoorWidth136) : null
@@ -1832,10 +1873,11 @@ function FloorplanEditor({
     }
 
     if (tool === 'rectangle' || tool === 'outerwall') {
+      const snappedPoint = pointSnap143(point)
       if (!rectDraft) {
-        setRectDraft({ start: point, end: point })
+        setRectDraft({ start: snappedPoint, end: snappedPoint })
       } else {
-        const nextRect = normalizeRect(rectDraft.start, point)
+        const nextRect = normalizeRect(rectDraft.start, snappedPoint)
         if (tool === 'outerwall') void finishOuterWall(nextRect)
         else void finishRectangle(nextRect)
       }
@@ -1843,7 +1885,7 @@ function FloorplanEditor({
     }
 
     if (tool === 'polygon') {
-      const rawPoint = point
+      const rawPoint = event.shiftKey ? point : pointSnap143(point)
       if (polygonDraft.length >= 3 && isNearStartPoint(rawPoint, polygonDraft[0])) {
         void finishPolygon()
         return
@@ -1940,11 +1982,11 @@ if (dimensionDrag) {
     const point = rawPoint && tool === 'polygon' && polygonDraft.length > 0 && event.shiftKey
       ? constrainTo45(polygonDraft[polygonDraft.length - 1], rawPoint)
       : rawPoint
-    setCursorPoint(point)
+    setCursorPoint(point && tool === 'polygon' && !event.shiftKey ? pointSnap143(point) : point)
     if (!point) return
 
     if ((tool === 'rectangle' || tool === 'outerwall') && rectDraft) {
-      setRectDraft({ ...rectDraft, end: point })
+      setRectDraft({ ...rectDraft, end: pointSnap143(point) })
       return
     }
 
@@ -1968,6 +2010,17 @@ if (dimensionDrag) {
       groupDrag.originals.forEach(({ room, vertices }) => {
         nextPreview[room.id] = vertices.map((vertex) => clampPoint({ x: round3(vertex.x + drag.dx), y: round3(vertex.y + drag.dy) }))
       })
+      if (snapEnabled && snapVisibleNeighbors143) {
+        const groupIds = groupDrag.originals.map(({ room }) => room.id)
+        const vertices = Object.values(nextPreview).flat()
+        const aligned = snapVerticesToRooms(vertices, allSnapTargets143(groupIds), snapWallThicknessM, drag.axis)
+        if (vertices.length && aligned.length) {
+          const dx = aligned[0].x - vertices[0].x, dy = aligned[0].y - vertices[0].y
+          if (Math.abs(dx) > 0.0001 || Math.abs(dy) > 0.0001) {
+            for (const roomId of groupIds) nextPreview[roomId] = nextPreview[roomId].map((p) => clampPoint({ x: round3(p.x + dx), y: round3(p.y + dy) }))
+          }
+        }
+      }
       setGroupPreview(nextPreview)
       return
     }
@@ -1980,7 +2033,7 @@ if (dimensionDrag) {
       if (snapEnabled) {
         nextVertices = snapVerticesToRooms(
           nextVertices,
-          rooms.filter((room) => room.id !== roomDrag.roomId && (roomLayerAssignments[room.id] ?? defaultLayerId) === activeLayerId).map((room) => ({ room, vertices: room.vertices })),
+          allSnapTargets143([roomDrag.roomId]),
           snapWallThicknessM,
           drag.axis,
         )
@@ -1992,12 +2045,11 @@ if (dimensionDrag) {
     if (rectHandleDrag) {
       let nextVertices = resizeRectangleByHandle(rectHandleDrag.originalVertices, rectHandleDrag.handle, point)
       if (snapEnabled) {
-        nextVertices = snapVerticesToRooms(
-          nextVertices,
-          rooms.filter((room) => room.id !== rectHandleDrag.roomId && (roomLayerAssignments[room.id] ?? defaultLayerId) === activeLayerId).map((room) => ({ room, vertices: room.vertices })),
-          snapWallThicknessM,
-          null,
-        )
+        if (snapVisibleNeighbors143) {
+          nextVertices = snapRectangleHandle143(nextVertices, rectHandleDrag.handle, allSnapTargets143([rectHandleDrag.roomId]), snapWallThicknessM)
+        } else {
+          nextVertices = snapVerticesToRooms(nextVertices, allSnapTargets143([rectHandleDrag.roomId]), snapWallThicknessM, null)
+        }
       }
       setRoomPreview({ roomId: rectHandleDrag.roomId, vertices: nextVertices })
       return
@@ -2007,10 +2059,16 @@ if (dimensionDrag) {
       const rawDx = round2(point.x - polygonEdgeDrag.start.x)
       const rawDy = round2(point.y - polygonEdgeDrag.start.y)
       const drag = event.shiftKey ? constrainDeltaTo45(rawDx, rawDy) : { dx: rawDx, dy: rawDy }
-      const nextVertices = polygonEdgeDrag.originalVertices.map((vertex, index) => {
+      let nextVertices = polygonEdgeDrag.originalVertices.map((vertex, index) => {
         const moves = index === polygonEdgeDrag.indexA || index === polygonEdgeDrag.indexB
         return moves ? clampPoint({ x: round2(vertex.x + drag.dx), y: round2(vertex.y + drag.dy) }) : vertex
       })
+      if (snapEnabled && snapVisibleNeighbors143) {
+        const before = nextVertices[polygonEdgeDrag.indexA]
+        const aligned = snapPointToVisibleRooms143(before, allSnapTargets143([polygonEdgeDrag.roomId]), snapWallThicknessM)
+        nextVertices = nextVertices.map((p, i) => i === polygonEdgeDrag.indexA || i === polygonEdgeDrag.indexB
+          ? clampPoint({ x: round3(p.x + aligned.x - before.x), y: round3(p.y + aligned.y - before.y) }) : p)
+      }
       setRoomPreview({ roomId: polygonEdgeDrag.roomId, vertices: nextVertices })
       return
     }
@@ -2018,7 +2076,9 @@ if (dimensionDrag) {
     if (vertexDrag) {
       const room = rooms.find((item) => item.id === vertexDrag.roomId)
       if (!room) return
-      const nextVertices = room.vertices.map((vertex, index) => index === vertexDrag.index ? point : vertex)
+      const alignedPoint = snapEnabled && snapVisibleNeighbors143
+        ? snapPointToVisibleRooms143(point, allSnapTargets143([vertexDrag.roomId]), snapWallThicknessM) : point
+      const nextVertices = room.vertices.map((vertex, index) => index === vertexDrag.index ? alignedPoint : vertex)
       setRoomPreview({ roomId: vertexDrag.roomId, vertices: nextVertices })
     }
   }
@@ -2772,6 +2832,11 @@ function toggleRecessOffsetDirection() {
             <StromIcon name="broom" title="Alle Elemente loeschen" />
           </button>
           <span className="tool-divider" />
+          <label className="snap-control strom-neighbor-snap143" title="An sichtbaren Nachbarebenen einrasten (Ein/Aus)" data-tooltip="Snapping an sichtbaren Nachbarebenen" aria-label="Snapping an sichtbaren Nachbarebenen aktivieren oder deaktivieren">
+            <input type="checkbox" checked={snapVisibleNeighbors143} onChange={(event) => setSnapVisibleNeighbors143(event.target.checked)} />
+            <StromIcon name="layers-neighbor" title="Einrasten an sichtbaren Nachbarebenen" />
+            <span>Nachbarebenen</span>
+          </label>
           <label className="snap-control" title="Objekte beim Verschieben andocken">
             <input type="checkbox" checked={snapEnabled} onChange={(event) => setSnapEnabled(event.target.checked)} />
             <StromIcon name="snap" title="Snapping umschalten" />
@@ -3197,6 +3262,7 @@ function writeStairLayoutElements(roomId: string, elements: StairEditorElement[]
   if (typeof window === 'undefined') return
   try {
     window.localStorage.setItem(stairLayoutStorageKey(roomId), JSON.stringify(elements))
+    window.dispatchEvent(new Event('strom:blueprint-levels-changed'))
   } catch {
     // Browser-Speicher kann voll oder deaktiviert sein; der Editor bleibt trotzdem benutzbar.
   }
@@ -3236,6 +3302,7 @@ function writeStairEdgeAssignments(roomId: string, assignments: StairFloorEdgeLi
   if (typeof window === 'undefined') return
   try {
     window.localStorage.setItem(stairEdgeAssignmentsStorageKey(roomId), JSON.stringify(assignments))
+    window.dispatchEvent(new Event('strom:blueprint-levels-changed'))
   } catch {
     // Browser-Speicher kann voll oder deaktiviert sein; der Editor bleibt trotzdem benutzbar.
   }

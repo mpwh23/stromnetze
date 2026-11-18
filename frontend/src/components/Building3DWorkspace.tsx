@@ -10,7 +10,8 @@ import { pickWallHoverPlane, buildWallHoverTriangles, type WallHoverPlane } from
 import type { ReactNode } from 'react'
 import { buildBuildingModel, type BuildingModel, type BuildingRoom, type BuildingWall, type BuildingOpening } from '../building/model'
 import { active3DFloor, readActiveBlueprintLevel } from '../building/blueprintLevels'
-import { buildStair3DSurfaces, type Stair3DSurface } from '../building/stair3d'
+// STROM143_STAIRS_FIX: share the exact saved room layouts across 3D views.
+import { build3DStairsAcrossLevels143, type PlacedStairSurface143 } from '../building/stairVisibility143'
 
 const roundMm = (value: number) => Math.round(value * 1000) / 1000
 const fmtMm = (value: number) => Math.round(value * 1000).toLocaleString('de-DE')
@@ -177,7 +178,7 @@ function SolidWallMeshes({ model, onSelectRoom, onSelectWall, transparent }: {
 // STROM142_STAIRS3D: extruded tread footprints derived from the existing
 // Treppe-einzeichnen layout. This is true 3D geometry, not stacked SVG.
 function StairSolid({ surface, selected, onSelect }: {
-  surface: Stair3DSurface
+  surface: PlacedStairSurface143
   selected: boolean
   onSelect: () => void
 }) {
@@ -199,13 +200,17 @@ function StairSolid({ surface, selected, onSelect }: {
   return (
     <mesh
       geometry={geometry}
-      position={[0, 0, 0]}
-      onClick={(event: ThreeEvent<MouseEvent>) => { event.stopPropagation(); onSelect() }}
+      position={[0, surface.levelOffsetM, 0]}
+      onClick={(event: ThreeEvent<MouseEvent>) => { event.stopPropagation(); if (Math.abs(surface.levelOffsetM) < 0.001) onSelect() }}
       castShadow
       receiveShadow
     >
       <meshStandardMaterial
         color={selected ? '#598fe4' : surface.kind === 'landing' ? '#c4d7ef' : '#9fbade'}
+        transparent={Math.abs(surface.levelOffsetM) > 0.001}
+        opacity={Math.abs(surface.levelOffsetM) > 0.001 ? 0.48 : 1}
+        depthWrite={Math.abs(surface.levelOffsetM) <= 0.001}
+        side={THREE.DoubleSide}
         roughness={0.78}
         metalness={0.03}
       />
@@ -248,7 +253,7 @@ function SceneControls({ model }: { model: BuildingModel }) {
 
 function RealBuildingScene({ model, stairs, selectedRoomId, selectedDoorId, onSelectRoom, onSelectDoor, onSelectWall, transparent }: {
   model: BuildingModel
-  stairs: Stair3DSurface[]
+  stairs: PlacedStairSurface143[]
   selectedRoomId: string
   selectedDoorId: string
   onSelectRoom: (id: string) => void
@@ -444,7 +449,8 @@ export default function Building3DWorkspace({ floor, rooms, selectedRoomId, onSe
   const activeLevel = useMemo(() => readActiveBlueprintLevel(floor, rooms, window.localStorage), [floor, rooms, levelRevision])
   const levelFloor = useMemo(() => active3DFloor(floor, activeLevel), [floor, activeLevel])
   const model = useMemo(() => buildBuildingModel(levelFloor, activeLevel.rooms, objects), [levelFloor, activeLevel, objects])
-  const stairs = useMemo(() => buildStair3DSurfaces(activeLevel.rooms, activeLevel.heightM, window.localStorage), [activeLevel, levelRevision])
+  const stairData143 = useMemo(() => build3DStairsAcrossLevels143(floor, rooms, activeLevel, window.localStorage), [floor, rooms, activeLevel, levelRevision])
+  const stairs = stairData143.surfaces
   const selectedRoom = activeLevel.rooms.find((room) => room.id === selectedRoomId) ?? null
   const selectedDoor = model.doors.find((door) => door.groupId === selectedDoorId) ?? null
   const movable = Boolean(selectedRoom && !selectedRoom.name.startsWith('__strom_outer_wall__') && selectedRoom.roomType !== 'stair')
@@ -528,7 +534,7 @@ export default function Building3DWorkspace({ floor, rooms, selectedRoomId, onSe
         </aside>
       </div>
       {variant === 'wall' && wallEditor}
-      <div className="building3d-status">Modell: {model.rooms.length} Raumkonturen, {model.walls.length} Wandkanten, {model.doors.length} Tuergruppen, {stairs.length} Stufen-/Absatzvolumen · Blueprint-Ebene: {activeLevel.name} von {activeLevel.layerCount}. Weitere Etagen werden spaeter gleichzeitig gestapelt.</div>
+      <div className="building3d-status">Modell: {model.rooms.length} Raumkonturen, {model.walls.length} Wandkanten, {model.doors.length} Tuergruppen, {stairs.length} Stufen-/Absatzvolumen aus {stairData143.savedLayouts} gespeicherten Treppenlayouts ({stairData143.activeLayouts} auf aktiver Ebene) · Blueprint-Ebene: {activeLevel.name} von {activeLevel.layerCount}. Weitere Etagen werden spaeter gleichzeitig gestapelt.</div>
     </div>
   )
 }
