@@ -1,5 +1,6 @@
 import { type CSSProperties, ChangeEvent as ReactChangeEvent, DragEvent as ReactDragEvent, MouseEvent as ReactMouseEvent, WheelEvent as ReactWheelEvent, useEffect, useMemo, useRef, useState } from 'react'
 import StromIcon from './components/StromIcon'
+import Building3DWorkspace from './components/Building3DWorkspace'
 import {
   createObject,
   createRoom,
@@ -827,7 +828,27 @@ export function App() {
             <div className="hint-box standalone">Wanddetail wird aktiv, sobald im Blueprint mindestens ein Raum angelegt ist.</div>
           )}
           {selectedObject && viewMode === 'board' && <BoardMock />}
-          {selectedObject && viewMode === 'threeD' && <ThreeDMock />}
+          {selectedObject && viewMode === 'threeD' && floor && (
+            <Building3DWorkspace
+              floor={floor}
+              rooms={rooms}
+              selectedRoomId={selectedRoomId}
+              onSelectRoom={setSelectedRoomId}
+              onPersistRoom={async (nextRoom) => {
+                try {
+                  setError(null)
+                  const saved = await updateRoom(nextRoom.id, roomToPayload(nextRoom))
+                  updateRoomInState({ ...saved, roomType: nextRoom.roomType ?? saved.roomType ?? 'room' })
+                } catch (err) {
+                  setError(err instanceof Error ? err.message : String(err))
+                  throw err
+                }
+              }}
+              onCaptureUndo={() => captureUndoSnapshot()}
+              onBackToBlueprint={() => handleViewModeClick('floorplan')}
+            />
+          )}
+          {selectedObject && viewMode === 'threeD' && !floor && <div className="hint-box">Bitte zuerst im Blueprint eine Etage anlegen.</div>}
         </section>
       </main>
       {deleteConfirmRoom && (
@@ -7932,10 +7953,6 @@ function lerpPoint(a: PointM, b: PointM, t: number): PointM {
 
 function BoardMock() {
   return <div className="placeholder3d"><p>Verteileransicht: folgt nach dem Blueprint.</p></div>
-}
-
-function ThreeDMock() {
-  return <div className="placeholder3d"><div className="cube" /><p>3D-Ansicht: spaeter Three.js / React Three Fiber</p></div>
 }
 
 function roomToPayload(room: Room) {

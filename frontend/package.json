@@ -9,14 +9,17 @@
     "preview": "vite preview --host 0.0.0.0"
   },
   "dependencies": {
+    "@react-three/fiber": "9.8.2",
     "@vitejs/plugin-react": "latest",
-    "vite": "latest",
+    "react": "19.2.7",
+    "react-dom": "19.2.7",
+    "three": "0.187.0",
     "typescript": "latest",
-    "react": "latest",
-    "react-dom": "latest"
+    "vite": "latest"
   },
   "devDependencies": {
     "@types/react": "latest",
-    "@types/react-dom": "latest"
+    "@types/react-dom": "latest",
+    "@types/three": "0.187.0"
   }
 }

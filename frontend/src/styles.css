@@ -4637,3 +4637,29 @@ svg [class*="dimension"], svg [class*="technical"], svg [class*="measure"] { vec
 .floorplan-canvas.blueprint-door-active136 { cursor: crosshair; }
 .floorplan-canvas .blueprint-door-preview136 line { stroke: #2563eb; stroke-width: 5px; stroke-dasharray: 7 4; pointer-events: none; }
 .floorplan-canvas .blueprint-door-preview136 circle { fill: #fff; stroke: #2563eb; stroke-width: 2px; pointer-events: none; }
+
+
+/* 137: actual 3D workspace with shared building model */
+.building3d-layout { display: flex; flex-direction: column; height: min(85vh, 950px); min-height: 600px; border: 1px solid #d7e1ef; border-radius: 18px; overflow: hidden; background: #fff; }
+.building3d-toolbar { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; min-height: 58px; padding: 9px 14px; background: #eef3fb; border-bottom: 1px solid #d5deeb; }
+.building3d-toolbar strong { font-size: 15px; color: #1e3a8a; }
+.building3d-toolbar span { margin-right: auto; color: #53627c; font-size: 13px; }
+.building3d-toolbar button, .building3d-inspector button { cursor: pointer; border-radius: 9px; border: 1px solid #bdcce2; color: #1e3a8a; background: white; padding: 9px 12px; font-size: 13px; font-weight: 700; }
+.building3d-toolbar button:hover, .building3d-inspector button:hover:not(:disabled) { background: #e6efff; }
+.building3d-inspector button:disabled { opacity: .55; cursor: wait; }
+.building3d-content { display: grid; grid-template-columns: minmax(0, 1fr) 280px; flex: 1; min-height: 0; }
+.building3d-view { position: relative; min-width: 0; min-height: 350px; background: #f5f8fc; }
+.building3d-view canvas { display: block; outline: none; touch-action: none; }
+.building3d-help { position: absolute; bottom: 14px; left: 14px; max-width: calc(100% - 28px); color: #334155; background: rgba(255,255,255,.87); font-size: 12px; border-radius: 9px; padding: 9px 12px; pointer-events: none; }
+.building3d-inspector { border-left: 1px solid #dce3ef; padding: 16px; background: #fbfcff; overflow: auto; color: #29364c; }
+.building3d-inspector h2 { font-size: 16px; margin: 0 0 12px; }
+.building3d-inspector h3 { font-size: 14px; margin: 0 0 8px; }
+.building3d-inspector p { font-size: 12px; line-height: 1.5; color: #58677f; }
+.building3d-inspector-section { border-top: 1px solid #e3e9f2; padding-top: 16px; margin-top: 16px; display: grid; gap: 9px; }
+.building3d-inspector-section label { display: grid; gap: 4px; font-size: 12px; color: #485872; }
+.building3d-inspector-section input { background: white; min-width: 0; width: 100%; padding: 8px; border: 1px solid #bdcce2; border-radius: 8px; color: #172337; font-size: 14px; }
+.building3d-directional { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; }
+.building3d-directional button { padding: 9px 0; }
+.building3d-status { border-top: 1px solid #d7e1ef; background: #f9fbff; font-size: 12px; padding: 10px 14px; color: #53627c; }
+.building3d-notice { background: #ebf3ff; border-radius: 8px; padding: 9px; color: #1e40af !important; }
+@media (max-width: 780px) { .building3d-layout { height: auto; min-height: 700px; } .building3d-content { grid-template-columns: 1fr; } .building3d-view { min-height: 440px; } .building3d-inspector { border-left: 0; border-top: 1px solid #dce3ef; max-height: 360px; } }
