@@ -330,6 +330,7 @@ function roomSnapshotsEqual(a: Room[] | undefined, b: Room[]) {
 
 export function App() {
   const [viewMode, setViewMode] = useState<ViewMode>('floorplan')
+  const [legacyWallDetail, setLegacyWallDetail] = useState(false)
   const [users, setUsers] = useState<AppUser[]>([])
   const [objects, setObjects] = useState<UserObject[]>([])
   const [selectedUser, setSelectedUser] = useState<AppUser | null>(null)
@@ -675,6 +676,7 @@ export function App() {
 
   function handleViewModeClick(mode: ViewMode) {
     if (!canUseViewMode(mode)) return
+    if (mode === 'wall' && viewMode !== 'wall') setLegacyWallDetail(false)
     if (viewMode === 'wall' && mode === 'floorplan' && floor) {
       const storedViewport = loadCanvasViewport(floor.id)
       saveCanvasViewport(floor.id, {
@@ -815,14 +817,42 @@ export function App() {
           )}
           {selectedObject && viewMode === 'floorplan' && !floor && <div className="hint-box">Fuer dieses Objekt wird eine Etage vorbereitet...</div>}
           {selectedObject && viewMode === 'wall' && floor && hasWallDetailAccess && (
-            <WallDetailEditor
-              floor={floor}
-              rooms={rooms}
-              selectedRoomId={selectedRoomId}
-              onSelectRoom={setSelectedRoomId}
-              canUndo={undoStack.length > 0}
-              onUndo={undoLastAction}
-            />
+            legacyWallDetail ? (
+              <div className="wall-detail-legacy-wrapper">
+                <button type="button" title="Zur echten 3D-Darstellung wechseln" onClick={() => setLegacyWallDetail(false)}>
+                  Zurueck zu Echtes 3D (Wanddetail)
+                </button>
+                <WallDetailEditor
+                  floor={floor}
+                  rooms={rooms}
+                  selectedRoomId={selectedRoomId}
+                  onSelectRoom={setSelectedRoomId}
+                  canUndo={undoStack.length > 0}
+                  onUndo={undoLastAction}
+                />
+              </div>
+            ) : (
+              <Building3DWorkspace
+                variant="wall"
+                floor={floor}
+                rooms={rooms}
+                selectedRoomId={selectedRoomId}
+                onSelectRoom={setSelectedRoomId}
+                onPersistRoom={async (nextRoom) => {
+                  try {
+                    setError(null)
+                    const saved = await updateRoom(nextRoom.id, roomToPayload(nextRoom))
+                    updateRoomInState({ ...saved, roomType: nextRoom.roomType ?? saved.roomType ?? 'room' })
+                  } catch (err) {
+                    setError(err instanceof Error ? err.message : String(err))
+                    throw err
+                  }
+                }}
+                onCaptureUndo={() => captureUndoSnapshot()}
+                onBackToBlueprint={() => handleViewModeClick('floorplan')}
+                onOpenLegacyWallDetail={() => setLegacyWallDetail(true)}
+              />
+            )
           )}
           {selectedObject && viewMode === 'wall' && floor && !hasWallDetailAccess && (
             <div className="hint-box standalone">Wanddetail wird aktiv, sobald im Blueprint mindestens ein Raum angelegt ist.</div>

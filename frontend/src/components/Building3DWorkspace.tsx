@@ -4,7 +4,8 @@ import * as THREE from 'three'
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js'
 import { getWallObjects, updateWallObject as updateWallObjectApi } from '../api'
 import type { Floor, Room, WallObject, PointM } from '../types'
-import { buildBuildingModel, wallSolidPieces, type BuildingModel, type BuildingRoom, type BuildingWall, type BuildingOpening } from '../building/model'
+import { buildSolidSurface, nearestRoomForWallHit } from '../building/solidGeometry'
+import { buildBuildingModel, type BuildingModel, type BuildingRoom, type BuildingWall, type BuildingOpening } from '../building/model'
 
 const roundMm = (value: number) => Math.round(value * 1000) / 1000
 const fmtMm = (value: number) => Math.round(value * 1000).toLocaleString('de-DE')
@@ -29,33 +30,42 @@ function FloorMesh({ room, selected, onSelect }: { room: BuildingRoom; selected:
   )
 }
 
-function WallMeshes({ wall, selected, onSelect, transparent }: { wall: BuildingWall; selected: boolean; onSelect: () => void; transparent: boolean }) {
-  const pieces = useMemo(() => wallSolidPieces(wall), [wall])
-  const dx = wall.end.x - wall.start.x
-  const dz = wall.end.y - wall.start.y
-  const angle = -Math.atan2(dz, dx)
-  const color = selected ? '#93bafa' : wall.outerWall ? '#adbacb' : '#c5d0db'
+function SolidWallMeshes({ model, onSelectRoom, transparent }: {
+  model: BuildingModel
+  onSelectRoom: (id: string) => void
+  transparent: boolean
+}) {
+  // Exactly one boundary mesh is rendered for the union of all walls on the
+  // floor. This eliminates coplanar double-faces at projections and corners.
+  const geometry = useMemo(() => {
+    const surface = buildSolidSurface(model)
+    const mesh = new THREE.BufferGeometry()
+    mesh.setAttribute('position', new THREE.Float32BufferAttribute(surface.positions, 3))
+    mesh.computeVertexNormals()
+    mesh.computeBoundingSphere()
+    return mesh
+  }, [model])
+  useEffect(() => () => geometry.dispose(), [geometry])
   return (
-    <group>
-      {pieces.map((piece, index) => {
-        const along = (piece.fromM + piece.toM) / 2 / wall.lengthM
-        const x = wall.start.x + dx * along
-        const z = wall.start.y + dz * along
-        return (
-          <mesh
-            key={`${wall.id}-${index}`}
-            position={[x, (piece.bottomM + piece.topM) / 2, z]}
-            rotation={[0, angle, 0]}
-            onClick={(event: ThreeEvent<MouseEvent>) => { event.stopPropagation(); onSelect() }}
-            castShadow={!transparent}
-            receiveShadow
-          >
-            <boxGeometry args={[piece.toM - piece.fromM, piece.topM - piece.bottomM, wall.thicknessM]} />
-            <meshStandardMaterial color={color} roughness={0.84} transparent={transparent} opacity={transparent ? 0.34 : 1} depthWrite={!transparent} />
-          </mesh>
-        )
-      })}
-    </group>
+    <mesh
+      geometry={geometry}
+      onClick={(event: ThreeEvent<MouseEvent>) => {
+        event.stopPropagation()
+        const roomId = nearestRoomForWallHit(model, { x: event.point.x, y: event.point.z })
+        if (roomId) onSelectRoom(roomId)
+      }}
+      castShadow={!transparent}
+      receiveShadow
+    >
+      <meshStandardMaterial
+        color="#c1ccda"
+        roughness={0.84}
+        transparent={transparent}
+        opacity={transparent ? 0.34 : 1}
+        depthWrite={!transparent}
+        side={THREE.DoubleSide}
+      />
+    </mesh>
   )
 }
 
@@ -118,9 +128,11 @@ function RealBuildingScene({ model, selectedRoomId, selectedDoorId, onSelectRoom
         {model.rooms.map((room) => (
           <FloorMesh key={room.id} room={room} selected={selectedRoomId === room.id} onSelect={() => { onSelectRoom(room.id); onSelectDoor('') }} />
         ))}
-        {model.walls.map((wall) => (
-          <WallMeshes key={wall.id} wall={wall} selected={wall.roomIds?.includes(selectedRoomId) ?? (selectedRoomId === wall.roomId)} onSelect={() => { onSelectRoom(wall.roomId); onSelectDoor('') }} transparent={transparent} />
-        ))}
+        <SolidWallMeshes
+          model={model}
+          onSelectRoom={(id) => { onSelectRoom(id); onSelectDoor('') }}
+          transparent={transparent}
+        />
         {model.walls.flatMap((wall) => wall.openings
           .filter((opening) => opening.type === 'door' && opening.centerM >= -0.0001 && opening.centerM <= wall.lengthM + 0.0001 && model.doors.some((door) => door.id === opening.id))
           .map((door) => (
@@ -236,7 +248,7 @@ function DoorForm({ model, door, rooms, rawObjects, onSaved }: {
   )
 }
 
-export default function Building3DWorkspace({ floor, rooms, selectedRoomId, onSelectRoom, onPersistRoom, onCaptureUndo, onBackToBlueprint }: {
+export default function Building3DWorkspace({ floor, rooms, selectedRoomId, onSelectRoom, onPersistRoom, onCaptureUndo, onBackToBlueprint, variant = 'house', onOpenLegacyWallDetail }: {
   floor: Floor
   rooms: Room[]
   selectedRoomId: string
@@ -244,6 +256,8 @@ export default function Building3DWorkspace({ floor, rooms, selectedRoomId, onSe
   onPersistRoom: (room: Room) => Promise<void>
   onCaptureUndo: () => void
   onBackToBlueprint: () => void
+  variant?: 'house' | 'wall'
+  onOpenLegacyWallDetail?: () => void
 }) {
   const [objects, setObjects] = useState<WallObject[]>([])
   const [selectedDoorId, setSelectedDoorId] = useState('')
@@ -293,10 +307,15 @@ export default function Building3DWorkspace({ floor, rooms, selectedRoomId, onSe
   return (
     <div className="building3d-layout" aria-label="Echtes 3D Gebaeudemodell">
       <div className="building3d-toolbar">
-        <strong>Echtes 3D · Aufbauphase 1</strong>
+        <strong>{variant === 'wall' ? 'Wanddetail · Echtes 3D' : 'Echtes 3D · Aufbauphase 1'}</strong>
         <span>Etage: {model.floorName}</span>
         <button type="button" title="Transparente Waende umschalten" onClick={() => setTransparent((value) => !value)}>{transparent ? 'Waende deckend' : 'Waende transparent'}</button>
         <button type="button" title="Zum 2D-Blueprint wechseln" onClick={onBackToBlueprint}>Zurueck zum Blueprint (2D)</button>
+        {variant === 'wall' && onOpenLegacyWallDetail && (
+          <button type="button" title="Bisherige Wandobjekte, Durchbrueche und Wand-Popup bearbeiten" onClick={onOpenLegacyWallDetail}>
+            Klassische Wandbearbeitung
+          </button>
+        )}
       </div>
       <div className="building3d-content">
         <div className="building3d-view">
@@ -304,7 +323,7 @@ export default function Building3DWorkspace({ floor, rooms, selectedRoomId, onSe
           <div className="building3d-help">Linke Maustaste: drehen · Mausrad: zoomen · rechte Maustaste: verschieben · Klick: Raum oder Tuer waehlen</div>
         </div>
         <aside className="building3d-inspector">
-          <h2>3D-Eigenschaften</h2>
+          <h2>{variant === 'wall' ? 'Wanddetail · Eigenschaften' : '3D-Eigenschaften'}</h2>
           <p>Die Daten stammen direkt aus demselben Gebaeudemodell wie im Blueprint.</p>
           <div className="building3d-inspector-section">
             <strong>{selectedRoom ? `Raum: ${selectedRoom.name}` : 'Raum anklicken'}</strong>
