@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { Canvas, ThreeEvent, useFrame, useThree } from '@react-three/fiber'
 import * as THREE from 'three'
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js'
@@ -15,6 +15,7 @@ import { active3DFloor, readActiveBlueprintLevel, listBlueprintLevelOptions144, 
 // STROM143B_STAIR_AUDIT: StairSolid is rendered and storage availability is displayed.
 // STROM143_STAIRS_FIX: share the exact saved room layouts across 3D views.
 import { build3DStairsAcrossLevels143, type PlacedStairSurface143 } from '../building/stairVisibility143'
+import { buildStair3DSurfaces } from '../building/stair3d'
 
 const roundMm = (value: number) => Math.round(value * 1000) / 1000
 const fmtMm = (value: number) => Math.round(value * 1000).toLocaleString('de-DE')
@@ -248,23 +249,40 @@ function DoorHandle({ door, wall, selected, onSelect }: { door: BuildingOpening;
 function SceneControls({ model }: { model: BuildingModel }) {
   const { camera, gl } = useThree()
   const controls = useMemo(() => new OrbitControls(camera, gl.domElement), [camera, gl.domElement])
+  const fittedSpan146 = useRef<number | null>(null)
   useEffect(() => {
-    controls.target.set(model.center.x, model.floorElevationM + model.floorHeightM / 2, model.center.y)
+    const nextTarget146 = new THREE.Vector3(model.center.x, model.floorElevationM + model.floorHeightM / 2, model.center.y)
+    const nextSpan146 = Math.max(model.spanM, model.floorHeightM * 1.6)
+    if (fittedSpan146.current !== null) {
+      // Preserve orbit orientation. If the total building gets taller, zoom out to frame it.
+      const eye146 = camera.position.clone().sub(controls.target)
+      if (eye146.lengthSq() < 0.001) eye146.set(1, .7, 1)
+      if (nextSpan146 > fittedSpan146.current + 0.15) eye146.setLength(Math.max(eye146.length(), nextSpan146 * 2.0))
+      camera.position.copy(nextTarget146).add(eye146)
+    }
+    controls.target.copy(nextTarget146)
+    fittedSpan146.current = nextSpan146
     controls.enableDamping = true
     controls.dampingFactor = 0.11
     controls.minDistance = 1
     controls.maxDistance = Math.max(35, model.spanM * 7)
     controls.maxPolarAngle = Math.PI * 0.49
     controls.update()
-    return () => controls.dispose()
   }, [controls, model.floorId, model.center.x, model.center.y, model.floorElevationM, model.floorHeightM, model.spanM])
+  useEffect(() => () => controls.dispose(), [controls])
   useFrame(() => controls.update())
   return null
 }
 
-function RealBuildingScene({ model, stairs, selectedRoomId, selectedDoorId, onSelectRoom, onSelectDoor, onSelectWall, transparent }: {
+// STROM146_ALL_LEVELS: one Blueprint storage schema, multiple read-only 3D floor meshes.
+type SceneLevel146 = { id: string; model: BuildingModel; stairs: PlacedStairSurface143[]; offsetM: number }
+
+function RealBuildingScene({ model, stairs, extraLevels146, activeOffsetM146, showAllLevels146, selectedRoomId, selectedDoorId, onSelectRoom, onSelectDoor, onSelectWall, transparent }: {
   model: BuildingModel
   stairs: PlacedStairSurface143[]
+  extraLevels146: SceneLevel146[]
+  activeOffsetM146: number
+  showAllLevels146: boolean
   selectedRoomId: string
   selectedDoorId: string
   onSelectRoom: (id: string) => void
@@ -272,12 +290,20 @@ function RealBuildingScene({ model, stairs, selectedRoomId, selectedDoorId, onSe
   onSelectWall?: (wall: WallHitSelection3D | null) => void
   transparent: boolean
 }) {
-  const distance = Math.max(8, model.spanM * 1.2)
+  const cameraModel146 = useMemo(() => {
+    if (!showAllLevels146 || extraLevels146.length === 0) return model
+    const levels = [{ model, offsetM: activeOffsetM146 }, ...extraLevels146]
+    const base = Math.min(...levels.map((entry) => entry.model.floorElevationM + entry.offsetM))
+    const top = Math.max(...levels.map((entry) => entry.model.floorElevationM + entry.offsetM + entry.model.floorHeightM))
+    const maxSpan = Math.max(...levels.map((entry) => entry.model.spanM))
+    return { ...model, floorElevationM: base, floorHeightM: top - base, spanM: maxSpan }
+  }, [model, extraLevels146, showAllLevels146, activeOffsetM146])
+  const distance = Math.max(8, cameraModel146.spanM * 1.2, cameraModel146.floorHeightM * 1.35)
   return (
     <Canvas
       shadows={!transparent}
       dpr={[1, 1.75]}
-      camera={{ position: [model.center.x + distance, model.floorElevationM + distance * 0.8 + model.floorHeightM, model.center.y + distance], fov: 48, near: 0.05, far: Math.max(100, model.spanM * 20) }}
+      camera={{ position: [cameraModel146.center.x + distance, cameraModel146.floorElevationM + distance * 0.8 + cameraModel146.floorHeightM, cameraModel146.center.y + distance], fov: 48, near: 0.05, far: Math.max(100, cameraModel146.spanM * 20, cameraModel146.floorHeightM * 12) }}
       onPointerMissed={() => { onSelectDoor(''); onSelectRoom(''); onSelectWall?.(null) }}
       gl={{ antialias: true, alpha: false }}
       aria-label="Echte dreidimensionale Gebaeudeansicht"
@@ -286,7 +312,7 @@ function RealBuildingScene({ model, stairs, selectedRoomId, selectedDoorId, onSe
       <ambientLight intensity={1.15} />
       <directionalLight position={[14, 20, 16]} intensity={2.1} castShadow={!transparent} shadow-mapSize={[1024, 1024]} />
       <hemisphereLight args={['#e8f1ff', '#9698a6', 0.85]} />
-      <group position={[0, model.floorElevationM, 0]}>
+      <group position={[0, model.floorElevationM + activeOffsetM146, 0]}>
         {model.rooms.map((room) => (
           <FloorMesh key={room.id} room={room} selected={selectedRoomId === room.id} onSelect={() => { onSelectRoom(room.id); onSelectDoor(''); onSelectWall?.(null) }} />
         ))}
@@ -320,8 +346,24 @@ function RealBuildingScene({ model, stairs, selectedRoomId, selectedDoorId, onSe
             />
           )))}
       </group>
+      {showAllLevels146 && extraLevels146.map((entry146) => (
+        <group key={`floor-146-${entry146.id}`} position={[0, entry146.model.floorElevationM + entry146.offsetM, 0]}>
+          {entry146.model.rooms.map((room146) => (
+            <FloorMesh key={room146.id} room={room146} selected={false} onSelect={() => undefined} />
+          ))}
+          <SolidWallMeshes model={entry146.model} onSelectRoom={() => undefined} transparent={transparent} />
+          {entry146.stairs.map((surface146) => (
+            <StairSolid key={surface146.key} surface={surface146} selected={false} onSelect={() => undefined} />
+          ))}
+          {entry146.model.walls.flatMap((wall146) => wall146.openings
+            .filter((opening146) => opening146.type === 'door' && entry146.model.doors.some((door146) => door146.id === opening146.id))
+            .map((door146) => (
+              <DoorHandle key={`${wall146.id}/${door146.id}`} door={door146} wall={wall146} selected={false} onSelect={() => undefined} />
+            )))}
+        </group>
+      ))}
       <gridHelper args={[Math.max(40, model.spanM * 4), 40, '#bbc7d5', '#dce5ef']} position={[model.center.x, model.floorElevationM - 0.035, model.center.y]} />
-      <SceneControls model={model} />
+      <SceneControls model={cameraModel146} />
     </Canvas>
   )
 }
@@ -440,6 +482,8 @@ export default function Building3DWorkspace({ floor, rooms, selectedRoomId, onSe
   const [objects, setObjects] = useState<WallObject[]>([])
   const [selectedDoorId, setSelectedDoorId] = useState('')
   const [levelsOpen145, setLevelsOpen145] = useState(false)
+  const [showAllLevels146, setShowAllLevels146] = useState(false)
+  const [separateLevels146, setSeparateLevels146] = useState(false)
   const [transparent, setTransparent] = useState(false)
   const [busy, setBusy] = useState(false)
   const [message, setMessage] = useState('')
@@ -476,6 +520,37 @@ export default function Building3DWorkspace({ floor, rooms, selectedRoomId, onSe
   const model = useMemo(() => buildBuildingModel(levelFloor, activeLevel.rooms, objects), [levelFloor, activeLevel, objects])
   const stairData143 = useMemo(() => build3DStairsAcrossLevels143(floor, rooms, activeLevel, window.localStorage), [floor, rooms, activeLevel, levelRevision])
   const stairs = stairData143.surfaces
+  // STROM146: always derive floor/room assignments from the live Blueprint keys.
+  const sceneLevels146 = useMemo((): SceneLevel146[] => {
+    let assignments146: Record<string, string> = {}
+    try {
+      const saved146: unknown = JSON.parse(window.localStorage.getItem(`strom.floorplan.layers.${floor.id}.roomAssignments`) || '{}')
+      if (saved146 && typeof saved146 === 'object' && !Array.isArray(saved146)) assignments146 = saved146 as Record<string, string>
+    } catch { /* unreadable legacy storage is treated as main layer */ }
+    let elevation146 = Number(floor.elevationM) || 0
+    return levelOptions144.map((item146, idx146) => {
+      const floorRooms146 = rooms.filter((room146) => (assignments146[room146.id] || 'layer-main') === item146.id)
+      const allowedIds146 = new Set(floorRooms146.map((room146) => room146.id))
+      const floorObjects146 = objects.filter((object146) => allowedIds146.has(object146.roomId))
+      const layerFloor146: Floor = { ...floor, name: `${floor.name} / ${item146.name}`,
+        elevationM: elevation146, heightM: item146.heightM }
+      elevation146 += item146.heightM
+      return { id: item146.id,
+        model: buildBuildingModel(layerFloor146, floorRooms146, floorObjects146),
+        stairs: buildStair3DSurfaces(floorRooms146, item146.heightM, window.localStorage).map((surface146) => ({
+          ...surface146, levelId: item146.id, levelOffsetM: 0,
+        })),
+        offsetM: showAllLevels146 && separateLevels146 ? idx146 * 1.15 : 0 }
+    })
+  }, [floor, rooms, objects, levelOptions144, levelRevision, showAllLevels146, separateLevels146])
+  const activeOffsetM146 = showAllLevels146 && separateLevels146
+    ? sceneLevels146.find((entry146) => entry146.id === activeLevel.id)?.offsetM ?? 0 : 0
+  const extraLevels146 = showAllLevels146 && variant === 'house'
+    ? sceneLevels146.filter((entry146) => entry146.id !== activeLevel.id) : []
+  // 143b already supplies ghost stairs from every level. Suppress those
+  // copies when dedicated floor groups render the same staircases in 146.
+  const activeStairs146 = showAllLevels146 && variant === 'house'
+    ? stairs.filter((surface146) => surface146.levelId === activeLevel.id) : stairs
   const selectedRoom = activeLevel.rooms.find((room) => room.id === selectedRoomId) ?? null
   const selectedDoor = model.doors.find((door) => door.groupId === selectedDoorId) ?? null
   const movable = Boolean(selectedRoom && !selectedRoom.name.startsWith('__strom_outer_wall__') && selectedRoom.roomType !== 'stair')
@@ -518,6 +593,22 @@ export default function Building3DWorkspace({ floor, rooms, selectedRoomId, onSe
       <div className="building3d-toolbar">
         <strong>{variant === 'wall' ? 'Wanddetail · Echtes 3D' : 'Echtes 3D · Aufbauphase 1'}</strong>
         {/* STROM145_FLOATING_LEVELS: layer selection lives in the canvas overlay. */}
+        {variant === 'house' && (
+          <div className="building3d-stacked-options146" role="group" aria-label="3D Haus Geschossdarstellung">
+            <button type="button" className={showAllLevels146 ? 'active' : ''} aria-pressed={showAllLevels146}
+              title="Alle Blueprint-Etagen gemeinsam als echtes 3D anzeigen" data-tooltip="Alle Etagen anzeigen"
+              onClick={() => setShowAllLevels146((value) => !value)}>
+              <StromIcon name="layers-all" size={19} title="Alle Etagen anzeigen" /> Alle Etagen {showAllLevels146 ? 'AN' : 'AUS'}
+            </button>
+            <button type="button" className={separateLevels146 && showAllLevels146 ? 'active' : ''}
+              aria-pressed={separateLevels146 && showAllLevels146} disabled={!showAllLevels146}
+              title="Etagen nur in der 3D-Ansicht mit zusätzlichem vertikalen Abstand darstellen; Blueprint-Höhen unverändert"
+              data-tooltip="Etagen mit Abstand auseinanderziehen"
+              onClick={() => setSeparateLevels146((value) => !value)}>
+              <StromIcon name="layers-neighbor" size={19} title="Etagen auseinanderziehen" /> Offset {separateLevels146 ? 'AN' : 'AUS'}
+            </button>
+          </div>
+        )}
         <button type="button" title="Transparente Waende umschalten" onClick={() => setTransparent((value) => !value)}>{transparent ? 'Waende deckend' : 'Waende transparent'}</button>
         <button type="button" title="Zum 2D-Blueprint wechseln" onClick={onBackToBlueprint}>Zurueck zum Blueprint (2D)</button>
         {variant === 'wall' && onOpenLegacyWallDetail && (
@@ -528,7 +619,7 @@ export default function Building3DWorkspace({ floor, rooms, selectedRoomId, onSe
       </div>
       <div className="building3d-content">
         <div className="building3d-view">
-          <RealBuildingScene model={model} stairs={stairs} selectedRoomId={selectedRoomId} selectedDoorId={selectedDoorId} onSelectRoom={onSelectRoom} onSelectDoor={setSelectedDoorId} onSelectWall={variant === 'wall' ? onSelectWall : undefined} transparent={transparent} />
+          <RealBuildingScene model={model} stairs={activeStairs146} extraLevels146={extraLevels146} activeOffsetM146={variant === 'house' ? activeOffsetM146 : 0} showAllLevels146={variant === 'house' && showAllLevels146} selectedRoomId={selectedRoomId} selectedDoorId={selectedDoorId} onSelectRoom={onSelectRoom} onSelectDoor={setSelectedDoorId} onSelectWall={variant === 'wall' ? onSelectWall : undefined} transparent={transparent} />
           {/* STROM145_FLOATING_LEVELS: reuse the Blueprint floating layer-menu classes. */}
           <div className={`canvas-layer-menu building3d-floating-levels145 ${levelsOpen145 ? 'open' : ''}`} aria-label="Ebenen">
             <button type="button" title="Ebenenauswahl wie im Blueprint" aria-label="Ebenenauswahl öffnen oder schließen"
@@ -589,7 +680,7 @@ export default function Building3DWorkspace({ floor, rooms, selectedRoomId, onSe
         </aside>
       </div>
       {variant === 'wall' && wallEditor}
-      <div className="building3d-status">Modell: {model.rooms.length} Raumkonturen, {model.walls.length} Wandkanten, {model.doors.length} Tuergruppen, {stairs.length} Stufen-/Absatzvolumen aus {stairData143.savedLayouts} gespeicherten Treppenlayouts ({stairData143.activeLayouts} auf aktiver Ebene){stairData143.savedLayouts === 0 ? ' · Hinweis: keine Treppenlayouts im Browser-Speicher gefunden' : ''} · Blueprint-Ebene: {activeLevel.name} von {activeLevel.layerCount}. Weitere Etagen werden spaeter gleichzeitig gestapelt.</div>
+      <div className="building3d-status">Modell: {model.rooms.length} Raumkonturen, {model.walls.length} Wandkanten, {model.doors.length} Tuergruppen, {stairs.length} Stufen-/Absatzvolumen aus {stairData143.savedLayouts} gespeicherten Treppenlayouts ({stairData143.activeLayouts} auf aktiver Ebene){stairData143.savedLayouts === 0 ? ' · Hinweis: keine Treppenlayouts im Browser-Speicher gefunden' : ''} · Blueprint-Ebene: {activeLevel.name} von {activeLevel.layerCount}. Weitere Etagen koennen ueber den Schalter Alle Etagen eingeblendet werden.</div>
     </div>
   )
 }

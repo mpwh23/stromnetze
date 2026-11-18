@@ -4806,3 +4806,31 @@ svg [class*="dimension"], svg [class*="technical"], svg [class*="measure"] { vec
 .building3d-floating-levels145 .building3d-level-name145 { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .building3d-floating-levels145 .building3d-floating-level-row145 small { font-size: 10px; font-weight: 650; white-space: nowrap; color: #526581; }
 .building3d-floating-levels145 .building3d-level-note145 { margin: 3px 1px 0; color: #64748b; font-size: 11px; line-height: 1.35; }
+
+/* STROM146: readable v7 object library; correct elevation symbols. */
+.wall-object-library { background: #fff !important; color: #152a46 !important; opacity: 1 !important; }
+.wall-object-library .wall-object-library-items button {
+  display: flex !important; align-items: center !important; justify-content: flex-start !important;
+  gap: 11px !important; min-height: 43px; background: #edf3fa !important;
+  color: #173354 !important; border: 1px solid #d6e2ef !important;
+  font-size: 13px !important; font-weight: 750 !important; opacity: 1 !important;
+  text-shadow: none !important;
+}
+.wall-object-library .wall-object-library-items button:hover { background: #dcecff !important; border-color: #6ea4ea !important; }
+.wall-object-library .wall-object-library-items button .strom-ui-icon { width: 22px; height: 22px; flex: 0 0 22px; color: #1d4ed8; }
+.wall-object-library .wall-object-library-items button span { color: #173354; display: inline; width: auto; text-align: left; }
+.wall-front-svg .wall-front-door-frame146 { fill: #e9eef7; stroke: #2757b1; stroke-width: 2.2; }
+.wall-front-svg .wall-front-door-leaf146 { fill: #f8fbff; stroke: #85a2cc; stroke-width: 1.3; }
+.wall-front-svg .wall-front-door-jamb146 { stroke: #285ca5; stroke-width: 2; }
+.wall-front-svg .wall-front-door-handle146 { fill: #315c9b; stroke: #fff; stroke-width: .7; }
+.wall-front-svg .wall-front-window-frame146 { fill: #f7faff; stroke: #2153a5; stroke-width: 2.6; }
+.wall-front-svg .wall-front-window-glass146 { fill: #cfeaf7; stroke: #accde5; stroke-width: 1; }
+.wall-front-svg .wall-front-window-mullion146, .wall-front-svg .wall-front-window-transom146 { stroke: #467caf; stroke-width: 2.4; }
+.wall-front-svg .wall-front-window-sill146 { stroke: #869bb8; stroke-width: 3; }
+.floorplan-canvas .strom-edge-snap-indicator146 circle { fill: #eff6ff; stroke: #0b70e8; stroke-dasharray: none; }
+.floorplan-canvas .strom-edge-snap-indicator146 text { fill: #0f4d96; paint-order: stroke; stroke: white; stroke-width: 2px; font-weight: 800; }
+.floorplan-layout .strom-edge-snap-status146 { color: #1d4ed8; font-weight: 800; }
+.building3d-stacked-options146 { display: inline-flex; align-items: center; flex-wrap: wrap; gap: 5px; }
+.building3d-stacked-options146 button { display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; }
+.building3d-stacked-options146 button.active { background: #2457b7; color: white; border-color: #2457b7; }
+.building3d-stacked-options146 button:disabled { opacity: .45; cursor: not-allowed; }

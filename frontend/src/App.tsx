@@ -1,6 +1,7 @@
 import { type CSSProperties, ChangeEvent as ReactChangeEvent, DragEvent as ReactDragEvent, MouseEvent as ReactMouseEvent, WheelEvent as ReactWheelEvent, useEffect, useMemo, useRef, useState } from 'react'
 import StromIcon from './components/StromIcon'
 import { snapPointToVisibleRooms143, snapRectangleHandle143, snapMovedVerticesToVisibleRooms143 } from './building/neighborSnap143'
+import { snapRectEdge146, snapTranslatedEdge146 } from './building/edgeSnap146'
 import Building3DWorkspace from './components/Building3DWorkspace'
 import {
   createObject,
@@ -154,13 +155,14 @@ function wallHeightStorageKey(floorId: string) {
 
 type CanvasViewportState = { zoom: number; left: number; top: number }
 
+/* STROM146_ZOOM: Blueprint 22%-1000%; viewport persisted without truncation. */
 function loadCanvasViewport(floorId: string): CanvasViewportState {
   const stored = safeReadJson<Partial<CanvasViewportState>>(viewportStorageKey(floorId), {})
   const zoom = Number(stored?.zoom)
   const left = Number(stored?.left)
   const top = Number(stored?.top)
   return {
-    zoom: Number.isFinite(zoom) ? clamp(round2(zoom), 0.22, 2.5) : 1,
+    zoom: Number.isFinite(zoom) ? clamp(round2(zoom), 0.22, 10) : 1,
     left: Number.isFinite(left) ? Math.max(0, left) : 0,
     top: Number.isFinite(top) ? Math.max(0, top) : 0,
   }
@@ -169,7 +171,7 @@ function loadCanvasViewport(floorId: string): CanvasViewportState {
 function saveCanvasViewport(floorId: string, state: CanvasViewportState) {
   try {
     localStorage.setItem(viewportStorageKey(floorId), JSON.stringify({
-      zoom: clamp(round2(state.zoom), 0.22, 2.5),
+      zoom: clamp(round2(state.zoom), 0.22, 10),
       left: Math.max(0, Math.round(state.left)),
       top: Math.max(0, Math.round(state.top)),
     }))
@@ -696,7 +698,7 @@ export function App() {
       const storedViewport = loadCanvasViewport(floor.id)
       saveCanvasViewport(floor.id, {
         ...storedViewport,
-        zoom: Math.min(2.5, Math.max(0.22, round2(storedViewport.zoom * 1.1))),
+        zoom: Math.min(10, Math.max(0.22, round2(storedViewport.zoom * 1.1))),
       })
     }
     setViewMode(mode)
@@ -1394,6 +1396,7 @@ function FloorplanEditor({
   const [rectHandleDrag, setRectHandleDrag] = useState<RectHandleDrag | null>(null)
   const [vertexDrag, setVertexDrag] = useState<VertexDrag | null>(null)
   const [polygonEdgeDrag, setPolygonEdgeDrag] = useState<PolygonEdgeDrag | null>(null)
+  const [edgeSnapHint146, setEdgeSnapHint146] = useState<{ point: PointM; label: string } | null>(null)
   const [groupDrag, setGroupDrag] = useState<GroupRoomDrag | null>(null)
   const [groupPreview, setGroupPreview] = useState<Record<string, PointM[]>>({})
   const [allSelected, setAllSelected] = useState(false)
@@ -2048,34 +2051,36 @@ if (dimensionDrag) {
     }
 
     if (rectHandleDrag) {
+      // STROM146_EDGE_SNAP: only the moving rectangle edge is moved; 0 mm gap.
       let nextVertices = resizeRectangleByHandle(rectHandleDrag.originalVertices, rectHandleDrag.handle, point)
       if (snapEnabled) {
-        // Preserve normal same-level snapping with its user-configured W.
-        nextVertices = snapVerticesToRooms(nextVertices, allSnapTargets143([rectHandleDrag.roomId]), snapWallThicknessM, null)
-        if (snapVisibleNeighbors143) {
-          // Only align the moving edge to the ghost edge; 0 mm, opposite side fixed.
-          nextVertices = snapRectangleHandle143(nextVertices, rectHandleDrag.handle, visibleNeighborSnapTargets143([rectHandleDrag.roomId]), 0)
-        }
-      }
+        const sameFloor146 = rooms.filter((item) => item.id !== rectHandleDrag.roomId &&
+          (roomLayerAssignments[item.id] ?? defaultLayerId) === activeLayerId).map((item) => ({ vertices: item.vertices }))
+        const ghost146 = snapVisibleNeighbors143 ? visibleNeighborSnapTargets143([rectHandleDrag.roomId]) : []
+        const aligned146 = snapRectEdge146(nextVertices, rectHandleDrag.handle,
+          [...sameFloor146, ...ghost146], 12 / Math.max(0.1, canvas.scale * zoom))
+        nextVertices = aligned146.vertices
+        setEdgeSnapHint146(aligned146.point ? { point: aligned146.point, label: aligned146.label } : null)
+      } else { setEdgeSnapHint146(null) }
       setRoomPreview({ roomId: rectHandleDrag.roomId, vertices: nextVertices })
       return
     }
 
     if (polygonEdgeDrag) {
+      // Shift => x/y/45 degree. Both endpoints share an identical translation.
       const rawDx = round2(point.x - polygonEdgeDrag.start.x)
       const rawDy = round2(point.y - polygonEdgeDrag.start.y)
-      const drag = event.shiftKey ? constrainDeltaTo45(rawDx, rawDy) : { dx: rawDx, dy: rawDy }
-      let nextVertices = polygonEdgeDrag.originalVertices.map((vertex, index) => {
-        const moves = index === polygonEdgeDrag.indexA || index === polygonEdgeDrag.indexB
-        return moves ? clampPoint({ x: round2(vertex.x + drag.dx), y: round2(vertex.y + drag.dy) }) : vertex
-      })
-      if (snapEnabled && snapVisibleNeighbors143) {
-        const before = nextVertices[polygonEdgeDrag.indexA]
-        const aligned = snapPointToVisibleRooms143(before, visibleNeighborSnapTargets143([polygonEdgeDrag.roomId]), 0)
-        nextVertices = nextVertices.map((p, i) => i === polygonEdgeDrag.indexA || i === polygonEdgeDrag.indexB
-          ? clampPoint({ x: round3(p.x + aligned.x - before.x), y: round3(p.y + aligned.y - before.y) }) : p)
-      }
-      setRoomPreview({ roomId: polygonEdgeDrag.roomId, vertices: nextVertices })
+      const moved146 = event.shiftKey ? constrainDeltaTo45(rawDx, rawDy) : { dx: rawDx, dy: rawDy }
+      const sameFloor146 = snapEnabled ? rooms.filter((item) => item.id !== polygonEdgeDrag.roomId &&
+        (roomLayerAssignments[item.id] ?? defaultLayerId) === activeLayerId).map((item) => ({ vertices: item.vertices })) : []
+      const ghost146 = snapEnabled && snapVisibleNeighbors143 ? visibleNeighborSnapTargets143([polygonEdgeDrag.roomId]) : []
+      const result146 = snapTranslatedEdge146(
+        polygonEdgeDrag.originalVertices, polygonEdgeDrag.indexA, polygonEdgeDrag.indexB,
+        moved146.dx, moved146.dy, [...sameFloor146, ...ghost146],
+        12 / Math.max(0.1, canvas.scale * zoom), Boolean(event.shiftKey),
+      )
+      setEdgeSnapHint146(result146.point ? { point: result146.point, label: result146.label } : null)
+      setRoomPreview({ roomId: polygonEdgeDrag.roomId, vertices: result146.vertices })
       return
     }
 
@@ -2146,11 +2151,13 @@ if (dimensionDrag) {
     event.stopPropagation()
     onSelectRoom(room.id)
     const nextIndex = (index + 1) % room.vertices.length
+    setEdgeSnapHint146(null)
     setPolygonEdgeDrag({ roomId: room.id, indexA: index, indexB: nextIndex, start: point, originalVertices: room.vertices })
     setRoomPreview({ roomId: room.id, vertices: room.vertices })
   }
 
   async function handleMouseUp() {
+    setEdgeSnapHint146(null)
     if (dimensionDrag) {
       setDimensionDrag(null)
       return
@@ -2277,7 +2284,7 @@ if (dimensionDrag) {
   }
 
   function changeZoom(next: number) {
-    const nextZoom = Math.min(2.5, Math.max(0.22, round2(next)))
+    const nextZoom = Math.min(10, Math.max(0.22, round2(next)))
     setZoom(nextZoom)
     const scroll = canvasScrollRef.current
     if (scroll) saveCanvasViewport(floor.id, { zoom: nextZoom, left: scroll.scrollLeft, top: scroll.scrollTop })
@@ -2509,7 +2516,7 @@ function toggleRecessOffsetDirection() {
     const dominantDelta = Math.abs(event.deltaY) >= Math.abs(event.deltaX) ? event.deltaY : event.deltaX
     if (dominantDelta === 0) return
     const factor = dominantDelta < 0 ? 1.12 : (1 / 1.12)
-    const nextZoom = Math.min(2.5, Math.max(0.22, round2(beforeZoom * factor)))
+    const nextZoom = Math.min(10, Math.max(0.22, round2(beforeZoom * factor)))
     if (nextZoom === beforeZoom) return
     setZoom(nextZoom)
     window.requestAnimationFrame(() => {
@@ -2549,7 +2556,7 @@ function toggleRecessOffsetDirection() {
     if (!bounds || !scroll) return
     const paddedW = Math.max(0.5, bounds.maxX - bounds.minX + 1.2)
     const paddedH = Math.max(0.5, bounds.maxY - bounds.minY + 1.2)
-    const fitZoom = Math.min(2.5, Math.max(0.22, Math.min(scroll.clientWidth / (paddedW * canvas.scale), scroll.clientHeight / (paddedH * canvas.scale))))
+    const fitZoom = Math.min(10, Math.max(0.22, Math.min(scroll.clientWidth / (paddedW * canvas.scale), scroll.clientHeight / (paddedH * canvas.scale))))
     setZoom(round2(fitZoom))
     window.requestAnimationFrame(() => {
       const nextScroll = canvasScrollRef.current
@@ -2638,7 +2645,7 @@ function toggleRecessOffsetDirection() {
     const paddedW = Math.max(0.5, roomW + paddingM * 2)
     const paddedH = Math.max(0.5, roomH + paddingM * 2)
     const fitZoom = Math.min(
-      2.5,
+      10,
       Math.max(0.22, Math.min(scroll.clientWidth / (paddedW * canvas.scale), scroll.clientHeight / (paddedH * canvas.scale))),
     )
     const nextZoom = round2(fitZoom)
@@ -3122,6 +3129,12 @@ function toggleRecessOffsetDirection() {
                 ))}
               </g>
             )}
+            {edgeSnapHint146 && (
+              <g className="strom-edge-snap-indicator146" pointerEvents="none" aria-label="Einrastpunkt">
+                <circle cx={mToX(edgeSnapHint146.point.x)} cy={mToY(edgeSnapHint146.point.y)} r={8 / zoom} strokeWidth={2 / zoom} />
+                <text x={mToX(edgeSnapHint146.point.x) + 13 / zoom} y={mToY(edgeSnapHint146.point.y) - 13 / zoom} fontSize={12 / zoom}>{edgeSnapHint146.label}</text>
+              </g>
+            )}
           </svg>
         </div>
         {stairPanelOpen && selectedRoom && (
@@ -3144,7 +3157,7 @@ function toggleRecessOffsetDirection() {
           </section>
         )}
       </div>
-      <div className="canvas-statusbar">{hintText}{snapVisibleNeighbors143 && (
+      <div className="canvas-statusbar">{hintText} {edgeSnapHint146 && <span className="strom-edge-snap-status146">· Eingerastet: {edgeSnapHint146.label}</span>}{snapVisibleNeighbors143 && (
         <span className="strom-ghost-snap-hint143b" title="Nur sichtbare Nachbarebenen; kein Wandabstand"> · Ebenen-Snap aktiv: Punkt/Punkt, Kante/Kante, 0 mm Abstand</span>
       )}</div>
     </div>
@@ -6928,10 +6941,33 @@ function WallFrontPlacedObject({
     </g>
   ) : null
   if (item.type === 'door') {
-    return <g className={className} onMouseDown={(event) => onBeginDrag(event, item, 'move')}><rect x={cx - w / 2} y={cy - h / 2} width={w} height={h} rx="1" /><path d={`M ${round2(cx - w / 2)} ${round2(cy + h / 2)} Q ${round2(cx + w * 0.22)} ${round2(cy + h * 0.06)} ${round2(cx + w / 2)} ${round2(cy + h / 2)}`} />{resizeHandle}{dimensions}</g>
+    const left = cx - w / 2, top = cy - h / 2
+    const jamb = Math.max(2, Math.min(6, w * 0.055))
+    return (
+      <g className={`${className} wall-front-door146`} onMouseDown={(event) => onBeginDrag(event, item, 'move')}>
+        <title>Tür – Frontansicht, ohne Grundriss-Schwenkbogen</title>
+        <rect className="wall-front-door-frame146" x={left} y={top} width={w} height={h} rx={1.5} />
+        <rect className="wall-front-door-leaf146" x={left + jamb} y={top + jamb} width={Math.max(2, w - 2 * jamb)} height={Math.max(2, h - jamb)} rx={1} />
+        <line className="wall-front-door-jamb146" x1={left + jamb} y1={top + jamb} x2={left + jamb} y2={top + h} />
+        <circle className="wall-front-door-handle146" cx={left + w * 0.78} cy={cy + h * 0.07} r={Math.max(1.5, Math.min(3.2, w * 0.035))} />
+        {resizeHandle}{dimensions}
+      </g>
+    )
   }
   if (item.type === 'window') {
-    return <g className={className} onMouseDown={(event) => onBeginDrag(event, item, 'move')}><rect x={cx - w / 2} y={cy - h / 2} width={w} height={h} rx="1" /><line x1={cx} y1={cy - h / 2} x2={cx} y2={cy + h / 2} /><line x1={cx - w / 2} y1={cy} x2={cx + w / 2} y2={cy} />{resizeHandle}{dimensions}</g>
+    const left = cx - w / 2, top = cy - h / 2
+    const frame = Math.max(2, Math.min(7, Math.min(w, h) * 0.12))
+    return (
+      <g className={`${className} wall-front-window146`} onMouseDown={(event) => onBeginDrag(event, item, 'move')}>
+        <title>Fenster – Rahmen mit Glas und Mittelsprosse</title>
+        <rect className="wall-front-window-frame146" x={left} y={top} width={w} height={h} rx={1.5} />
+        <rect className="wall-front-window-glass146" x={left + frame} y={top + frame} width={Math.max(2, w - 2 * frame)} height={Math.max(2, h - 2 * frame)} rx={0.6} />
+        <line className="wall-front-window-mullion146" x1={cx} y1={top + frame} x2={cx} y2={top + h - frame} />
+        {w > h * 1.3 && <line className="wall-front-window-transom146" x1={left + frame} y1={cy} x2={left + w - frame} y2={cy} />}
+        <line className="wall-front-window-sill146" x1={left - 3} y1={top + h} x2={left + w + 3} y2={top + h} />
+        {resizeHandle}{dimensions}
+      </g>
+    )
   }
   return <g className={className} onMouseDown={(event) => onBeginDrag(event, item, 'move')}><circle cx={cx} cy={cy} r={Math.max(6, Math.min(w, h) / 2)} /><circle cx={cx - 3} cy={cy} r="1.4" /><circle cx={cx + 3} cy={cy} r="1.4" />{resizeHandle}{dimensions}</g>
 }
@@ -6984,9 +7020,9 @@ function WallObjectLibraryFloating({ baseX, baseY }: { baseX: number; baseY: num
     <div className="wall-object-library" style={{ left: `${position.x}px`, top: `${position.y}px` }}>
       <div className="wall-object-library-header" onMouseDown={beginDrag}>Objektbibliothek</div>
       <div className="wall-object-library-items">
-        <button type="button" draggable onDragStart={(event) => startLibraryDrag(event, 'door')}><span>▯</span>Tür</button>
-        <button type="button" draggable onDragStart={(event) => startLibraryDrag(event, 'window')}><span>▭</span>Fenster</button>
-        <button type="button" draggable onDragStart={(event) => startLibraryDrag(event, 'socket')}><span>◉</span>Steckdose</button>
+        <button type="button" draggable onDragStart={(event) => startLibraryDrag(event, 'door')} title="Tür auf die ausgewählte Wand ziehen" aria-label="Tür platzieren"><StromIcon name="door" title="Tür" size={22} /> <span>Tür</span></button>
+        <button type="button" draggable onDragStart={(event) => startLibraryDrag(event, 'window')} title="Fenster auf die ausgewählte Wand ziehen" aria-label="Fenster platzieren"><StromIcon name="window" title="Fenster" size={22} /> <span>Fenster</span></button>
+        <button type="button" draggable onDragStart={(event) => startLibraryDrag(event, 'socket')} title="Steckdose auf die ausgewählte Wand ziehen" aria-label="Steckdose platzieren"><StromIcon name="electrical-socket" title="Steckdose" size={22} /> <span>Steckdose</span></button>
       </div>
       <p>Element auf die Frontalansicht ziehen.</p>
     </div>
