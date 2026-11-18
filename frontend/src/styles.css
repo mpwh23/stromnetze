@@ -4777,3 +4777,32 @@ svg [class*="dimension"], svg [class*="technical"], svg [class*="measure"] { vec
 .building3d-level-picker144 select { max-width: 240px; min-width: 125px; padding: 5px 7px; border: 1px solid #94a3b8; border-radius: 5px; background: #fff; color: #1e293b; font: inherit; }
 .building3d-level-picker144 .strom-ui-icon { width: 20px; height: 20px; flex: none; }
 .building3d-toolbar .building3d-level-picker144 span { margin-right: 0; color: #334155; }
+
+/* STROM145_FLOATING_LEVELS: consistent floating Blueprint picker in both real 3D views. */
+.building3d-view .building3d-floating-levels145 {
+  position: absolute; top: 30px; right: 12px; z-index: 44;
+  min-width: 0; pointer-events: none;
+}
+.building3d-view .building3d-floating-levels145 > button {
+  display: inline-flex; align-items: center; gap: 7px;
+  max-width: 235px; padding: 0 12px; pointer-events: auto;
+}
+.building3d-floating-levels145 > button .strom-ui-icon { flex: 0 0 19px; }
+.building3d-floating-levels145 > button span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.building3d-floating-levels145 .layer-menu-panel { width: 236px; pointer-events: auto; }
+.building3d-floating-levels145 .layer-list { max-height: 300px; }
+.building3d-floating-levels145 .layer-menu-panel button.building3d-floating-level-row145 {
+  display: grid; grid-template-columns: 20px minmax(0, 1fr) auto;
+  align-items: center; width: 100%; height: auto; min-height: 40px;
+  gap: 8px; padding: 6px 8px; border-radius: 11px; text-align: left;
+  cursor: pointer; border: 1px solid #e2e8f0; background: #f8fafc;
+  color: #1e293b; box-shadow: none;
+}
+.building3d-floating-levels145 .layer-menu-panel button.building3d-floating-level-row145.active {
+  background: #eff6ff; border-color: #2563eb; color: #1d4ed8;
+  box-shadow: inset 3px 0 0 #2563eb;
+}
+.building3d-floating-levels145 .layer-menu-panel button.building3d-floating-level-row145:hover { background: #e8f0ff; }
+.building3d-floating-levels145 .building3d-level-name145 { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.building3d-floating-levels145 .building3d-floating-level-row145 small { font-size: 10px; font-weight: 650; white-space: nowrap; color: #526581; }
+.building3d-floating-levels145 .building3d-level-note145 { margin: 3px 1px 0; color: #64748b; font-size: 11px; line-height: 1.35; }

@@ -5,7 +5,7 @@ import { OrbitControls } from 'three/addons/controls/OrbitControls.js'
 import { getWallObjects, updateWallObject as updateWallObjectApi } from '../api'
 import type { Floor, Room, WallObject, PointM } from '../types'
 import { buildSolidSurface, nearestRoomForWallHit } from '../building/solidGeometry'
-import { cleanWallSurface144 } from '../building/meshCleanup144'
+import { repairWallSurface145 } from '../building/wallSurface145'
 import StromIcon from './StromIcon'
 import { selectWallEdgeFrom3DHit, type WallHitSelection3D } from '../building/wallHitSelection'
 import { pickWallHoverPlane, buildWallHoverTriangles, type WallHoverPlane } from '../building/wallHoverGeometry'
@@ -58,8 +58,15 @@ function SolidWallMeshes({ model, onSelectRoom, onSelectWall, transparent }: {
   // surface triangles are copied into the optional hover visualization.
   const geometry = useMemo(() => {
     const surface = buildSolidSurface(model)
+    const repaired145 = repairWallSurface145(surface.positions)
+    if (repaired145.repairedPlanes || repaired145.skippedPlanes) {
+      console.info('[STROM145 Wandgeometrie]', {
+        vorher: repaired145.inputTriangles, nachher: repaired145.outputTriangles,
+        reparierteFlaechen: repaired145.repairedPlanes, uebersprungeneFlaechen: repaired145.skippedPlanes,
+      })
+    }
     const mesh = new THREE.BufferGeometry()
-    mesh.setAttribute('position', new THREE.Float32BufferAttribute(cleanWallSurface144(surface.positions).positions, 3))
+    mesh.setAttribute('position', new THREE.Float32BufferAttribute(repaired145.positions, 3))
     mesh.computeVertexNormals()
     mesh.computeBoundingSphere()
     return mesh
@@ -150,9 +157,9 @@ function SolidWallMeshes({ model, onSelectRoom, onSelectWall, transparent }: {
           roughness={0.84}
           transparent={transparent}
           opacity={transparent ? 0.34 : 1}
-          depthWrite={!transparent}
-          side={transparent ? THREE.FrontSide : THREE.DoubleSide}
-          forceSinglePass={transparent}
+          depthWrite={true}
+          side={THREE.DoubleSide}
+          forceSinglePass={false}
         />
       </mesh>
       {hovered && hoverGeometry && onSelectWall && (
@@ -432,6 +439,7 @@ export default function Building3DWorkspace({ floor, rooms, selectedRoomId, onSe
 }) {
   const [objects, setObjects] = useState<WallObject[]>([])
   const [selectedDoorId, setSelectedDoorId] = useState('')
+  const [levelsOpen145, setLevelsOpen145] = useState(false)
   const [transparent, setTransparent] = useState(false)
   const [busy, setBusy] = useState(false)
   const [message, setMessage] = useState('')
@@ -509,20 +517,7 @@ export default function Building3DWorkspace({ floor, rooms, selectedRoomId, onSe
     <div className="building3d-layout" aria-label="Echtes 3D Gebaeudemodell">
       <div className="building3d-toolbar">
         <strong>{variant === 'wall' ? 'Wanddetail · Echtes 3D' : 'Echtes 3D · Aufbauphase 1'}</strong>
-        {variant === 'wall' ? (
-          <label className="building3d-level-picker144" title="Blueprint-Ebene im Wanddetail waehlen; verwendet dieselben gespeicherten Ebenen">
-            <StromIcon name="layers-current" size={20} title="Ebenen aus Blueprint" />
-            <span>Ebene</span>
-            <select aria-label="Aktive Blueprint-Ebene im Wanddetail" value={activeLevel.id}
-              onChange={(event) => chooseWallDetailLevel144(event.currentTarget.value)}>
-              {levelOptions144.map((level) => (
-                <option key={level.id} value={level.id}>{level.name} · {Math.round(level.heightM * 1000)} mm</option>
-              ))}
-            </select>
-          </label>
-        ) : (
-          <span>Etage: {activeLevel.name} · {Math.round(activeLevel.heightM * 1000)} mm</span>
-        )}
+        {/* STROM145_FLOATING_LEVELS: layer selection lives in the canvas overlay. */}
         <button type="button" title="Transparente Waende umschalten" onClick={() => setTransparent((value) => !value)}>{transparent ? 'Waende deckend' : 'Waende transparent'}</button>
         <button type="button" title="Zum 2D-Blueprint wechseln" onClick={onBackToBlueprint}>Zurueck zum Blueprint (2D)</button>
         {variant === 'wall' && onOpenLegacyWallDetail && (
@@ -534,6 +529,36 @@ export default function Building3DWorkspace({ floor, rooms, selectedRoomId, onSe
       <div className="building3d-content">
         <div className="building3d-view">
           <RealBuildingScene model={model} stairs={stairs} selectedRoomId={selectedRoomId} selectedDoorId={selectedDoorId} onSelectRoom={onSelectRoom} onSelectDoor={setSelectedDoorId} onSelectWall={variant === 'wall' ? onSelectWall : undefined} transparent={transparent} />
+          {/* STROM145_FLOATING_LEVELS: reuse the Blueprint floating layer-menu classes. */}
+          <div className={`canvas-layer-menu building3d-floating-levels145 ${levelsOpen145 ? 'open' : ''}`} aria-label="Ebenen">
+            <button type="button" title="Ebenenauswahl wie im Blueprint" aria-label="Ebenenauswahl öffnen oder schließen"
+              aria-expanded={levelsOpen145} onClick={() => setLevelsOpen145((value) => !value)}>
+              <StromIcon name="chevron-down" size={19} title="Ebenen" />
+              <span>{activeLevel.name}</span>
+            </button>
+            {levelsOpen145 && (
+              <div className="layer-menu-panel" role="group" aria-label="Blueprint-Ebenen">
+                <div className="layer-list">
+                  {levelOptions144.map((level) => {
+                    const selected = level.id === activeLevel.id
+                    return (
+                      <button type="button" key={level.id}
+                        className={`layer-row building3d-floating-level-row145 ${selected ? 'active effectively-visible' : 'effectively-hidden'}`}
+                        title={`${level.name} wählen – ${Math.round(level.heightM * 1000)} mm Geschosshöhe`}
+                        aria-current={selected ? 'true' : undefined}
+                        onClick={() => { chooseWallDetailLevel144(level.id); setLevelsOpen145(false) }}>
+                        <StromIcon name={selected ? 'layers-current' : 'layers-neighbor'} size={19} title={selected ? 'Aktive Ebene' : 'Andere Ebene'} />
+                        <span className="building3d-level-name145">{level.name}</span>
+                        <small>{Math.round(level.heightM * 1000)} mm</small>
+                      </button>
+                    )
+                  })}
+                </div>
+                <p className="building3d-level-note145">Die aktive Ebene ist dieselbe wie im Blueprint. Ebenenverwaltung und Höhenänderung erfolgen im Blueprint.</p>
+              </div>
+            )}
+          </div>
+
           <div className="building3d-help">{variant === 'wall' ? 'Linke Maustaste: drehen · Mausrad: zoomen · rechte Maustaste: verschieben · Klick: Wand zum Bearbeiten auswaehlen' : 'Linke Maustaste: drehen · Mausrad: zoomen · rechte Maustaste: verschieben · Klick: Raum oder Tuer waehlen'}</div>
         </div>
         <aside className="building3d-inspector">
