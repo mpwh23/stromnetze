@@ -6,6 +6,7 @@ import { getWallObjects, updateWallObject as updateWallObjectApi } from '../api'
 import type { Floor, Room, WallObject, PointM } from '../types'
 import { buildSolidSurface, nearestRoomForWallHit } from '../building/solidGeometry'
 import { selectWallEdgeFrom3DHit, type WallHitSelection3D } from '../building/wallHitSelection'
+import { pickWallHoverPlane, buildWallHoverTriangles, type WallHoverPlane } from '../building/wallHoverGeometry'
 import type { ReactNode } from 'react'
 import { buildBuildingModel, type BuildingModel, type BuildingRoom, type BuildingWall, type BuildingOpening } from '../building/model'
 
@@ -32,14 +33,22 @@ function FloorMesh({ room, selected, onSelect }: { room: BuildingRoom; selected:
   )
 }
 
+// STROM141_WALL_HOVER: same Blueprint wall edge for hover and click.
+// Hover rendering uses a selective COPY of the exact watertight 139 wall face.
+// No second set of wall solids, no overlays across real door/window openings.
+type HoveredSolidWall = WallHitSelection3D & { plane: WallHoverPlane }
+
 function SolidWallMeshes({ model, onSelectRoom, onSelectWall, transparent }: {
   model: BuildingModel
   onSelectRoom: (id: string) => void
   onSelectWall?: (wall: WallHitSelection3D | null) => void
   transparent: boolean
 }) {
-  // Exactly one boundary mesh is rendered for the union of all walls on the
-  // floor. This eliminates coplanar double-faces at projections and corners.
+  const [hovered, setHovered] = useState<HoveredSolidWall | null>(null)
+  const gl = useThree((state) => state.gl)
+
+  // Preserve the 139 model and geometry byte-for-byte: only its material
+  // surface triangles are copied into the optional hover visualization.
   const geometry = useMemo(() => {
     const surface = buildSolidSurface(model)
     const mesh = new THREE.BufferGeometry()
@@ -49,35 +58,116 @@ function SolidWallMeshes({ model, onSelectRoom, onSelectWall, transparent }: {
     return mesh
   }, [model])
   useEffect(() => () => geometry.dispose(), [geometry])
+
+  const hoverGeometry = useMemo(() => {
+    if (!onSelectWall || !hovered) return null
+    const room = model.rooms.find((item) => item.id === hovered.roomId)
+    if (!room?.vertices || room.vertices.length < 2) return null
+    const a = room.vertices[hovered.edgeIndex]
+    const b = room.vertices[(hovered.edgeIndex + 1) % room.vertices.length]
+    if (!a || !b) return null
+    const positions = buildWallHoverTriangles(
+      (geometry.getAttribute('position') as THREE.BufferAttribute).array, a, b, hovered.plane,
+    )
+    if (!positions.length) return null
+    const patch = new THREE.BufferGeometry()
+    patch.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3))
+    patch.computeVertexNormals()
+    patch.computeBoundingSphere()
+    return patch
+  }, [geometry, model, hovered, onSelectWall])
+  useEffect(() => () => { hoverGeometry?.dispose() }, [hoverGeometry])
+
+  // Only Wanddetail provides onSelectWall. 3D Haus is left untouched.
+  useEffect(() => {
+    if (!onSelectWall) return
+    gl.domElement.style.cursor = hovered ? 'pointer' : ''
+    return () => { gl.domElement.style.cursor = '' }
+  }, [gl, hovered, onSelectWall])
+
+  function hoverAt(event: ThreeEvent<PointerEvent>) {
+    if (!onSelectWall) return
+    const point = { x: event.point.x, y: event.point.z }
+    const hitWall = selectWallEdgeFrom3DHit(model, point)
+    if (!hitWall) {
+      setHovered((previous) => previous === null ? previous : null)
+      return
+    }
+    const room = model.rooms.find((item) => item.id === hitWall.roomId)
+    if (!room?.vertices || room.vertices.length < 2) {
+      setHovered(null)
+      return
+    }
+    const a = room.vertices[hitWall.edgeIndex]
+    const b = room.vertices[(hitWall.edgeIndex + 1) % room.vertices.length]
+    if (!a || !b) { setHovered(null); return }
+    const plane = pickWallHoverPlane(
+      (geometry.getAttribute('position') as THREE.BufferAttribute).array, a, b, point, event.faceIndex ?? undefined,
+    )
+    if (!plane) { setHovered(null); return }
+    // No React rerender while moving within the same physical wall surface.
+    setHovered((previous) => {
+      if (previous && previous.roomId === hitWall.roomId && previous.edgeIndex === hitWall.edgeIndex
+        && Math.abs(previous.plane.offsetM - plane.offsetM) < 0.006
+        && previous.plane.normalX * plane.normalX + previous.plane.normalZ * plane.normalZ > 0.99) {
+        return previous
+      }
+      return { ...hitWall, plane }
+    })
+  }
+
   return (
-    <mesh
-      geometry={geometry}
-      onClick={(event: ThreeEvent<MouseEvent>) => {
-        event.stopPropagation()
-        if (onSelectWall && event.delta > 5) return // 3D camera orbit, not a wall click
-        const point = { x: event.point.x, y: event.point.z }
-        // In Wanddetail: click a physical face to open its original wall editor.
-        const hitWall = onSelectWall ? selectWallEdgeFrom3DHit(model, point) : null
-        if (hitWall) {
-          onSelectWall?.(hitWall)
-          onSelectRoom(hitWall.roomId)
-        } else {
-          const roomId = nearestRoomForWallHit(model, point)
-          if (roomId) onSelectRoom(roomId)
-        }
-      }}
-      castShadow={!transparent}
-      receiveShadow
-    >
-      <meshStandardMaterial
-        color="#c1ccda"
-        roughness={0.84}
-        transparent={transparent}
-        opacity={transparent ? 0.34 : 1}
-        depthWrite={!transparent}
-        side={THREE.DoubleSide}
-      />
-    </mesh>
+    <group>
+      <mesh
+        geometry={geometry}
+        onPointerMove={hoverAt}
+        onPointerOut={() => setHovered(null)}
+        onClick={(event: ThreeEvent<MouseEvent>) => {
+          event.stopPropagation()
+          if (onSelectWall && event.delta > 5) return // 3D camera orbit, not a wall click
+          const point = { x: event.point.x, y: event.point.z }
+          const hitWall = onSelectWall ? selectWallEdgeFrom3DHit(model, point) : null
+          if (hitWall) {
+            onSelectWall?.(hitWall)
+            onSelectRoom(hitWall.roomId)
+          } else {
+            const roomId = nearestRoomForWallHit(model, point)
+            if (roomId) onSelectRoom(roomId)
+          }
+        }}
+        castShadow={!transparent}
+        receiveShadow
+      >
+        <meshStandardMaterial
+          color="#c1ccda"
+          roughness={0.84}
+          transparent={transparent}
+          opacity={transparent ? 0.34 : 1}
+          depthWrite={!transparent}
+          side={THREE.DoubleSide}
+        />
+      </mesh>
+      {hovered && hoverGeometry && onSelectWall && (
+        <mesh
+          geometry={hoverGeometry}
+          position={[hovered.plane.normalX * 0.006, 0, hovered.plane.normalZ * 0.006]}
+          raycast={() => {}}
+          renderOrder={9}
+        >
+          <meshBasicMaterial
+            color="#2563eb"
+            transparent
+            opacity={transparent ? 0.56 : 0.42}
+            depthWrite={false}
+            depthTest
+            side={THREE.DoubleSide}
+            polygonOffset
+            polygonOffsetFactor={-2}
+            polygonOffsetUnits={-2}
+          />
+        </mesh>
+      )}
+    </group>
   )
 }
 
