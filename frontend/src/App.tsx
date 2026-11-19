@@ -354,6 +354,19 @@ export function App() {
   // STROM150C_PRESERVE_BLUEPRINT: keep original BP visible while the 3D canvas prepares.
   const [enterPreview150, setEnterPreview150] = useState<'loading'|'fading'|null>(null)
   const enterPreviewTimer150 = useRef<number|null>(null)
+  // STROM150E_LOADING_GUARD: defensive escape if 3D cannot report readiness.
+  useEffect(() => {
+    if (enterPreview150 !== 'loading') return
+    const safety150e = window.setTimeout(() => {
+      setEnterPreview150(current => current === 'loading' ? 'fading' : current)
+      if (enterPreviewTimer150.current !== null) window.clearTimeout(enterPreviewTimer150.current)
+      enterPreviewTimer150.current = window.setTimeout(() => {
+        setEnterPreview150(null)
+        enterPreviewTimer150.current = null
+      }, ENTER_FADE150)
+    }, 9000)
+    return () => window.clearTimeout(safety150e)
+  }, [enterPreview150])
   useEffect(() => registerEnterReady150(() => {
     if (enterPreviewTimer150.current !== null) window.clearTimeout(enterPreviewTimer150.current)
     setEnterPreview150(current => current === 'loading' ? 'fading' : current)

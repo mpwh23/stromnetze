@@ -62,7 +62,7 @@ export default function CameraFlight150({points}:{points:readonly P150[]}){
   const size=useThree(state=>state.size)
   const invalidate=useThree(state=>state.invalidate)
   const gl=useThree(state=>state.gl)
-  const entryRenderFrame=useRef(0)
+  const entryWaitFrames150e=useRef(0) // STROM150E_NO_CONTROLS_WAIT
   const entryWaiting=useRef(false)
   const queuedEntry=useRef<Enter150|null>(null)
   const flight=useRef<Flight150|null>(null)
@@ -116,18 +116,18 @@ export default function CameraFlight150({points}:{points:readonly P150[]}){
   useFrame(()=>{
     if(queuedEntry.current){
       const controls=controls150()
-      if(!controls){invalidate();return}
+      // OrbitControls may register late or not exist. Camera flight still begins.
       const incoming=queuedEntry.current
       queuedEntry.current=null
       const original=snapshot150(camera,controls,new THREE.Vector3())
       initialPose.current=original
-      initialControlsEnabled.current=controls.enabled
+      initialControlsEnabled.current=controls?.enabled
       const bounds=planBounds150(latest.current.points,incoming.frame)
       const bird=topPose150(camera,bounds,latest.current.aspect)
-      controls.enabled=false
+      if(controls)controls.enabled=false
       apply(bird)
       // Hold the top pose until it has actually been rendered by WebGL.
-      entryRenderFrame.current=gl.info.render.frame
+      entryWaitFrames150e.current=0
       entryWaiting.current=true
       flight.current={start:bird,end:original,started:Number.POSITIVE_INFINITY,
         restoreControls:initialControlsEnabled.current}
@@ -136,7 +136,10 @@ export default function CameraFlight150({points}:{points:readonly P150[]}){
     const running=flight.current
     if(!running)return
     if(entryWaiting.current){
-      if(gl.info.render.frame>entryRenderFrame.current){
+      // The previous useFrame applied the top pose; one R3F render has now completed.
+      // No renderer.info counters, which can be reset by React Three Fiber/Three.
+      entryWaitFrames150e.current++
+      if(entryWaitFrames150e.current>=1){
         entryWaiting.current=false
         running.started=performance.now()+ENTER_FADE150
         notifyEnterReady150()
