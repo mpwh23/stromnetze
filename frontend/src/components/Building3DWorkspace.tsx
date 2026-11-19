@@ -1,6 +1,9 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Canvas, ThreeEvent, useFrame, useThree } from '@react-three/fiber'
 import * as THREE from 'three'
+import RoofMeshes148 from './RoofMeshes148'
+import RoofEditor148 from './RoofEditor148'
+import { ROOF_EVENT148 } from '../building/roofSlopes148' 
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js'
 import { getWallObjects, updateWallObject as updateWallObjectApi } from '../api'
 import type { Floor, Room, WallObject, PointM } from '../types'
@@ -281,12 +284,16 @@ function SceneControls({ model }: { model: BuildingModel }) {
 // STROM146_ALL_LEVELS: one Blueprint storage schema, multiple read-only 3D floor meshes.
 type SceneLevel146 = { id: string; model: BuildingModel; stairs: PlacedStairSurface143[]; offsetM: number }
 
-function RealBuildingScene({ model, stairs, extraLevels146, activeOffsetM146, showAllLevels146, selectedRoomId, selectedDoorId, onSelectRoom, onSelectDoor, onSelectWall, transparent }: {
+function RealBuildingScene({ model, stairs, extraLevels146, activeOffsetM146, showAllLevels146, activeLevelId148, roofRevision148, selectedRoof148, onSelectRoof148, selectedRoomId, selectedDoorId, onSelectRoom, onSelectDoor, onSelectWall, transparent }: {
   model: BuildingModel
   stairs: PlacedStairSurface143[]
   extraLevels146: SceneLevel146[]
   activeOffsetM146: number
   showAllLevels146: boolean
+  activeLevelId148: string
+  roofRevision148: number
+  selectedRoof148: string
+  onSelectRoof148: (id:string)=>void
   selectedRoomId: string
   selectedDoorId: string
   onSelectRoom: (id: string) => void
@@ -349,6 +356,9 @@ function RealBuildingScene({ model, stairs, extraLevels146, activeOffsetM146, sh
               }}
             />
           )))}
+        {/* STROM148_ROOF_3D: roof faces are built from saved Blueprint slope records. */}
+        <RoofMeshes148 floorId={model.floorId} levelId={activeLevelId148} rooms={model.rooms}
+          revision={roofRevision148} selectedId={selectedRoof148} onSelect={onSelectRoof148} />
       </group>
       {showAllLevels146 && extraLevels146.map((entry146) => (
         <group key={`floor-146-${entry146.id}`} position={[0, entry146.model.floorElevationM + entry146.offsetM, 0]}>
@@ -356,6 +366,8 @@ function RealBuildingScene({ model, stairs, extraLevels146, activeOffsetM146, sh
             <FloorMesh key={room146.id} room={room146} selected={false} onSelect={() => undefined} />
           ))}
           <SolidWallMeshes model={entry146.model} onSelectRoom={() => undefined} transparent={transparent} />
+          <RoofMeshes148 floorId={entry146.model.floorId} levelId={entry146.id} rooms={entry146.model.rooms}
+            revision={roofRevision148} selectedId={selectedRoof148} onSelect={onSelectRoof148} />
           {entry146.stairs.map((surface146) => (
             <StairSolid key={surface146.key} surface={surface146} selected={false} onSelect={() => undefined} />
           ))}
@@ -488,6 +500,14 @@ export default function Building3DWorkspace({ floor, rooms, selectedRoomId, onSe
   const [levelsOpen145, setLevelsOpen145] = useState(false)
   const [showAllLevels146, setShowAllLevels146] = useState(false)
   const [separateLevels146, setSeparateLevels146] = useState(false)
+  const [selectedRoof148, setSelectedRoof148] = useState('')
+  const [roofRevision148,setRoofRevision148] = useState(0)
+  useEffect(()=>{
+    const sync=()=>setRoofRevision148(value=>value+1)
+    window.addEventListener(ROOF_EVENT148,sync)
+    return ()=>window.removeEventListener(ROOF_EVENT148,sync)
+  },[])
+  useEffect(()=>setSelectedRoof148(''),[floor.id])
   const [transparent, setTransparent] = useState(false)
   const [busy, setBusy] = useState(false)
   const [message, setMessage] = useState('')
@@ -624,7 +644,8 @@ export default function Building3DWorkspace({ floor, rooms, selectedRoomId, onSe
       </div>
       <div className="building3d-content">
         <div className="building3d-view">
-          <RealBuildingScene model={model} stairs={activeStairs146} extraLevels146={extraLevels146} activeOffsetM146={variant === 'house' ? activeOffsetM146 : 0} showAllLevels146={variant === 'house' && showAllLevels146} selectedRoomId={selectedRoomId} selectedDoorId={selectedDoorId} onSelectRoom={onSelectRoom} onSelectDoor={setSelectedDoorId} onSelectWall={variant === 'wall' ? onSelectWall : undefined} transparent={transparent} />
+          <RealBuildingScene model={model} stairs={activeStairs146} activeLevelId148={activeLevel.id} roofRevision148={roofRevision148}
+            selectedRoof148={selectedRoof148} onSelectRoof148={setSelectedRoof148} extraLevels146={extraLevels146} activeOffsetM146={variant === 'house' ? activeOffsetM146 : 0} showAllLevels146={variant === 'house' && showAllLevels146} selectedRoomId={selectedRoomId} selectedDoorId={selectedDoorId} onSelectRoom={onSelectRoom} onSelectDoor={setSelectedDoorId} onSelectWall={variant === 'wall' ? onSelectWall : undefined} transparent={transparent} />
           {/* STROM145_FLOATING_LEVELS: reuse the Blueprint floating layer-menu classes. */}
           <div className={`canvas-layer-menu building3d-floating-levels145 ${levelsOpen145 ? 'open' : ''}`} aria-label="Ebenen">
             <button type="button" title="Ebenenauswahl wie im Blueprint" aria-label="Ebenenauswahl öffnen oder schließen"
@@ -658,6 +679,8 @@ export default function Building3DWorkspace({ floor, rooms, selectedRoomId, onSe
           <div className="building3d-help">{variant === 'wall' ? 'Linke Maustaste: drehen · Mausrad: zoomen · rechte Maustaste: verschieben · Klick: Wand zum Bearbeiten auswaehlen' : 'Linke Maustaste: drehen · Mausrad: zoomen · rechte Maustaste: verschieben · Klick: Raum oder Tuer waehlen'}</div>
         </div>
         <aside className="building3d-inspector">
+          {selectedRoof148 && <RoofEditor148 floorId={floor.id} roofId={selectedRoof148}
+            onClose={()=>setSelectedRoof148('')} onChanged={()=>setRoofRevision148(value=>value+1)}/>}
           <h2>{variant === 'wall' ? 'Wanddetail · Eigenschaften' : '3D-Eigenschaften'}</h2>
           <p>Die Daten stammen direkt aus demselben Gebaeudemodell wie im Blueprint.</p>
           <div className="building3d-inspector-section">

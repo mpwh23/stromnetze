@@ -4856,3 +4856,29 @@ svg [class*="dimension"], svg [class*="technical"], svg [class*="measure"] { vec
 .strom-stair-create147 { background: #e5efff; }
 .strom-stair-down-icon147 { transform: rotate(180deg); }
 .strom-stair-direction-floating147 small { color: #62738d; font-size: 11px; }
+
+/* STROM148: roof-slope tools and linked stairwell projections. */
+.strom-stair-portal148 { cursor:pointer; pointer-events:auto; }
+.strom-stair-portal148 polygon { fill:rgba(57,128,214,.12); stroke:#3672bb; stroke-width:3; stroke-dasharray:12 6; }
+.strom-stair-portal148 text { font:600 13px system-ui,sans-serif; fill:#1f5d9b; paint-order:stroke;stroke:white;stroke-width:3; }
+.strom-roof-line148 {cursor:pointer;pointer-events:visibleStroke;}
+.strom-roof-line148>line:first-of-type {stroke:#cf7d42;stroke-width:5;stroke-linecap:round;}
+.strom-roof-line148 .strom-roof-arrow148 {stroke:#3574c1;stroke-width:3;}
+.strom-roof-line148.selected>line:first-of-type {stroke:#215ab4;stroke-width:7;}
+.strom-roof-line148 text {font:700 13px system-ui,sans-serif;fill:#1d5d9d;paint-order:stroke;stroke:white;stroke-width:3;}
+.strom-roof-draft148 {fill:#ffdf9d;stroke:#a45b22;stroke-width:2;}
+.strom-roof-help148 {position:absolute;z-index:38;left:20px;bottom:17px;pointer-events:none;color:#23486a;background:#f7fbffed;border:1px solid #d6e3f3;border-radius:8px;padding:7px 11px;font-size:12px;}
+.strom-roof-floating148 {position:absolute;z-index:54;right:16px;top:90px;max-height:calc(100% - 100px);overflow:auto;}
+.strom-roof-editor148 {display:flex;flex-direction:column;gap:9px;width:290px;max-width:95%;padding:13px;border:1px solid #b9cbe5;border-radius:10px;background:#fff;color:#263c56;box-shadow:0 8px 25px #29456624;}
+.strom-roof-editor148 header {display:flex;justify-content:space-between;align-items:center;gap:8px;padding:0;background:none;border:0;}
+.strom-roof-editor148 header button {border:1px solid #d6e2f1;background:#f0f5ff;border-radius:6px;cursor:pointer;}
+.strom-roof-field148 {display:flex;justify-content:space-between;align-items:center;gap:12px;font-size:12px;font-weight:600;}
+.strom-roof-field148 span {display:flex;align-items:center;gap:3px;}
+.strom-roof-field148 input,.strom-roof-field148 select {width:100px;min-height:29px;padding:3px 7px;border:1px solid #bfcede;border-radius:6px;color:#1e3b60;background:#fff;}
+.strom-roof-field148 select {width:150px;}
+.strom-roof-editor148 details {display:flex;flex-direction:column;padding:6px;border-top:1px solid #dce5f0;}
+.strom-roof-editor148 details .strom-roof-field148 {margin-top:7px;}
+.strom-roof-actions148 {display:flex;gap:8px;}
+.strom-roof-actions148 button {padding:7px 10px;border-radius:7px;border:1px solid #adc1dc;background:#e5efff;color:#234467;cursor:pointer;}
+.strom-roof-actions148 button:first-child {background:#285fd0;color:white;}
+.strom-roof-editor148 p {font-size:12px;color:#315b8f;margin:2px 0;}

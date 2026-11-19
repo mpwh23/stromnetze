@@ -3,6 +3,9 @@ import StromIcon from './components/StromIcon'
 import { snapPointToVisibleRooms143, snapRectangleHandle143, snapMovedVerticesToVisibleRooms143 } from './building/neighborSnap143'
 import { snapRectEdge146, snapTranslatedEdge146 } from './building/edgeSnap146'
 import { readStairDirections147, sameStairFootprint147, stairDirectionKey147, type StairDirection147 } from './building/stairOverlay147'
+import { readStairPairs148, saveStairPairs148, linkStairs148, inferLegacyStairPairs148, linkedStairPortals148, type StairPairs148 } from './building/stairLinks148'
+import { readRoofSlopes148, saveRoofSlopes148, nearestRoomEdge148, inwardRoofAngle148, angleVector148, ROOF_EVENT148, type RoofSlope148 } from './building/roofSlopes148'
+import RoofEditor148 from './components/RoofEditor148' 
 import Building3DWorkspace from './components/Building3DWorkspace'
 import {
   createObject,
@@ -41,7 +44,7 @@ const viewModes: { id: ViewMode; label: string }[] = [
   { id: 'threeD', label: '3D Haus' },
 ]
 
-type Tool = 'select' | 'rectangle' | 'outerwall' | 'polygon' | 'recess' | 'distance' | 'stair' | 'door'
+type Tool = 'select' | 'rectangle' | 'outerwall' | 'polygon' | 'recess' | 'distance' | 'stair' | 'door' | 'roof'
 type DragAxis = 'x' | 'y' | null
 type RectHandle = 'left' | 'right' | 'top' | 'bottom'
 type RecessEdge = 'top' | 'right' | 'bottom' | 'left'
@@ -1433,6 +1436,10 @@ function FloorplanEditor({
   const [layerDeleteRequestId, setLayerDeleteRequestId] = useState<string>('')
   const [titleOffsets, setTitleOffsets] = useState<Record<string, TitleOffset>>(() => loadTitleOffsets(floor.id))
   const [titleDrag, setTitleDrag] = useState<{ roomId: string; startClientX: number; startClientY: number; startOffset: TitleOffset } | null>(null)
+  const [stairPairs148, setStairPairs148] = useState<StairPairs148>(() => readStairPairs148(floor.id, window.localStorage))
+  const [roofSlopes148, setRoofSlopes148] = useState<RoofSlope148[]>(() => readRoofSlopes148(floor.id, window.localStorage))
+  const [roofStart148, setRoofStart148] = useState<PointM|null>(null)
+  const [selectedRoof148, setSelectedRoof148] = useState('')
   const [stairDirections147, setStairDirections147] = useState<Record<string, StairDirection147>>(
     () => readStairDirections147(floor.id, window.localStorage))
   const [stairPanelOpen, setStairPanelOpen] = useState(false)
@@ -1447,13 +1454,39 @@ function FloorplanEditor({
     setStairDirections147(readStairDirections147(floor.id, window.localStorage))
   }, [floor.id])
 
+  useEffect(() => {
+    setStairPairs148(readStairPairs148(floor.id, window.localStorage))
+    setRoofSlopes148(readRoofSlopes148(floor.id, window.localStorage))
+    setRoofStart148(null)
+    setSelectedRoof148('')
+  }, [floor.id])
+
+  useEffect(() => {
+    function refreshRoof148() { setRoofSlopes148(readRoofSlopes148(floor.id, window.localStorage)) }
+    window.addEventListener(ROOF_EVENT148, refreshRoof148)
+    return () => window.removeEventListener(ROOF_EVENT148, refreshRoof148)
+  }, [floor.id])
+
+  useEffect(() => {
+    if (!rooms.length) return
+    const combined = inferLegacyStairPairs148(rooms,roomLayerAssignments,stairDirections147,stairPairs148)
+    if (JSON.stringify(combined)!==JSON.stringify(stairPairs148)) {
+      saveStairPairs148(floor.id,combined)
+      setStairPairs148(combined)
+    }
+  },[floor.id,rooms,roomLayerAssignments,stairDirections147,stairPairs148])
+
   const selectedRoom = rooms.find((room) => room.id === selectedRoomId) ?? null
   // STROM147_STAIR_DIRECTIONS: one physical location, two independent stair-room records.
+  // STROM148_STAIR_PAIR: stable room IDs survive independent editing of both outlines.
   const stairRoomsHere147 = selectedRoom && isStairRoom(selectedRoom)
-    ? rooms.filter((room) => isStairRoom(room)
-      && (roomLayerAssignments[room.id] ?? defaultLayerId) === (roomLayerAssignments[selectedRoom.id] ?? defaultLayerId)
-      && sameStairFootprint147(room, selectedRoom))
-    : []
+    ? (() => {
+      const other = rooms.find(room => room.id === stairPairs148[selectedRoom.id] && isStairRoom(room)
+        && (roomLayerAssignments[room.id] ?? defaultLayerId) === (roomLayerAssignments[selectedRoom.id] ?? defaultLayerId))
+      return other ? [selectedRoom, other] : rooms.filter(room => isStairRoom(room)
+        && (roomLayerAssignments[room.id] ?? defaultLayerId) === (roomLayerAssignments[selectedRoom.id] ?? defaultLayerId)
+        && sameStairFootprint147(room, selectedRoom))
+    })() : []
   const stairUp147 = stairRoomsHere147.find((room) => stairDirections147[room.id] === 'up') ?? null
   const stairDown147 = stairRoomsHere147.find((room) => stairDirections147[room.id] === 'down') ?? null
   const selectedStairDirection147 = selectedRoom ? stairDirections147[selectedRoom.id] : undefined
@@ -1598,6 +1631,10 @@ function FloorplanEditor({
   }, [floor.id, rooms.length])
 
   const activeLayer = layers.find((layer) => layer.id === activeLayerId) ?? layers[0] ?? defaultFloorplanLayers()[0]
+  // STROM148_STAIR_PORTAL: the SAME stair room is visible on its arrival level.
+  // This is a reference, not a duplicate database room; opening it selects its true source floor.
+  const stairPortals148 = linkedStairPortals148(rooms,layers,roomLayerAssignments,stairDirections147,activeLayerId)
+
   const activeLayerRooms = useMemo(
     () => rooms.filter((room) => (roomLayerAssignments[room.id] ?? defaultLayerId) === activeLayerId),
     [rooms, roomLayerAssignments, activeLayerId],
@@ -1783,6 +1820,9 @@ function FloorplanEditor({
       })
       setRoomLayerAssignments((current) => ({ ...current, [created.id]: activeLayerId }))
       storeStairDirections147({ ...stairDirections147, [created.id]: opposite })
+      const linked148 = linkStairs148(stairPairs148, selectedRoom.id, created.id)
+      saveStairPairs148(floor.id, linked148)
+      setStairPairs148(linked148)
       setStairPanelOpen(false)
       await onReload()
       onSelectRoom(created.id)
@@ -1939,6 +1979,23 @@ function FloorplanEditor({
     }
     const point = eventToMeters(event)
     if (!point) return
+
+    if (tool === 'roof') {
+      if (!selectedRoom || isStairRoom(selectedRoom) || isOuterWallRoom(selectedRoom)
+          || (roomLayerAssignments[selectedRoom.id] ?? defaultLayerId) !== activeLayerId) return
+      const snapped = nearestRoomEdge148(point,selectedRoom.vertices,Math.max(0.10,0.18/zoom))
+      if(!roofStart148) {setRoofStart148(snapped);return}
+      if(Math.hypot(snapped.x-roofStart148.x,snapped.y-roofStart148.y)<0.10) {onError('Startlinie muss mindestens 100 mm lang sein.');return}
+      const roof:RoofSlope148={id:window.crypto?.randomUUID?.() || `roof-${Date.now()}-${Math.random().toString(36).slice(2)}`,
+        roomId:selectedRoom.id,levelId:activeLayerId,start:roofStart148,end:snapped,
+        directionDeg:inwardRoofAngle148(roofStart148,snapped,selectedRoom.vertices),pitchDeg:35,startHeightM:1.0}
+      try {
+        saveRoofSlopes148(floor.id,[...readRoofSlopes148(floor.id,window.localStorage),roof])
+        setSelectedRoof148(roof.id);setRoofStart148(null);setTool('select')
+        onError(null)
+      } catch(error) {onError(error instanceof Error?error.message:String(error))}
+      return
+    }
 
     if (tool === 'door') {
       void placeBlueprintDoor136(point)
@@ -2316,6 +2373,9 @@ if (dimensionDrag) {
   }
 
   async function chooseTool(nextTool: Tool) {
+    if (nextTool==='roof' && (!selectedRoom || isStairRoom(selectedRoom) || isOuterWallRoom(selectedRoom))) return
+    setRoofStart148(null)
+
     if (nextTool === 'recess' && !selectedRoom) return
     setBlueprintDoorNotice136('')
     if (nextTool === 'stair') {
@@ -2905,6 +2965,12 @@ function toggleRecessOffsetDirection() {
             <StromIcon name="cutout" title="Aussparung" />
           </button>
           <button title="Treppe einzeichnen" data-tooltip="Treppe einzeichnen" aria-label="Treppe einzeichnen" className={tool === 'stair' ? 'active' : ''} disabled={!selectedRoom || isOuterWallRoom(selectedRoom)} onMouseDown={(event) => event.preventDefault()} onClick={() => void chooseTool('stair')}><StromIcon name="stair-run" title="Treppe einzeichnen" /></button>
+          <button type="button" title="Dachschräge zeichnen: Raum auswählen, Startlinie mit zwei Klicks setzen"
+            data-tooltip="Dachschräge zeichnen" aria-label="Dachschräge zeichnen"
+            className={tool === 'roof' ? 'active' : ''} disabled={!selectedRoom || isStairRoom(selectedRoom) || isOuterWallRoom(selectedRoom)}
+            onMouseDown={event=>event.preventDefault()} onClick={()=>void chooseTool('roof')}>
+            <StromIcon name="polygon" title="Dachschräge zeichnen" />
+          </button>
           <button type="button" title="Tuer zwischen Raeumen einsetzen (Breite / Hoehe in mm)" data-tooltip="Tuer einsetzen" aria-label="Tuer zwischen Raeumen einsetzen" className={tool === 'door' ? 'active' : ''} disabled={activeLayerRooms.length < 2 || blueprintDoorSaving136} onMouseDown={(event) => event.preventDefault()} onClick={() => void chooseTool('door')}><StromIcon name="door" title="Tuer einsetzen" /></button>
           <button title="Ausgewaehlten Raum loeschen" data-tooltip="Loeschen" aria-label="Ausgewaehlten Raum loeschen" disabled={!selectedRoom && !allSelected} onMouseDown={(event) => event.preventDefault()} onClick={() => void deleteSelectedFromCanvas()}>
             <StromIcon name="trash" title="Loeschen" />
@@ -3103,6 +3169,9 @@ function toggleRecessOffsetDirection() {
             {stairRoomsHere147.length === 2 && <small>Aufwärts: {stairUp147 ? 'vorhanden' : 'offen'} · Abwärts: {stairDown147 ? 'vorhanden' : 'offen'}</small>}
           </div>
         )}
+        {tool==='roof' && <div className="strom-roof-help148" title="Die Dachschräge wird im ausgewählten Raum gespeichert">Dachschräge: {roofStart148?'zweiten Punkt der Startlinie setzen':'ersten Punkt der Startlinie setzen'} · anschließend Parameter einstellen</div>}
+        {selectedRoof148 && <div className="strom-roof-floating148"><RoofEditor148 floorId={floor.id} roofId={selectedRoof148}
+          onClose={()=>setSelectedRoof148('')}/></div>}
         <CanvasRulers zoom={zoom} scrollLeft={scrollPosition.left} scrollTop={scrollPosition.top} />
         <div className="canvas-scroll" ref={canvasScrollRef} onWheelCapture={handleCanvasWheel} onScroll={handleCanvasScroll}>
           <svg
@@ -3163,6 +3232,32 @@ function toggleRecessOffsetDirection() {
             })}
 
             {/* STROM144_BLUEPRINT_DOOR_LEVEL: doors are local to the active level, not ghost levels. */}
+            {/* STROM148_STAIR_PORTAL: references to a stairwell on its adjoining storey */}
+            {stairPortals148.map(({room,sourceLayerId})=>(
+              <g key={`stair-portal148-${room.id}`} className="strom-stair-portal148"
+                onClick={event=>{event.stopPropagation();setActiveLayerId(sourceLayerId);onSelectRoom(room.id);setTool('select')}}>
+                <title>{`Treppenraum ${room.name} aus ${layers.find(l=>l.id===sourceLayerId)?.name||'Nachbarebene'} bearbeiten`}</title>
+                <polygon points={pointsToSvg(room.vertices)} />
+                <text x={mToX(centroid(room.vertices).x)} y={mToY(centroid(room.vertices).y)} textAnchor="middle">
+                  Treppenöffnung ↕ · {room.name}
+                </text>
+              </g>
+            ))}
+            {/* STROM148_ROOF_EDIT: distinct slopes can be placed on one room; click edits parameters. */}
+            {roofSlopes148.filter(roof=>roof.levelId===activeLayerId && rooms.some(room=>room.id===roof.roomId)).map(roof=>{
+              const middle={x:(roof.start.x+roof.end.x)/2,y:(roof.start.y+roof.end.y)/2}
+              const axis=angleVector148(roof.directionDeg)
+              const tip={x:middle.x+axis.x*0.60,y:middle.y+axis.y*0.60}
+              return <g key={roof.id} className={`strom-roof-line148 ${selectedRoof148===roof.id?'selected':''}`}
+                onClick={event=>{event.stopPropagation();setSelectedRoof148(roof.id);onSelectRoom(roof.roomId);setTool('select')}}>
+                <title>{`Dachschräge: ${roof.pitchDeg}°, Beginn ${Math.round(roof.startHeightM*1000)} mm. Anklicken zum Bearbeiten.`}</title>
+                <line x1={mToX(roof.start.x)} y1={mToY(roof.start.y)} x2={mToX(roof.end.x)} y2={mToY(roof.end.y)}/>
+                <line className="strom-roof-arrow148" x1={mToX(middle.x)} y1={mToY(middle.y)} x2={mToX(tip.x)} y2={mToY(tip.y)}/>
+                <text x={mToX(tip.x)} y={mToY(tip.y)-7} textAnchor="middle">{roof.pitchDeg}° · {Math.round(roof.startHeightM*1000)} mm</text>
+              </g>
+            })}
+            {roofStart148 && <circle className="strom-roof-draft148" cx={mToX(roofStart148.x)} cy={mToY(roofStart148.y)} r={7/zoom} />}
+
             <BlueprintWallObjectConnections
               wallObjects={blueprintWallObjects.filter((item) => (roomLayerAssignments[item.roomId] ?? defaultLayerId) === activeLayerId)}
               rooms={activeLayerRooms}
@@ -8331,6 +8426,7 @@ function toolLabel(tool: Tool) {
   if (tool === 'polygon') return 'Polygonraum zeichnen'
   if (tool === 'recess') return 'Aussparung / Wandvorsprung'
   if (tool === 'door') return 'Tuer zwischen Raeumen einsetzen'
+  if (tool === 'roof') return 'Dachschräge zeichnen'
   return 'Abstand zwischen Kanten'
 }
 
