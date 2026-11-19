@@ -1,6 +1,6 @@
 /** STROM150_CAMERA_BRIDGE: coordinate view navigation without delaying React rendering. */
 export type BlueprintScreen150o={x:number;y:number;ax:number;ay:number;bx:number;by:number}
-export type BlueprintFrame150={floorId:string;levelId:string;cx:number;cy:number;widthM:number;heightM:number;screen150o?:BlueprintScreen150o;layout150o?:{left:number;top:number;width:number;height:number}}
+export type BlueprintFrame150={floorId:string;levelId:string;cx:number;cy:number;widthM:number;heightM:number;screen150o?:BlueprintScreen150o;layout150o?:{left:number;top:number;width:number;height:number};viewport163?:{left:number;top:number;width:number;height:number}}
 export type Mode150='wall'|'threeD'
 export type Enter150={mode:Mode150;frame:BlueprintFrame150}
 let pending150:Enter150|null=null
@@ -32,6 +32,10 @@ function viewFrame150(floorId:string):BlueprintFrame150{
     const matrix=svg?.getScreenCTM()
     const rect=container?.getBoundingClientRect()
     if(svg&&matrix&&rect&&rect.width>30&&rect.height>30){
+      // STROM163_BLUEPRINT_VIEWPORT_TRUTH: one atomic, before-navigation capture.
+      // The 3D Canvas can occupy a different rectangle AFTER mounting.
+      result.viewport163={left:rect.left,top:rect.top,width:rect.width,height:rect.height}
+
       // STROM150O_PRE_NAV_SNAPSHOT: saved at the click, before the DOM is reparented/reflowed.
       // SVG world units: mToX/Y(m) = 670 + 60*m. getScreenCTM gives CSS screen pixels.
       const pxX=60*Math.hypot(matrix.a,matrix.b)
