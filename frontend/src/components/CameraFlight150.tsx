@@ -87,7 +87,9 @@ export default function CameraFlight150({points}:{points:readonly P150[]}){
   const size=useThree(state=>state.size)
   const invalidate=useThree(state=>state.invalidate)
   const gl=useThree(state=>state.gl)
-  const entryWaitFrames150e=useRef(0) // STROM150E_NO_CONTROLS_WAIT
+  const entryWaitFrames150e=useRef(0) // STROM150E_NO_CONTROLS_WAIT: now counts confirmed WebGL renders
+  const frameTick150k=useRef(0)
+  const lastAckTick150k=useRef(-1)
   const entryWaiting=useRef(false)
   const queuedEntry=useRef<Enter150|null>(null)
   const flight=useRef<Flight150|null>(null)
@@ -129,6 +131,30 @@ export default function CameraFlight150({points}:{points:readonly P150[]}){
     camera150j.updateMatrixWorld()
     invalidate()
   }
+  // STROM150K_AFTER_RENDER_GATE: only a *rendered* and fully aligned top view may start the fade.
+  const confirmRendered150k=(renderedCamera:THREE.Camera)=>{
+    if(!entryWaiting.current)return
+    const running=flight.current
+    if(!running)return
+    if(lastAckTick150k.current===frameTick150k.current)return
+    const liveCamera=activeCamera150j()
+    // Ignore shadow/auxiliary passes, which are rendered with another camera.
+    if(renderedCamera!==liveCamera)return
+    const qDot=Math.abs(renderedCamera.quaternion.dot(running.start.rotation))
+    const cameraOrtho=renderedCamera as THREE.OrthographicCamera
+    const zoomAligned=!cameraOrtho.isOrthographicCamera||Math.abs(cameraOrtho.zoom-running.start.zoom)<0.0001
+    const aligned=renderedCamera.position.distanceTo(running.start.position)<0.0005 &&
+      qDot>0.999999 && zoomAligned
+    if(!aligned){entryWaitFrames150e.current=0;return}
+    lastAckTick150k.current=frameTick150k.current
+    entryWaitFrames150e.current++
+    if(entryWaitFrames150e.current>=3){
+      entryWaiting.current=false
+      running.started=performance.now()+ENTER_FADE150
+      notifyEnterReady150()
+      invalidate()
+    }
+  }
   useLayoutEffect(()=>{
     // Consume once per Canvas mount; avoid reinitializing when OrbitControls registers.
     queuedEntry.current=consumeEntry150()
@@ -164,6 +190,7 @@ export default function CameraFlight150({points}:{points:readonly P150[]}){
   },[gl,getState])
 
   useFrame(()=>{
+    frameTick150k.current++
     if(queuedEntry.current){
       const controls=controls150()
       // OrbitControls may register late or not exist. Camera flight still begins.
@@ -190,6 +217,7 @@ export default function CameraFlight150({points}:{points:readonly P150[]}){
     freezeOrbit150f()
     const liveCamera150j=activeCamera150j()
     if(flightCamera150j.current!==liveCamera150j){
+      entryWaitFrames150e.current=0
       if(entryWaiting.current||performance.now()<running.started){
         const bounds150j=planBounds150(latest.current.points,currentFrame150())
         running.end=snapshot150(liveCamera150j,controls150(),running.end.target)
@@ -198,16 +226,8 @@ export default function CameraFlight150({points}:{points:readonly P150[]}){
       flightCamera150j.current=liveCamera150j
     }
     if(entryWaiting.current){
-      // Make the real 3D start image stable BEFORE announcing readiness.
+      // Keep the spinner and original Blueprint until 3 confirmed painted top frames.
       apply(running.start)
-      // The previous useFrame applied the top pose; one R3F render has now completed.
-      // No renderer.info counters, which can be reset by React Three Fiber/Three.
-      entryWaitFrames150e.current++
-      if(entryWaitFrames150e.current>=2){
-        entryWaiting.current=false
-        running.started=performance.now()+ENTER_FADE150
-        notifyEnterReady150()
-      }
       invalidate()
       return
     }
@@ -241,6 +261,10 @@ export default function CameraFlight150({points}:{points:readonly P150[]}){
       }
     }
   })
-  return null
+  return <mesh name="strom150k-render-sentinel" frustumCulled={false} renderOrder={1000000}
+    onAfterRender={(_renderer,_scene,renderedCamera)=>confirmRendered150k(renderedCamera)}>
+    <planeGeometry args={[0.001,0.001]} />
+    <meshBasicMaterial colorWrite={false} depthWrite={false} depthTest={false} />
+  </mesh>
 }
 
