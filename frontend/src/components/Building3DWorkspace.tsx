@@ -1,3 +1,4 @@
+import {levelElevationsDatum151} from '../building/coordinateReference151' // STROM151_COORDINATE_DATUM
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Canvas, ThreeEvent, useFrame, useThree } from '@react-three/fiber'
 import * as THREE from 'three'
@@ -6,7 +7,7 @@ import CameraFlight150 from './CameraFlight150'
 import FloorSlab149 from './FloorSlab149'
 import { clipSolidWalls149 } from '../building/roofCut149'
 import { readRoofSlopes148 } from '../building/roofSlopes148'
-import { levelElevations149, stairRise149, readSlabThickness149 } from '../building/levelGeometry149'
+import { stairRise149, readSlabThickness149 } from '../building/levelGeometry149'
 import { createContext, useContext } from 'react'
 import RoofEditor148 from './RoofEditor148'
 import { ROOF_EVENT148 } from '../building/roofSlopes148' 
@@ -570,7 +571,7 @@ export default function Building3DWorkspace({ floor, rooms, selectedRoomId, onSe
       if (saved146 && typeof saved146 === 'object' && !Array.isArray(saved146)) assignments146 = saved146 as Record<string, string>
     } catch { /* unreadable legacy storage is treated as main layer */ }
     const directions147 = readStairDirections147(floor.id, window.localStorage)
-    const elevation149 = levelElevations149(levelOptions144,Number(floor.elevationM)||0)
+    const elevation149 = levelElevationsDatum151(levelOptions144,floor.id,window.localStorage)
     return levelOptions144.map((item146, idx146) => {
       const floorRooms146 = rooms.filter((room146) => (assignments146[room146.id] || 'layer-main') === item146.id)
       const allowedIds146 = new Set(floorRooms146.map((room146) => room146.id))

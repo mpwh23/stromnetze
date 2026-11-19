@@ -1,7 +1,8 @@
+import {levelElevationsDatum151} from '../building/coordinateReference151' // STROM151_COORDINATE_DATUM
 import StromIcon150 from './StromIcon150' // STROM150_ICON_AST
 import { useEffect, useState, type ChangeEvent } from 'react'
 import { readRoofSlopes148, saveRoofSlopes148, ROOF_EVENT148, type RoofSlope148 } from '../building/roofSlopes148'
-import { cleanSlab149, levelElevations149, inheritRoofPlane149 } from '../building/levelGeometry149'
+import { cleanSlab149, inheritRoofPlane149 } from '../building/levelGeometry149'
 
 // STROM149E_ROOF_EDITOR: names, visible selection, cross-level physical plane and close-on-apply.
 const dirs=[{value:0,label:'→ Osten / rechts'},{value:90,label:'↓ Süden / unten'},{value:180,label:'← Westen / links'},{value:270,label:'↑ Norden / oben'}]
@@ -49,7 +50,7 @@ export default function RoofEditor148({floorId,roofId,onClose,onChanged,onSelect
       if(!bothKnown&&source.levelId!==draft.levelId){
         setNotice('Ebene nicht gefunden. Bitte zuerst die vorhandenen Geschosse im Blueprint prüfen.');return
       }
-      const elevations=bothKnown?levelElevations149(layers):{}
+      const elevations=bothKnown?levelElevationsDatum151(layers,floorId,window.localStorage):{}
       const zSource=bothKnown?elevations[source.levelId]:0
       const zTarget=bothKnown?elevations[draft.levelId]:0
       const converted=inheritRoofPlane149(source,draft.start,draft.end,zSource,zTarget)

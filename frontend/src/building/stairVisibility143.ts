@@ -1,7 +1,8 @@
+import {levelElevationsDatum151} from './coordinateReference151' // STROM151_COORDINATE_DATUM
 import type { Floor, Room } from '../types'
 import type { BlueprintLevelView, KeyValueReader } from './blueprintLevels'
 import { buildStair3DSurfaces, type Stair3DSurface } from './stair3d'
-import { levelElevations149, stairRise149, cleanSlab149 } from './levelGeometry149'
+import { stairRise149, cleanSlab149 } from './levelGeometry149'
 
 export type PlacedStairSurface143 = Stair3DSurface & {
   /** Offset relative to the currently rendered level, applied by the 3D group. */
@@ -60,7 +61,7 @@ export function build3DStairsAcrossLevels143(floor: Floor, rooms: Room[], active
     group?.push(room)
   }
   const surfaces: PlacedStairSurface143[] = []
-  const elevations149 = levelElevations149(levels,numeric(floor.elevationM,0))
+  const elevations149 = levelElevationsDatum151(levels,floor.id,storage)
   for (const level of levels) {
     const offset = Math.round((elevations149[level.id] - activeLevel.elevationM) * 1000) / 1000
     const levelRooms = groups.get(level.id) ?? []

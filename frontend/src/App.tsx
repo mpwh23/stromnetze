@@ -1,3 +1,4 @@
+import {readZeroLevel151,writeZeroLevel151,resolveZeroLevel151} from './building/coordinateReference151' // STROM151_COORDINATE_DATUM
 import {queueEntry150,requestExit150,registerEnterReady150,ENTER_FADE150} from './components/cameraTransitions150' // STROM150_CAMERA_BRIDGE
 import StromIcon150 from './components/StromIcon150'
 import { type CSSProperties, ChangeEvent as ReactChangeEvent, DragEvent as ReactDragEvent, MouseEvent as ReactMouseEvent, WheelEvent as ReactWheelEvent, useEffect, useMemo, useRef, useState } from 'react'
@@ -1469,6 +1470,10 @@ function FloorplanEditor({
   const [dimensionDrag, setDimensionDrag] = useState<{ roomId: string; line: DimensionLineKey; axis: DimensionDragAxis; shiftPair: boolean; startClientX: number; startClientY: number; startOffset: DimensionOffset } | null>(null)
   const [layers, setLayers] = useState<FloorplanLayer[]>(() => loadFloorplanLayers(floor.id))
   const [activeLayerId, setActiveLayerId] = useState<string>(() => loadActiveLayerId(floor.id, loadFloorplanLayers(floor.id)))
+  // STROM151_COORDINATE_DATUM: the Blueprint level list selects architectural Z=0.
+  const [zeroLevel151, setZeroLevel151] = useState<string>(() =>
+    readZeroLevel151(floor.id,loadFloorplanLayers(floor.id),window.localStorage))
+
   const [roomLayerAssignments, setRoomLayerAssignments] = useState<Record<string, string>>(() => loadLayerAssignments(floor.id))
   const [layerVisibilityMode, setLayerVisibilityMode] = useState<LayerVisibilityMode>(() => loadLayerVisibilityMode(floor.id))
   const [layersOpen, setLayersOpen] = useState(false)
@@ -1584,6 +1589,7 @@ function FloorplanEditor({
   useEffect(() => {
     const nextLayers = loadFloorplanLayers(floor.id)
     setLayers(nextLayers)
+    setZeroLevel151(readZeroLevel151(floor.id,nextLayers,window.localStorage))
     setActiveLayerId(loadActiveLayerId(floor.id, nextLayers))
     setRoomLayerAssignments(loadLayerAssignments(floor.id))
     setTitleOffsets(loadTitleOffsets(floor.id))
@@ -3113,6 +3119,9 @@ function toggleRecessOffsetDirection() {
           <button type="button" title="Ebenen und Geschosshoehen bearbeiten" onClick={() => setLayersOpen((current) => !current)}><StromIcon name="chevron-down" title="Ebenenmenue" /> {activeLayer.name} · {Math.round((activeLayer.heightM ?? floor.heightM) * 1000)} mm</button>
           {layersOpen && (
             <div className="layer-menu-panel">
+              <div className="layer-zero-legend151" title="Die markierte Etage hat Z = 0 m; darüber positive, darunter negative Höhen.">
+                  <span>Nullhöhe</span><strong>Z = 0</strong>
+                </div>
               <div className="layer-list">
                 {layers.map((layer) => {
                   const active = layer.id === activeLayerId
@@ -3127,6 +3136,15 @@ function toggleRecessOffsetDirection() {
                       onDragOver={(event) => event.preventDefault()}
                       onDrop={(event) => { event.preventDefault(); moveLayerBefore(draggedLayerId, layer.id); setDraggedLayerId('') }}
                     >
+                      <label className="layer-zero-marker151" title={layers.length===1 ? 'Einzige Ebene: automatisch Z=0' : 'Diese Ebene als Z=0 festlegen'}
+                        onMouseDown={(event)=>event.stopPropagation()} onClick={(event)=>event.stopPropagation()}>
+                        <input type="radio" name={`layer-zero151-${floor.id}`}
+                          aria-label={`${layer.name} als Z=0-Ebene auswählen`}
+                          checked={resolveZeroLevel151(layers,zeroLevel151)===layer.id}
+                          disabled={layers.length===1}
+                          onChange={()=>{writeZeroLevel151(floor.id,layer.id,window.localStorage);setZeroLevel151(layer.id)}} />
+                        <span aria-hidden="true">0</span>
+                      </label>
                       <button type="button" className={`layer-eye ${effectivelyVisible ? 'visible' : 'hidden'}`} title={effectivelyVisible ? 'Ebene aktuell sichtbar - klicken zum manuellen Ausblenden' : 'Ebene aktuell ausgeblendet - klicken zum manuellen Einblenden'} onClick={(event) => { event.stopPropagation(); toggleLayerVisibility(layer.id) }}><StromIcon name={effectivelyVisible ? 'eye' : 'eye-off'} title={effectivelyVisible ? 'Ebene sichtbar' : 'Ebene ausgeblendet'} /></button>
                       <input
                         aria-label="Ebenenname"

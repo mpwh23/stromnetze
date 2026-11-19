@@ -1,6 +1,7 @@
+import {levelElevationsDatum151} from './coordinateReference151' // STROM151_COORDINATE_DATUM
 import type { Floor, Room } from '../types'
 // STROM149_LEVEL_GEOMETRY: top-to-bottom list, floor slab below each finished floor.
-import { levelElevations149, cleanSlab149 } from './levelGeometry149'
+import { cleanSlab149 } from './levelGeometry149'
 
 /**
  * 142: Read the existing Blueprint layer storage format without changing keys.
@@ -63,7 +64,7 @@ export function readActiveBlueprintLevel(floor: Floor, rooms: Room[], storage: K
     name: current.name,
     heightM: current.heightM,
     slabThicknessM: current.slabThicknessM,
-    elevationM: levelElevations149(layers, Number(floor.elevationM)||0)[current.id],
+    elevationM: levelElevationsDatum151(layers,floor.id,window.localStorage)[current.id],
     rooms: rooms.filter((room) => (typeof assignments[room.id] === 'string' ? assignments[room.id] : DEFAULT_LAYER_ID) === current.id),
     layerCount: layers.length,
   }

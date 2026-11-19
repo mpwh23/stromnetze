@@ -4971,3 +4971,20 @@ svg [class*="dimension"], svg [class*="technical"], svg [class*="measure"] { vec
   height:var(--strom150o-height,100%) !important;
   max-height:none !important;
 }
+
+/* STROM151_COORDINATE_DATUM: one canonical zero-height level without adding a second row. */
+.canvas-layer-menu:not(.wall-layer-menu) .layer-menu-panel { min-width: min(385px, calc(100vw - 28px)); }
+.canvas-layer-menu:not(.wall-layer-menu) .layer-row {
+  grid-template-columns:26px 26px 26px minmax(52px,1fr) minmax(76px,84px) minmax(62px,68px) !important;
+  grid-template-areas:"datum eye grip name height slab" !important;
+}
+.canvas-layer-menu:not(.wall-layer-menu) .layer-row > .layer-zero-marker151 {
+  grid-area:datum;display:flex;flex-direction:column;align-items:center;justify-content:center;
+  min-width:0;cursor:pointer;font-size:9px;line-height:1.1;color:#54719c;gap:2px;
+}
+.layer-zero-marker151 input[type="radio"] {appearance:auto;accent-color:#285eda;width:15px;height:15px;margin:0;cursor:pointer;}
+.layer-zero-marker151 input[type="radio"]:disabled {opacity:1;cursor:default;}
+.layer-zero-marker151 span {font-size:9px; font-weight:650;}
+.layer-zero-legend151 {display:flex;align-items:center;justify-content:space-between;
+  padding:3px 7px;font-size:11px;color:#526d95;}
+.layer-zero-legend151 strong {color:#275dd1;}

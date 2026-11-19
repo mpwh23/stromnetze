@@ -1,3 +1,4 @@
+import {blueprintToThree151} from '../building/coordinateReference151' // STROM151_COORDINATE_DATUM
 import * as THREE from 'three'
 import type { BlueprintFrame150 } from './cameraTransitions150'
 
@@ -24,7 +25,8 @@ export function floorSamples150r(scene:THREE.Object3D):FloorSample150r[]{
       if(!raw||typeof raw!=='object')continue
       const point=raw as PointM150r
       if(!finite150r(point.x)||!finite150r(point.y))continue
-      const world=new THREE.Vector3(point.x,0,point.y).applyMatrix4(obj.matrixWorld)
+      const xyz=blueprintToThree151({x:point.x,y:point.y,z:0})
+      const world=new THREE.Vector3(xyz.x,xyz.y,xyz.z).applyMatrix4(obj.matrixWorld)
       if(finite150r(world.x)&&finite150r(world.y)&&finite150r(world.z))samples.push({plan:point,world})
     }
   })
