@@ -1,5 +1,6 @@
 /** STROM150_CAMERA_BRIDGE: coordinate view navigation without delaying React rendering. */
-export type BlueprintFrame150={floorId:string;levelId:string;cx:number;cy:number;widthM:number;heightM:number}
+export type BlueprintScreen150o={x:number;y:number;ax:number;ay:number;bx:number;by:number}
+export type BlueprintFrame150={floorId:string;levelId:string;cx:number;cy:number;widthM:number;heightM:number;screen150o?:BlueprintScreen150o}
 export type Mode150='wall'|'threeD'
 export type Enter150={mode:Mode150;frame:BlueprintFrame150}
 let pending150:Enter150|null=null
@@ -27,6 +28,32 @@ function viewFrame150(floorId:string):BlueprintFrame150{
     const matrix=svg?.getScreenCTM()
     const rect=container?.getBoundingClientRect()
     if(svg&&matrix&&rect&&rect.width>30&&rect.height>30){
+      // STROM150O_PRE_NAV_SNAPSHOT: saved at the click, before the DOM is reparented/reflowed.
+      // SVG world units: mToX/Y(m) = 670 + 60*m. getScreenCTM gives CSS screen pixels.
+      const pxX=60*Math.hypot(matrix.a,matrix.b)
+      const pxY=60*Math.hypot(matrix.c,matrix.d)
+      if(pxX>2&&pxY>2&&pxX<1000&&pxY<1000&&Math.abs(pxX-pxY)<Math.max(pxX,pxY)*0.07){
+        result.screen150o={
+          x:670*(matrix.a+matrix.c)+matrix.e,
+          y:670*(matrix.b+matrix.d)+matrix.f,
+          ax:60*matrix.a,ay:60*matrix.b,
+          bx:60*matrix.c,by:60*matrix.d,
+        }
+      }
+      // Freeze the ORIGINAL Blueprint's layout in the overlay: no geometry changes
+      // when FloorplanEditor becomes position:absolute during 3D mount.
+      const plan=svg.closest('.floorplan-layout') as HTMLElement|null
+      const host=plan?.parentElement
+      const planRect=plan?.getBoundingClientRect()
+      const hostRect=host?.getBoundingClientRect()
+      if(plan&&planRect&&hostRect&&planRect.width>50&&planRect.height>50){
+        plan.style.setProperty('--strom150o-left',`${planRect.left-hostRect.left}px`)
+        plan.style.setProperty('--strom150o-top',`${planRect.top-hostRect.top}px`)
+        plan.style.setProperty('--strom150o-width',`${planRect.width}px`)
+        plan.style.setProperty('--strom150o-height',`${planRect.height}px`)
+        plan.classList.add('strom150o-viewport-frozen')
+      }
+
       const center=svg.createSVGPoint();center.x=rect.left+rect.width/2;center.y=rect.top+rect.height/2
       const p=center.matrixTransform(matrix.inverse())
       result.cx=(p.x-670)/60;result.cy=(p.y-670)/60

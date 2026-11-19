@@ -4957,3 +4957,17 @@ svg [class*="dimension"], svg [class*="technical"], svg [class*="measure"] { vec
 @keyframes strom150c-spin{to{transform:rotate(360deg)}}
 
 /* STROM150D_CAMERA_FIX: 500ms crossfade; 1500ms 3D flight, 150c spinner and Blueprint DOM retained. */
+
+/* STROM150O_PRE_NAV_SNAPSHOT: exact pre-navigation Blueprint layout while it overlays 3D. */
+.workspace.strom150c-enter-loading > .floorplan-layout.strom150o-viewport-frozen,
+.workspace.strom150c-enter-fading > .floorplan-layout.strom150o-viewport-frozen {
+  inset:auto !important;
+  left:var(--strom150o-left,0px) !important;
+  top:var(--strom150o-top,0px) !important;
+  right:auto !important;
+  bottom:auto !important;
+  width:var(--strom150o-width,100%) !important;
+  min-width:0 !important;
+  height:var(--strom150o-height,100%) !important;
+  max-height:none !important;
+}

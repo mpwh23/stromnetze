@@ -71,8 +71,28 @@ function difference(a: CameraPose, b: CameraPose) {
 
 /** STROM150N_BP_SCREEN_CALIBRATION: calibrate the R3F camera against the *actual* Blueprint DOM,
  * not against a scroll container center or a hard-coded house orientation. */
-function blueprintProjection(canvas: HTMLCanvasElement | undefined, bounds: ReturnType<typeof modelBounds>) {
+function blueprintProjection(canvas: HTMLCanvasElement | undefined, bounds: ReturnType<typeof modelBounds>,
+  frame: BlueprintFrame150 | null) {
   try {
+    // STROM150O_PRE_NAV_SNAPSHOT: do not recalibrate from the reflowed Blueprint overlay.
+    const saved = frame?.screen150o
+    const stableRect = canvas?.getBoundingClientRect()
+    if(saved&&stableRect&&stableRect.width>50&&stableRect.height>50){
+      const scaleX=Math.hypot(saved.ax,saved.ay)
+      const scaleY=Math.hypot(saved.bx,saved.by)
+      const pixelsPerM=(scaleX+scaleY)/2
+      if(pixelsPerM>2&&pixelsPerM<1000&&Math.abs(scaleX-scaleY)<=pixelsPerM*0.07){
+        return {
+          pixelsPerM,
+          screenX:saved.x+saved.ax*bounds.cx+saved.bx*bounds.cy,
+          screenY:saved.y+saved.ay*bounds.cx+saved.by*bounds.cy,
+          canvasX:stableRect.left+stableRect.width/2,
+          canvasY:stableRect.top+stableRect.height/2,
+          canvasHeight:stableRect.height,
+        }
+      }
+    }
+    // Fallback only for sessions where the Blueprint snapshot could not be captured.
     const svg = document.querySelector('svg[aria-label="Blueprint Editor"]') as SVGSVGElement | null
     const matrix = svg?.getScreenCTM()
     const rect = canvas?.getBoundingClientRect()
@@ -103,7 +123,7 @@ function blueprintProjection(canvas: HTMLCanvasElement | undefined, bounds: Retu
 function overheadPose(camera: THREE.Camera, points: readonly PlanPoint[], frame: BlueprintFrame150 | null,
   aspect: number, levelY: number, canvas: HTMLCanvasElement | undefined): CameraPose {
   const box = modelBounds(points)
-  const mapped = blueprintProjection(canvas, box)
+  const mapped = blueprintProjection(canvas, box, frame)
   let cx = frame?.widthM && frame.widthM > 0.1 ? frame.cx : box.cx
   let cy = frame?.heightM && frame.heightM > 0.1 ? frame.cy : box.cy
   let distance = 12
