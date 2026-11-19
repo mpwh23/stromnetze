@@ -28,7 +28,25 @@ function planBounds150(points:readonly P150[],frame:BlueprintFrame150|null){
   }
   return {cx,cy,width:width*1.14,height:height*1.14}
 }
-function topPose150(camera:THREE.Camera,bounds:ReturnType<typeof planBounds150>,aspect:number):Pose150{
+// STROM150H_LANDSCAPE: align the model's long footprint axis horizontally,
+// while preserving the 150f orbit freeze, frame loading and easing behavior.
+function topBasis150h(points:readonly P150[]):{right:THREE.Vector3;up:THREE.Vector3}{
+  let minX=Infinity,maxX=-Infinity,minY=Infinity,maxY=-Infinity
+  for(const p of points){
+    if(!Number.isFinite(p.x)||!Number.isFinite(p.y))continue
+    minX=Math.min(minX,p.x);maxX=Math.max(maxX,p.x)
+    minY=Math.min(minY,p.y);maxY=Math.max(maxY,p.y)
+  }
+  const spanX=Number.isFinite(minX)?maxX-minX:0
+  const spanY=Number.isFinite(minY)?maxY-minY:0
+  // Rotate only when one axis is decisively longer; square plans stay on the established axes.
+  if(spanY>spanX*1.12&&spanY>0.1){
+    return {right:new THREE.Vector3(0,0,-1),up:new THREE.Vector3(-1,0,0)}
+  }
+  return {right:RIGHT150F.clone(),up:UP150F.clone()}
+}
+
+function topPose150(camera:THREE.Camera,bounds:ReturnType<typeof planBounds150>,aspect:number,points:readonly P150[]):Pose150{
   const target=new THREE.Vector3(bounds.cx,0,bounds.cy)
   const zoom=Math.max(1,(camera as THREE.OrthographicCamera).zoom||1)
   let distance=12
@@ -46,7 +64,8 @@ function topPose150(camera:THREE.Camera,bounds:ReturnType<typeof planBounds150>,
   const position=new THREE.Vector3(bounds.cx,distance,bounds.cy)
   // Blueprint X/Y maps onto 3D X/Z; the overhead camera is exactly vertical.
   // An explicit orthogonal basis avoids roll at the camera's polar singularity.
-  const topView=new THREE.Matrix4().makeBasis(RIGHT150F,UP150F,BACK150F)
+  const {right,up}=topBasis150h(points)
+  const topView=new THREE.Matrix4().makeBasis(right,up,BACK150F)
   return {position,rotation:new THREE.Quaternion().setFromRotationMatrix(topView),target,zoom:newZoom}
 }
 function snapshot150(camera:THREE.Camera,control:Control150|null,fallbackTarget:THREE.Vector3):Pose150{
@@ -112,7 +131,7 @@ export default function CameraFlight150({points}:{points:readonly P150[]}){
     const unregister=registerExit150((done)=>{
       const controls=controls150()
       const bounds=planBounds150(latest.current.points,currentFrame150())
-      const bird=topPose150(camera,bounds,latest.current.aspect)
+      const bird=topPose150(camera,bounds,latest.current.aspect,latest.current.points)
       // Reverse starts from the exact displayed quaternion, including any user rotation.
       const current=snapshot150(camera,controls,bird.target)
       queuedEntry.current=null
@@ -148,7 +167,7 @@ export default function CameraFlight150({points}:{points:readonly P150[]}){
       initialPose.current=original
       initialControlsEnabled.current=controls?.enabled
       const bounds=planBounds150(latest.current.points,incoming.frame)
-      const bird=topPose150(camera,bounds,latest.current.aspect)
+      const bird=topPose150(camera,bounds,latest.current.aspect,latest.current.points)
       freezeOrbit150f()
       apply(bird)
       // Hold the top pose until it has actually been rendered by WebGL.
