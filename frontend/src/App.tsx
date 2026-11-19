@@ -7,7 +7,8 @@ import { readStairPairs148, saveStairPairs148, linkStairs148, inferLegacyStairPa
 import { readRoofSlopes148, saveRoofSlopes148, nearestRoomEdge148, inwardRoofAngle148, angleVector148, ROOF_EVENT148, type RoofSlope148 } from './building/roofSlopes148'
 import RoofEditor148 from './components/RoofEditor148'
 import type { PointerEvent as RoofPointer149 } from 'react'
-import { cleanSlab149, dragRoofLine149 } from './building/levelGeometry149' 
+import { cleanSlab149 } from './building/levelGeometry149'
+import { snapRoofDrag149e } from './building/roofSnap149e' // STROM149E_ROOF_SNAP 
 import Building3DWorkspace from './components/Building3DWorkspace'
 import {
   createObject,
@@ -1441,7 +1442,7 @@ function FloorplanEditor({
   const [titleDrag, setTitleDrag] = useState<{ roomId: string; startClientX: number; startClientY: number; startOffset: TitleOffset } | null>(null)
   const [stairPairs148, setStairPairs148] = useState<StairPairs148>(() => readStairPairs148(floor.id, window.localStorage))
   const [roofSlopes148, setRoofSlopes148] = useState<RoofSlope148[]>(() => readRoofSlopes148(floor.id, window.localStorage))
-  const roofDrag149 = useRef<{id:string;mode:'move'|'start'|'end';initial:RoofSlope148;origin:PointM}|null>(null)
+  const roofDrag149 = useRef<{id:string;mode:'move'|'start'|'end'|'direction';initial:RoofSlope148;origin:PointM}|null>(null)
   const roofLive149 = useRef<RoofSlope148[]>([])
 
   const [roofStart148, setRoofStart148] = useState<PointM|null>(null)
@@ -1492,7 +1493,7 @@ function FloorplanEditor({
     const px=mToX(1)-mToX(0),py=mToY(1)-mToY(0)
     return Math.abs(px)>1e-9&&Math.abs(py)>1e-9?{x:(local.x-mToX(0))/px,y:(local.y-mToY(0))/py}:null
   }
-  function beginRoofDrag149(event:RoofPointer149<SVGElement>,roof:RoofSlope148,mode:'move'|'start'|'end') {
+  function beginRoofDrag149(event:RoofPointer149<SVGElement>,roof:RoofSlope148,mode:'move'|'start'|'end'|'direction') {
     if(event.button!==0)return
     const pos=pointerToMeters149(event)
     if(!pos)return
@@ -1507,7 +1508,7 @@ function FloorplanEditor({
     if(!active||!pos)return
     event.stopPropagation()
     const dx=pos.x-active.origin.x,dy=pos.y-active.origin.y
-    const next=dragRoofLine149(active.initial,active.mode,dx,dy)
+    const next=snapRoofDrag149e(active.initial,active.mode,dx,dy,pos,rooms,roofLive149.current,event.shiftKey)
     roofLive149.current=roofLive149.current.map(item=>item.id===active.id?next:item)
     setRoofSlopes148(roofLive149.current)
   }
@@ -3231,7 +3232,7 @@ function toggleRecessOffsetDirection() {
           </div>
         )}
         {tool==='roof' && <div className="strom-roof-help148" title="Die Dachschräge wird im ausgewählten Raum gespeichert">Dachschräge: {roofStart148?'zweiten Punkt der Startlinie setzen':'ersten Punkt der Startlinie setzen'} · anschließend Parameter einstellen</div>}
-        {selectedRoof148 && <div className="strom-roof-floating148"><RoofEditor148 floorId={floor.id} roofId={selectedRoof148}
+        {selectedRoof148 && <div className="strom-roof-floating148"><RoofEditor148 onSelectRoof149e={setSelectedRoof148} floorId={floor.id} roofId={selectedRoof148}
           onClose={()=>setSelectedRoof148('')}/></div>}
         <CanvasRulers zoom={zoom} scrollLeft={scrollPosition.left} scrollTop={scrollPosition.top} />
         <div className="canvas-scroll" ref={canvasScrollRef} onWheelCapture={handleCanvasWheel} onScroll={handleCanvasScroll}>
@@ -3315,12 +3316,25 @@ function toggleRecessOffsetDirection() {
                 onPointerMove={moveRoofDrag149} onPointerUp={endRoofDrag149} onPointerCancel={endRoofDrag149}>
                 <title>{`Dachschräge: ${roof.pitchDeg}°, Beginn ${Math.round(roof.startHeightM*1000)} mm. Anklicken zum Bearbeiten.`}</title>
                 <line x1={mToX(roof.start.x)} y1={mToY(roof.start.y)} x2={mToX(roof.end.x)} y2={mToY(roof.end.y)}/>
-                {selectedRoof148===roof.id&&<>
-                  <circle className="strom-roof-handle149" cx={mToX(roof.start.x)} cy={mToY(roof.start.y)} r={8/zoom}
-                    onPointerDown={event=>beginRoofDrag149(event,roof,'start')}><title>Startpunkt der Dachlinie drehen oder verschieben</title></circle>
-                  <circle className="strom-roof-handle149" cx={mToX(roof.end.x)} cy={mToY(roof.end.y)} r={8/zoom}
-                    onPointerDown={event=>beginRoofDrag149(event,roof,'end')}><title>Endpunkt der Dachlinie drehen oder verschieben</title></circle>
-                </>}
+                {/* STROM149E_ROOF_HANDLES: movable end points and draggable direction */}
+                {(()=>{
+                  const centerX=(roof.start.x+roof.end.x)/2
+                  const centerY=(roof.start.y+roof.end.y)/2
+                  const angle=roof.directionDeg*Math.PI/180
+                  const endX=centerX+Math.cos(angle)*0.55
+                  const endY=centerY+Math.sin(angle)*0.55
+                  return <>
+                    <line className="strom-roof-direction149e" x1={mToX(centerX)} y1={mToY(centerY)} x2={mToX(endX)} y2={mToY(endY)}/>
+                    {selectedRoof148===roof.id&&<>
+                      <circle className="strom-roof-handle149" cx={mToX(roof.start.x)} cy={mToY(roof.start.y)} r={8/zoom}
+                        onPointerDown={event=>beginRoofDrag149(event,roof,'start')}><title>Startpunkt verschieben</title></circle>
+                      <circle className="strom-roof-handle149" cx={mToX(roof.end.x)} cy={mToY(roof.end.y)} r={8/zoom}
+                        onPointerDown={event=>beginRoofDrag149(event,roof,'end')}><title>Endpunkt verschieben</title></circle>
+                      <circle className="strom-roof-direction-grip149e" cx={mToX(endX)} cy={mToY(endY)} r={9/zoom}
+                        onPointerDown={event=>beginRoofDrag149(event,roof,'direction')}><title>Richtungswinkel ziehen; Shift: 15-Grad-Raster</title></circle>
+                    </>}
+                  </>
+                })()}
                 <line className="strom-roof-arrow148" x1={mToX(middle.x)} y1={mToY(middle.y)} x2={mToX(tip.x)} y2={mToY(tip.y)}/>
                 <text x={mToX(tip.x)} y={mToY(tip.y)-7} textAnchor="middle">{roof.pitchDeg}° · {Math.round(roof.startHeightM*1000)} mm</text>
               </g>

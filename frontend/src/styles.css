@@ -4892,3 +4892,42 @@ svg [class*="dimension"], svg [class*="technical"], svg [class*="measure"] { vec
 .strom-roof-reference149 select {width:100%;max-width:100%;min-height:31px;border:1px solid #b7c8df;border-radius:5px;background:white;color:#234;}
 .strom-roof-reference149 button {min-height:31px;border:1px solid #a4bcdf;border-radius:5px;background:#e8f0fd;color:#234f93;cursor:pointer;}
 .strom-roof-reference149 button:disabled {opacity:.5;cursor:default;}
+
+/* STROM149E_LEVEL_ROW: one level = one row, numeric inputs have sufficient width. */
+.canvas-layer-menu:not(.wall-layer-menu) .layer-row {
+  display:grid !important;
+  grid-template-columns:26px 26px minmax(52px,1fr) minmax(76px,84px) minmax(62px,68px) !important;
+  grid-template-areas:"eye grip name height slab" !important;
+  gap:4px !important;
+  align-items:center !important;
+  padding:4px !important;
+  min-height:47px;
+}
+.canvas-layer-menu:not(.wall-layer-menu) .layer-row > .layer-eye { grid-area:eye; }
+.canvas-layer-menu:not(.wall-layer-menu) .layer-row > .layer-grip { grid-area:grip; }
+.canvas-layer-menu:not(.wall-layer-menu) .layer-row > input[aria-label="Ebenenname"] { grid-area:name; width:100% !important;min-width:0;box-sizing:border-box;padding:2px !important; }
+.canvas-layer-menu:not(.wall-layer-menu) .layer-row > .layer-height-control:not(.layer-slab-control149) {grid-area:height;}
+.canvas-layer-menu:not(.wall-layer-menu) .layer-row > .layer-slab-control149 {grid-area:slab;}
+.canvas-layer-menu:not(.wall-layer-menu) .layer-row > .layer-height-control {
+  display:flex !important;flex-direction:column !important;align-items:stretch !important;
+  min-width:0 !important;width:100% !important;max-width:none !important;
+  gap:2px;margin:0 !important;padding:0 !important;border:0 !important;
+}
+.canvas-layer-menu:not(.wall-layer-menu) .layer-row > .layer-height-control span {
+  white-space:nowrap !important;font-size:10px !important;line-height:1.1 !important;
+  display:block !important;max-width:100%;
+}
+.canvas-layer-menu:not(.wall-layer-menu) .layer-row > .layer-height-control input {
+  display:block !important;width:100% !important;max-width:100% !important;min-width:0 !important;
+  box-sizing:border-box !important;padding:3px 2px !important;font-size:12px !important;
+  text-align:left !important;height:28px !important;
+}
+.canvas-layer-menu:not(.wall-layer-menu) .layer-list {overflow-x:hidden;}
+.strom-roof-direction149e {stroke:#2563eb;stroke-width:1.6;stroke-dasharray:5 3;pointer-events:none;opacity:.8;}
+.strom-roof-direction-grip149e {fill:#dbecff;stroke:#1550a0;stroke-width:2;cursor:grab;pointer-events:all;touch-action:none;}
+.strom-roof-reference-list149e {display:grid;gap:5px;max-height:150px;overflow:auto;}
+.strom-roof-reference-entry149e {display:flex;gap:5px;align-items:center;}
+.strom-roof-reference-entry149e button:first-child {min-width:0;flex:1;text-align:left;}
+.strom-roof-reference-entry149e button:last-child {flex:0 0 auto;}
+.strom-roof-reference149 > label {display:grid;gap:3px;font-size:11px;}
+.strom-roof-field148 input[type="text"] {max-width:100%;min-height:30px;box-sizing:border-box;}

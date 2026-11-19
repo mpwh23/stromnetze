@@ -7,6 +7,7 @@ export type RoofSlope148 = {
   levelId: string
   start: PointM
   end: PointM
+  name?: string // STROM149E_ROOF_NAME; legacy slopes remain valid
   /** Degrees clockwise from +X on the Blueprint (0=right, 90=down). */
   directionDeg: number
   pitchDeg: number
@@ -31,6 +32,7 @@ export function normalizeSlope148(v: unknown): RoofSlope148 | null {
       pitchDeg < 0 || pitchDeg > 65 || startHeightM < -15 || startHeightM > 15 ||
       Math.hypot(r.end.x-r.start.x, r.end.y-r.start.y) < 0.03) return null
   return {id:r.id,roomId:r.roomId,levelId:r.levelId,start:{...r.start},end:{...r.end},
+    ...(typeof r.name==='string'&&r.name.trim()?{name:r.name.trim().slice(0,60)}:{}),
     directionDeg: ((directionDeg%360)+360)%360, pitchDeg, startHeightM}
 }
 export function readRoofSlopes148(floorId: string, store: Pick<Storage,'getItem'>): RoofSlope148[] {
