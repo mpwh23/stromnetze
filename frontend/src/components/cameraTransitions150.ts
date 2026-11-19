@@ -132,10 +132,10 @@ function collectBlueprintExtents150p(mode:Mode150,floorId:string){
     panel=document.createElement('pre')
     panel.id=panelId
     panel.setAttribute('role','status')
-    panel.style.cssText='position:fixed;top:16px;right:16px;z-index:2147483647;pointer-events:none;'
+    panel.style.cssText='position:fixed;bottom:16px;left:16px;top:auto;right:auto;z-index:2147483647;pointer-events:none;'
       +'padding:12px 14px;border-radius:8px;background:rgba(18,32,54,.94);color:#fff;'
       +'box-shadow:0 3px 15px rgba(0,0,0,.25);font:12px/1.5 ui-monospace,monospace;'
-      +'max-width:430px;white-space:pre-wrap;'
+      +'max-width:min(480px, calc(100vw - 32px));max-height:calc(100vh - 32px);overflow-y:auto;white-space:pre-wrap;'
     document.body.appendChild(panel)
   }
   const o=d.outsidePx

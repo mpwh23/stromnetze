@@ -6,6 +6,7 @@ import {
   registerExit150, notifyEnterReady150, DURATION150, ENTER_FADE150,
 } from './cameraTransitions150'
 import type { BlueprintFrame150, Enter150 } from './cameraTransitions150'
+import { captureCameraHandoff155 } from './cameraHandoffDiagnostics155' // STROM155_CAMERA_VIEWPORT_DIAGNOSTICS
 import { captureThreeFloorExtrema150q } from './threeFloorExtrema150q' // STROM150Q_3D_FLOOR_EXTENTS
 import { calibrateFloorStart150r, floorWorldPoints150r } from './cameraFloorMatch150r' // STROM150R_CAMERA_MATCH
 import { alignBlueprintGrid154 } from './cameraGridAlignment154' // STROM154_GRID_PIXEL_ALIGNMENT
@@ -315,6 +316,11 @@ export default function CameraFlight150({ points }: { points: readonly PlanPoint
         try {
           captureThreeFloorExtrema150q(pointsRef.current, state.camera, state.gl.domElement, 0, floorWorldPoints150r(state.scene))
         } catch (error) { console.warn('[STROM 150q] 3D-Boden-Messung fehlgeschlagen', error) }
+        // STROM155_CAMERA_VIEWPORT_DIAGNOSTICS: last fitted, LIVE R3F camera.
+        // Read-only: does not change the start pose, controls, FOV or animation.
+        try {
+          captureCameraHandoff155(state.camera,state.gl.domElement,currentFrame150())
+        } catch (error) {console.warn('[STROM 155] Kameradiagnose fehlgeschlagen',error)}
         notifyEnterReady150()
       }
       return
