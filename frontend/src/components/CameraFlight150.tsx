@@ -78,10 +78,12 @@ function snapshot150(camera:THREE.Camera,control:Control150|null,fallbackTarget:
 
 /** Hold the real Blueprint through 3D load; fade 500ms then fly 1500ms. */
 export default function CameraFlight150({points}:{points:readonly P150[]}){
-  const camera=useThree(state=>state.camera)
+  // STROM150J_ACTIVE_RENDER_CAMERA: do not subscribe to a potentially changing camera.
+  // Always address the camera actually used by the Canvas renderer.
   // Never subscribe to changing OrbitControls identity: its late registration caused
   // a useLayoutEffect cleanup/re-entry and jumped the camera back to its old angle.
   const getState=useThree(state=>state.get)
+  const activeCamera150j=()=>getState().camera
   const size=useThree(state=>state.size)
   const invalidate=useThree(state=>state.invalidate)
   const gl=useThree(state=>state.gl)
@@ -89,6 +91,7 @@ export default function CameraFlight150({points}:{points:readonly P150[]}){
   const entryWaiting=useRef(false)
   const queuedEntry=useRef<Enter150|null>(null)
   const flight=useRef<Flight150|null>(null)
+  const flightCamera150j=useRef<THREE.Camera|null>(null)
   const initialPose=useRef<Pose150|null>(null)
   const initialControlsEnabled=useRef<boolean|undefined>(undefined)
   const latest=useRef<{points:readonly P150[];aspect:number}>({points,aspect:Math.max(.3,size.width/Math.max(size.height,1))})
@@ -116,13 +119,14 @@ export default function CameraFlight150({points}:{points:readonly P150[]}){
   }
 
   const apply=(pose:Pose150)=>{
-    camera.position.copy(pose.position)
-    camera.quaternion.copy(pose.rotation)
+    const camera150j=activeCamera150j()
+    camera150j.position.copy(pose.position)
+    camera150j.quaternion.copy(pose.rotation)
     const controls=controls150()
     if(controls?.target)controls.target.copy(pose.target)
-    const ortho=camera as THREE.OrthographicCamera
+    const ortho=camera150j as THREE.OrthographicCamera
     if(ortho.isOrthographicCamera){ortho.zoom=pose.zoom;ortho.updateProjectionMatrix()}
-    camera.updateMatrixWorld()
+    camera150j.updateMatrixWorld()
     invalidate()
   }
   useLayoutEffect(()=>{
@@ -131,9 +135,10 @@ export default function CameraFlight150({points}:{points:readonly P150[]}){
     const unregister=registerExit150((done)=>{
       const controls=controls150()
       const bounds=planBounds150(latest.current.points,currentFrame150())
-      const bird=topPose150(camera,bounds,latest.current.aspect,latest.current.points)
+      const bird=topPose150(activeCamera150j(),bounds,latest.current.aspect,latest.current.points)
       // Reverse starts from the exact displayed quaternion, including any user rotation.
-      const current=snapshot150(camera,controls,bird.target)
+      const current=snapshot150(activeCamera150j(),controls,bird.target)
+      flightCamera150j.current=activeCamera150j()
       queuedEntry.current=null
       entryWaiting.current=false
       freezeOrbit150f()
@@ -151,11 +156,12 @@ export default function CameraFlight150({points}:{points:readonly P150[]}){
       if(queuedEntry.current)restoreEntry150(queuedEntry.current)
       queuedEntry.current=null
       flight.current=null
+      flightCamera150j.current=null
       entryWaiting.current=false
     }
   // Camera and renderer identity are stable for this Canvas; controls can change.
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  },[camera,gl,getState])
+  },[gl,getState])
 
   useFrame(()=>{
     if(queuedEntry.current){
@@ -163,11 +169,12 @@ export default function CameraFlight150({points}:{points:readonly P150[]}){
       // OrbitControls may register late or not exist. Camera flight still begins.
       const incoming=queuedEntry.current
       queuedEntry.current=null
-      const original=snapshot150(camera,controls,new THREE.Vector3())
+      const original=snapshot150(activeCamera150j(),controls,new THREE.Vector3())
+      flightCamera150j.current=activeCamera150j()
       initialPose.current=original
       initialControlsEnabled.current=controls?.enabled
       const bounds=planBounds150(latest.current.points,incoming.frame)
-      const bird=topPose150(camera,bounds,latest.current.aspect,latest.current.points)
+      const bird=topPose150(activeCamera150j(),bounds,latest.current.aspect,latest.current.points)
       freezeOrbit150f()
       apply(bird)
       // Hold the top pose until it has actually been rendered by WebGL.
@@ -181,16 +188,31 @@ export default function CameraFlight150({points}:{points:readonly P150[]}){
     if(!running)return
     // Re-acquire controls if Drei registers them after the first frame.
     freezeOrbit150f()
+    const liveCamera150j=activeCamera150j()
+    if(flightCamera150j.current!==liveCamera150j){
+      if(entryWaiting.current||performance.now()<running.started){
+        const bounds150j=planBounds150(latest.current.points,currentFrame150())
+        running.end=snapshot150(liveCamera150j,controls150(),running.end.target)
+        running.start=topPose150(liveCamera150j,bounds150j,latest.current.aspect,latest.current.points)
+      }
+      flightCamera150j.current=liveCamera150j
+    }
     if(entryWaiting.current){
+      // Make the real 3D start image stable BEFORE announcing readiness.
+      apply(running.start)
       // The previous useFrame applied the top pose; one R3F render has now completed.
       // No renderer.info counters, which can be reset by React Three Fiber/Three.
       entryWaitFrames150e.current++
-      if(entryWaitFrames150e.current>=1){
+      if(entryWaitFrames150e.current>=2){
         entryWaiting.current=false
         running.started=performance.now()+ENTER_FADE150
         notifyEnterReady150()
       }
       invalidate()
+      return
+    }
+    if(performance.now()<running.started){
+      apply(running.start)
       return
     }
     const t=clamp150((performance.now()-running.started)/DURATION150,0,1)
