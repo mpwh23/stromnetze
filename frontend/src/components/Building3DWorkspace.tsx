@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { Canvas, ThreeEvent, useFrame, useThree } from '@react-three/fiber'
 import * as THREE from 'three'
 import RoofMeshes148 from './RoofMeshes148'
+import CameraFlight150 from './CameraFlight150'
 import FloorSlab149 from './FloorSlab149'
 import { clipSolidWalls149 } from '../building/roofCut149'
 import { readRoofSlopes148 } from '../building/roofSlopes148'
@@ -346,7 +347,9 @@ function RealBuildingScene({ model, stairs, extraLevels146, activeOffsetM146, sh
             onSelect={() => { onSelectRoom(surface.roomId); onSelectDoor(''); onSelectWall?.(null) }}
           />
         ))}
-        <RoofScope149.Provider value={{levelId:activeLevelId148,revision:roofRevision148}}><SolidWallMeshes
+        <RoofScope149.Provider value={{levelId:activeLevelId148,revision:roofRevision148}}>
+            {/* STROM150_CAMERA: model XY = Blueprint XY, floor plane = 3D XZ */}
+            <CameraFlight150 points={model.rooms.flatMap(room150 => room150.vertices)} /><SolidWallMeshes
           model={model}
           onSelectRoom={(id) => { onSelectRoom(id); onSelectDoor('') }}
           onSelectWall={onSelectWall}

@@ -1,3 +1,4 @@
+import StromIcon150 from './StromIcon150' // STROM150_ICON_AST
 import { useEffect, useState, type ChangeEvent } from 'react'
 import { readRoofSlopes148, saveRoofSlopes148, ROOF_EVENT148, type RoofSlope148 } from '../building/roofSlopes148'
 import { cleanSlab149, levelElevations149, inheritRoofPlane149 } from '../building/levelGeometry149'
@@ -81,7 +82,7 @@ export default function RoofEditor148({floorId,roofId,onClose,onChanged,onSelect
     }catch(error){setNotice(error instanceof Error?error.message:String(error))}
   }
   return <section className="strom-roof-editor148" aria-label="Dachschräge bearbeiten">
-    <header><strong>Dachschräge · Eigenschaften</strong><button type="button" title="Schließen" onClick={onClose}>×</button></header>
+    <header><strong>Dachschräge · Eigenschaften</strong><button type="button" title="Schließen" onClick={onClose}><StromIcon150 name="close" title="Schließen" /></button></header>
     <label className="strom-roof-field148">Name
       <input type="text" maxLength={60} value={draft.name??''} placeholder={named149e(draft)}
         onChange={(e:ChangeEvent<HTMLInputElement>)=>patch({name:e.target.value})}/>

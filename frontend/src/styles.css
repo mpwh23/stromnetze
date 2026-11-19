@@ -4931,3 +4931,9 @@ svg [class*="dimension"], svg [class*="technical"], svg [class*="measure"] { vec
 .strom-roof-reference-entry149e button:last-child {flex:0 0 auto;}
 .strom-roof-reference149 > label {display:grid;gap:3px;font-size:11px;}
 .strom-roof-field148 input[type="text"] {max-width:100%;min-height:30px;box-sizing:border-box;}
+
+/* STROM150_SVG_ICONS: reduced unified CAD/architecture icon language. */
+.strom-icon150 {display:inline-block;width:1.15em;height:1.15em;min-width:1.05em;flex:none;vertical-align:-.19em;fill:none;stroke:currentColor;stroke-width:1.65;stroke-linecap:round;stroke-linejoin:round;overflow:visible}
+.nav-icon .strom-icon150,.canvas-toolbox .strom-icon150,.canvas-layer-menu .strom-icon150 {width:19px;height:19px}
+.canvas-toolbox button,.canvas-layer-menu button {align-items:center;justify-content:center}
+/* Keep pre-existing button colors, focus outlines, tooltips and selected states. */

@@ -1,3 +1,5 @@
+import {queueEntry150,requestExit150} from './components/cameraTransitions150' // STROM150_CAMERA_BRIDGE
+import StromIcon150 from './components/StromIcon150'
 import { type CSSProperties, ChangeEvent as ReactChangeEvent, DragEvent as ReactDragEvent, MouseEvent as ReactMouseEvent, WheelEvent as ReactWheelEvent, useEffect, useMemo, useRef, useState } from 'react'
 import StromIcon from './components/StromIcon'
 import { snapPointToVisibleRooms143, snapRectangleHandle143, snapMovedVerticesToVisibleRooms143 } from './building/neighborSnap143'
@@ -701,6 +703,13 @@ export function App() {
 
   function handleViewModeClick(mode: ViewMode) {
     if (!canUseViewMode(mode)) return
+    // STROM150_CAMERA_NAV: finish the bird's-eye flyover before unmounting 3D.
+    if (mode === 'floorplan' && (viewMode === 'wall' || viewMode === 'threeD')) {
+      if (requestExit150(() => setViewMode('floorplan'))) return
+    }
+    if (viewMode === 'floorplan' && (mode === 'wall' || mode === 'threeD') && floor) {
+      queueEntry150(mode, floor.id)
+    }
     if (mode === 'wall' && viewMode !== 'wall') setLegacyWallDetail(false)
     if (viewMode === 'wall' && mode === 'floorplan' && floor) {
       const storedViewport = loadCanvasViewport(floor.id)
@@ -5034,7 +5043,7 @@ function DistanceFloatingPanel({
     <div className="distance-floating-panel">
       <div className="floating-header">
         <strong>Abstand einstellen</strong>
-        <button type="button" onClick={onClose} aria-label="Abstand schliessen">×</button>
+        <button type="button" onClick={onClose} aria-label="Abstand schliessen"><StromIcon150 name="close" title="Schließen" /></button>
       </div>
       <p>{pair.first.axis === 'vertical' ? 'Senkrechte Kanten: horizontaler Abstand' : 'Waagerechte Kanten: vertikaler Abstand'}</p>
       <label>Abstand mm<MmNumberInput valueM={pair.distanceM} minM={0} onChangeM={onDistanceChange} /></label>
@@ -6569,10 +6578,10 @@ function WallDetailEditor({
     <div className={`floorplan-layout wall-detail-layout ${introReady ? 'wall-ready' : 'wall-start'}`}>
       <div className="canvas-toolbar-row">
         <div className="canvas-toolbox" aria-label="Wanddetail Werkzeuge">
-          <button title="Letzte Aktion rueckgaengig" data-tooltip="Rueckgaengig" aria-label="Letzte Aktion rueckgaengig" disabled={!canUndo} onMouseDown={(event) => event.preventDefault()} onClick={onUndo}>↶</button>
+          <button title="Letzte Aktion rueckgaengig" data-tooltip="Rueckgaengig" aria-label="Letzte Aktion rueckgaengig" disabled={!canUndo} onMouseDown={(event) => event.preventDefault()} onClick={onUndo}><StromIcon150 name="undo" title="Rückgängig" /></button>
           <span className="tool-divider" />
-          <button title="Drehen und Waende auswaehlen" data-tooltip="Drehen/Auswahl" aria-label="Drehen und Waende auswaehlen" className="active" onMouseDown={(event) => event.preventDefault()} onClick={() => setViewTool('rotate')}>↻</button>
-          <button title="Ansicht zuruecksetzen" data-tooltip="Ansicht zuruecksetzen" aria-label="3D-Ansicht zuruecksetzen" disabled={Math.abs(rotationDeg - defaultWallViewYawDeg) < 0.05 && Math.abs(tiltDeg - defaultWallViewPitchDeg) < 0.05} onMouseDown={(event) => event.preventDefault()} onClick={resetWallViewportRotation}>⟲</button>
+          <button title="Drehen und Waende auswaehlen" data-tooltip="Drehen/Auswahl" aria-label="Drehen und Waende auswaehlen" className="active" onMouseDown={(event) => event.preventDefault()} onClick={() => setViewTool('rotate')}><StromIcon150 name="rotate" title="Drehen" /></button>
+          <button title="Ansicht zuruecksetzen" data-tooltip="Ansicht zuruecksetzen" aria-label="3D-Ansicht zuruecksetzen" disabled={Math.abs(rotationDeg - defaultWallViewYawDeg) < 0.05 && Math.abs(tiltDeg - defaultWallViewPitchDeg) < 0.05} onMouseDown={(event) => event.preventDefault()} onClick={resetWallViewportRotation}><StromIcon150 name="rotate" title="Drehen" /></button>
           <label className="wall-rotation-pill" title="Azimut in Grad eingeben">
             <input
               aria-label="Azimut in Grad"
@@ -6616,12 +6625,12 @@ function WallDetailEditor({
             <span>m</span>
           </label>
           <span className="tool-divider" />
-          <button title="Verkleinern" data-tooltip="Zoom verkleinern" aria-label="Canvas verkleinern" onMouseDown={(event) => event.preventDefault()} onClick={() => changeZoom(zoom - 0.15)}>−</button>
-          <button title="Scale to 100%" data-tooltip="Scale 100%" aria-label="Scale to 100%" className={Math.abs(zoom - 1) < 0.001 ? 'active' : ''} onMouseDown={(event) => event.preventDefault()} onClick={scaleCanvasTo100}>1:1</button>
+          <button title="Verkleinern" data-tooltip="Zoom verkleinern" aria-label="Canvas verkleinern" onMouseDown={(event) => event.preventDefault()} onClick={() => changeZoom(zoom - 0.15)}><StromIcon150 name="zoomOut" title="Verkleinern" /></button>
+          <button title="Scale to 100%" data-tooltip="Scale 100%" aria-label="Scale to 100%" className={Math.abs(zoom - 1) < 0.001 ? 'active' : ''} onMouseDown={(event) => event.preventDefault()} onClick={scaleCanvasTo100}><StromIcon150 name="zoomOne" title="Originalgröße" /></button>
           <span className="canvas-zoom-level" aria-label="Zoomstufe">{Math.round(zoom * 100)}%</span>
-          <button title="Vergroessern" data-tooltip="Zoom vergroessern" aria-label="Canvas vergroessern" onMouseDown={(event) => event.preventDefault()} onClick={() => changeZoom(zoom + 0.15)}>+</button>
-          <button title="Alle Elemente zentrieren" data-tooltip="Center all" aria-label="Alle Elemente zentrieren" disabled={visibleRooms.length === 0} onMouseDown={(event) => event.preventDefault()} onClick={centerAllRooms}>⛶</button>
-          <button title="Auswahl zoomen" data-tooltip="Auswahl zoomen" aria-label="Auf ausgewaehlte Wand zoomen" disabled={!selectedWall && !selectedRoomId} onMouseDown={(event) => event.preventDefault()} onClick={zoomToSelectedWall}>⌖</button>
+          <button title="Vergroessern" data-tooltip="Zoom vergroessern" aria-label="Canvas vergroessern" onMouseDown={(event) => event.preventDefault()} onClick={() => changeZoom(zoom + 0.15)}><StromIcon150 name="zoomIn" title="Vergrößern" /></button>
+          <button title="Alle Elemente zentrieren" data-tooltip="Center all" aria-label="Alle Elemente zentrieren" disabled={visibleRooms.length === 0} onMouseDown={(event) => event.preventDefault()} onClick={centerAllRooms}><StromIcon150 name="fullscreen" title="Vollbild" /></button>
+          <button title="Auswahl zoomen" data-tooltip="Auswahl zoomen" aria-label="Auf ausgewaehlte Wand zoomen" disabled={!selectedWall && !selectedRoomId} onMouseDown={(event) => event.preventDefault()} onClick={zoomToSelectedWall}><StromIcon150 name="focus" title="Zentrieren" /></button>
         </div>
       </div>
 
@@ -6640,7 +6649,7 @@ function WallDetailEditor({
 
       <div className="canvas-card wall-detail-card">
         <div className={`canvas-layer-menu wall-layer-menu ${layersOpen ? 'open' : ''}`} aria-label="Ebenen">
-          <button type="button" title="Ebenen" onClick={() => setLayersOpen((current) => !current)}>☰ {activeLayer.name}</button>
+          <button type="button" title="Ebenen" onClick={() => setLayersOpen((current) => !current)}><StromIcon150 name="menu" title="Menü" /> {activeLayer.name}</button>
           {layersOpen && (
             <div className="layer-menu-panel">
               <div className="layer-list">
@@ -7091,7 +7100,7 @@ function WallFrontOverlay({
           <span className="eyebrow">Frontalansicht</span>
           <strong>{title}</strong>
         </div>
-        <button type="button" aria-label="Frontalansicht schliessen" onClick={onClose}>×</button>
+        <button type="button" aria-label="Frontalansicht schliessen" onClick={onClose}><StromIcon150 name="close" title="Schließen" /></button>
       </div>
       <svg
         viewBox={`0 0 ${svgW} ${baseH}`}
@@ -8496,10 +8505,10 @@ function roomToPayload(room: Room) {
 }
 
 function viewModeIcon(mode: ViewMode) {
-  const name = mode === 'floorplan' ? 'blueprint'
-    : mode === 'wall' ? 'wall-detail'
-      : mode === 'board' ? 'lightning' : 'cube'
-  return <StromIcon name={name} title={viewModes.find((entry) => entry.id === mode)?.label ?? mode} size={22} />
+  if (mode === 'floorplan') return <StromIcon150 name="blueprint" title="Blueprint" />
+  if (mode === 'wall') return <StromIcon150 name="wall" title="Wanddetail" />
+  if (mode === 'board') return <StromIcon150 name="power" title="Elektrik" />
+  return <StromIcon150 name="house" title="3D-Haus" />
 }
 
 function toolLabel(tool: Tool) {
