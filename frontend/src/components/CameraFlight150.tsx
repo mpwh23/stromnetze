@@ -6,6 +6,7 @@ import {
   registerExit150, notifyEnterReady150, DURATION150, ENTER_FADE150,
 } from './cameraTransitions150'
 import type { BlueprintFrame150, Enter150 } from './cameraTransitions150'
+import { captureThreeFloorExtrema150q } from './threeFloorExtrema150q' // STROM150Q_3D_FLOOR_EXTENTS
 
 type PlanPoint = { x: number; y: number }
 type OrbitControl = { target?: THREE.Vector3; enabled?: boolean; update?: () => void }
@@ -292,6 +293,11 @@ export default function CameraFlight150({ points }: { points: readonly PlanPoint
       if (running.preparedFrames >= 3) {
         running.phase = 'fade'
         running.startedAt = performance.now() + ENTER_FADE150
+        // STROM150Q_3D_FLOOR_EXTENTS: actual 3D camera projection at the start of the fade.
+        // This diagnostic never changes camera/controls or delays the animation.
+        try {
+          captureThreeFloorExtrema150q(pointsRef.current, state.camera, state.gl.domElement, 0)
+        } catch (error) { console.warn('[STROM 150q] 3D-Boden-Messung fehlgeschlagen', error) }
         notifyEnterReady150()
       }
       return
