@@ -21,6 +21,49 @@ type CameraPose = {
   up: THREE.Vector3
   zoom: number
 }
+// STROM158_REVERSE_EXACT: reuse the calibrated Blueprint pose from the entry.
+function clonePose158(p:CameraPose):CameraPose{
+  return {position:p.position.clone(),rotation:p.rotation.clone(),
+    target:p.target.clone(),up:p.up.clone(),zoom:p.zoom}
+}
+/** Check all three canonical world-grid anchors at the reverse endpoint.
+ * No guess-based model or Blueprint shifts. Measurements are in CSS pixels. */
+function checkReverseAxes158(scene:THREE.Object3D,camera:THREE.Camera,
+  canvas:HTMLCanvasElement,frame:BlueprintFrame150|null):void{
+  const b=frame?.screen150o
+  if(!b)return
+  const rect=canvas.getBoundingClientRect()
+  if(!(rect.width>20&&rect.height>20))return
+  scene.updateMatrixWorld(true)
+  let marker:THREE.Object3D|null=null
+  scene.traverse(obj=>{
+    if(!marker&&obj.name==='strom150r-floor-reference'&&obj.userData?.active150r===true)marker=obj
+  })
+  const matrix=marker?(marker as THREE.Object3D).matrixWorld.clone():new THREE.Matrix4()
+  matrix.elements[13]=0
+  camera.updateMatrixWorld(true)
+  const compare=(x:number,y:number)=>{
+    const point=new THREE.Vector3(x,0,y).applyMatrix4(matrix)
+    point.y=0
+    const projected=point.project(camera)
+    const sx=rect.left+(projected.x+1)*rect.width/2
+    const sy=rect.top+(1-projected.y)*rect.height/2
+    const bx=b.x+b.ax*x+b.bx*y,by=b.y+b.ay*x+b.by*y
+    return Math.hypot(sx-bx,sy-by)
+  }
+  const zero=compare(0,0),x1=compare(1,0),y1=compare(0,1)
+  const toEye=camera.getWorldDirection(new THREE.Vector3()).negate().normalize()
+  const verticalError=Math.hypot(toEye.x,toEye.z)
+  const result={version:158,phase:'3D -> Blueprint, end of 5s reverse flight',
+    gridErrorPx:{zero,x1,y1,max:Math.max(zero,x1,y1)},
+    normalToEyeXYZ:{x:toEye.x,y:toEye.z,z:toEye.y},
+    perpendicularError:verticalError,
+    canvas:{left:rect.left,top:rect.top,width:rect.width,height:rect.height}}
+  try{window.localStorage.setItem('strom.camera158.returnAlignment',JSON.stringify(result))}catch{/* optional */}
+  console.info('[STROM 158] Exit frame grid/axes (0,0), (+1,0), (0,+1)',result)
+  if(result.gridErrorPx.max>0.5||verticalError>1e-4)
+    console.warn('[STROM 158] Screen/grid or normal mismatch at Blueprint return',result)
+}
 type Flight = {
   kind: 'entry' | 'exit'
   phase: 'settle' | 'prepare' | 'fade' | 'flight'
@@ -180,6 +223,7 @@ export default function CameraFlight150({ points }: { points: readonly PlanPoint
   const flight = useRef<Flight | null>(null)
   const frozen = useRef<FrozenControl | null>(null)
   const pointsRef = useRef(points)
+  const exactOverhead158=useRef<{pose:CameraPose;offset?:ViewOffset156}|null>(null)
   pointsRef.current = points
 
   const orbit = () => (get().controls || null) as OrbitControl | null
@@ -224,6 +268,7 @@ export default function CameraFlight150({ points }: { points: readonly PlanPoint
       pending.current = null
       requestedExit.current = null
       flight.current = null
+      exactOverhead158.current = null
       unlock()
       // Never leave off-axis camera projection behind after unmount.
       clearViewOffset156(get().camera)
@@ -237,19 +282,40 @@ export default function CameraFlight150({ points }: { points: readonly PlanPoint
     const control = orbit()
     const aspect = Math.max(0.3, state.size.width / Math.max(1, state.size.height))
 
-    // Preserve the existing reverse-flight implementation for a separate update.
+    // STROM158_REVERSE_EXACT: reverse the actual calibrated entry pose,
+    // rather than constructing an uncalibrated overhead approximation.
     if (requestedExit.current) {
       const finish = requestedExit.current
       requestedExit.current = null
       pending.current = null
       const original = capture(camera, control)
-      const top = overheadPose(camera, pointsRef.current, currentFrame150(), aspect,
-        original.target.y, state.gl.domElement)
+      const matched=exactOverhead158.current
+      const top=matched?clonePose158(matched.pose):overheadPose(
+        camera,pointsRef.current,currentFrame150(),aspect,
+        original.target.y,state.gl.domElement)
+      let offset=matched?.offset?{...matched.offset}:undefined
       lock()
+      // Re-check the canonical BP 0/+1 m axes against the currently mounted scene
+      // before moving; never change the Blueprint model, axes or grid data.
+      const frame=currentFrame150()
+      if(frame?.screen150o){
+        clearViewOffset156(camera)
+        apply(camera,top)
+        try{
+          const aligned=alignBlueprintGrid154(state.scene,camera,state.gl.domElement,
+            top,frame,pose=>apply(camera,pose))
+          if(aligned){
+            offset=alignBlueprintCenter156(state.scene,camera,state.gl.domElement,
+              top,frame,pose=>apply(camera,pose))||undefined
+          }
+        }catch(error){console.warn('[STROM 158] Reverse grid fit skipped',error)}
+        clearViewOffset156(camera)
+        apply(camera,original)
+      }
       flight.current = {
         kind: 'exit', phase: 'flight', start: original, end: top,
         startedAt: performance.now(), steady: 0, settleFrames: 0, preparedFrames: 0,
-        finish,
+        viewOffset156:offset,finish,
       }
     }
 
@@ -321,6 +387,9 @@ export default function CameraFlight150({ points }: { points: readonly PlanPoint
           }
         } catch(error){console.warn('[Strom 153] Viewport-Abgleich nicht möglich',error)}
         apply(camera,running.start)
+        // Exact start is also the destination of the reverse journey.
+        exactOverhead158.current={pose:clonePose158(running.start),
+          offset:running.viewOffset156?{...running.viewOffset156}:undefined}
         running.phase = 'fade'
         running.startedAt = performance.now() + ENTER_FADE150
         // STROM150Q_3D_FLOOR_EXTENTS: actual 3D camera projection at the start of the fade.
@@ -345,7 +414,9 @@ export default function CameraFlight150({ points }: { points: readonly PlanPoint
     }
 
     const t = clamp01((performance.now() - running.startedAt) / DURATION150)
-    const k = easeOut(t)
+    // Inverse temporal path: forward easeOut(s)=1-(1-s)^3,
+    // reverse progress=1-easeOut(1-t)=t^3. No camera jumps.
+    const k = running.kind==='exit'?t*t*t:easeOut(t)
     const a = running.start, b = running.end
     const pose: CameraPose = {
       position: a.position.clone().lerp(b.position, k),
@@ -356,15 +427,28 @@ export default function CameraFlight150({ points }: { points: readonly PlanPoint
       zoom: a.zoom + (b.zoom - a.zoom) * k,
     }
     apply(camera, pose)
-    // Ease the compensating lens offset to zero together with the camera.
-    // At the exact final frame the native, unshifted 3D camera is restored.
-    if(running.kind==='entry'&&running.viewOffset156)
-      applyViewOffset156(camera,running.viewOffset156,1-k)
+    // Entry: shifted -> unshifted; reverse: unshifted -> the same shifted BP view.
+    if(running.viewOffset156)
+      applyViewOffset156(camera,running.viewOffset156,
+        running.kind==='entry'?1-k:k)
     if (t < 1) return
 
     // STROM150N_NO_END_JUMP: no second camera pose or manual reset on unlock.
     apply(camera, b)
     if(running.kind==='entry'&&running.viewOffset156)clearViewOffset156(camera)
+    // The exit must remain overhead with the calibrated BP lens shift until
+    // the *subsequent* 5-second Blueprint cross-fade has finished.
+    if(running.kind==='exit'){
+      if(running.viewOffset156)applyViewOffset156(camera,running.viewOffset156,1)
+      // Independent measured floor-outline extrema, so the screenshot's tiny
+      // edge residual can be distinguished from axis and camera misalignment.
+      try{
+        const outline158=captureThreeFloorExtrema150q(pointsRef.current,camera,
+          state.gl.domElement,0,floorWorldPoints150r(state.scene))
+        if(outline158)window.localStorage.setItem('strom.camera158.returnFloor',JSON.stringify(outline158))
+      }catch(error){console.warn('[STROM 158] Reverse floor-outline check skipped',error)}
+      checkReverseAxes158(state.scene,camera,state.gl.domElement,currentFrame150())
+    }
     flight.current = null
     if (running.kind === 'exit') {
       running.finish?.()

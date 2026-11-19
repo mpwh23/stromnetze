@@ -1,8 +1,8 @@
 // STROM153_BP_AXIS_STYLES: XY lines use one viewport-pixel width.
 import {readZeroLevel151,writeZeroLevel151,resolveZeroLevel151} from './building/coordinateReference151' // STROM151_COORDINATE_DATUM
-import {queueEntry150,requestExit150,registerEnterReady150,ENTER_FADE150} from './components/cameraTransitions150' // STROM150_CAMERA_BRIDGE
+import {queueEntry150,requestExit150,registerEnterReady150,ENTER_FADE150,EXIT_FADE158,currentFrame150} from './components/cameraTransitions150' // STROM150_CAMERA_BRIDGE
 import StromIcon150 from './components/StromIcon150'
-import { type CSSProperties, ChangeEvent as ReactChangeEvent, DragEvent as ReactDragEvent, MouseEvent as ReactMouseEvent, WheelEvent as ReactWheelEvent, useEffect, useMemo, useRef, useState } from 'react'
+import { type CSSProperties, ChangeEvent as ReactChangeEvent, DragEvent as ReactDragEvent, MouseEvent as ReactMouseEvent, WheelEvent as ReactWheelEvent, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import StromIcon from './components/StromIcon'
 import { snapPointToVisibleRooms143, snapRectangleHandle143, snapMovedVerticesToVisibleRooms143 } from './building/neighborSnap143'
 import { snapRectEdge146, snapTranslatedEdge146 } from './building/edgeSnap146'
@@ -356,6 +356,24 @@ export function App() {
   // STROM150C_PRESERVE_BLUEPRINT: keep original BP visible while the 3D canvas prepares.
   const [enterPreview150, setEnterPreview150] = useState<'loading'|'fading'|null>(null)
   const enterPreviewTimer150 = useRef<number|null>(null)
+  // STROM158_REVERSE_EXACT: reverse flight then fade Blueprint in over still 3D.
+  const [exitPreview158,setExitPreview158]=useState<'preparing'|'fading'|null>(null)
+  const exitTimer158=useRef<number|null>(null)
+  useLayoutEffect(()=>{
+    if(!exitPreview158)return
+    const layout=currentFrame150()?.layout150o
+    const plan=document.querySelector('.workspace > .floorplan-layout') as HTMLElement|null
+    if(!plan||!layout)return
+    if(![layout.left,layout.top,layout.width,layout.height].every(Number.isFinite))return
+    plan.classList.add('strom150o-viewport-frozen')
+    plan.style.setProperty('--strom150o-left',`${layout.left}px`)
+    plan.style.setProperty('--strom150o-top',`${layout.top}px`)
+    plan.style.setProperty('--strom150o-width',`${layout.width}px`)
+    plan.style.setProperty('--strom150o-height',`${layout.height}px`)
+  },[exitPreview158])
+  useEffect(()=>()=>{
+    if(exitTimer158.current!==null)window.clearTimeout(exitTimer158.current)
+  },[])
   // STROM150E_LOADING_GUARD / STROM150K_FAIL_CLOSED: never reveal unverified 3D after a timer.
   useEffect(() => {
     if (enterPreview150 !== 'loading') return
@@ -728,10 +746,27 @@ export function App() {
   }
 
   function handleViewModeClick(mode: ViewMode) {
+    if(exitPreview158)return // prevent overlapping mode changes during reverse flight/fade
     if (!canUseViewMode(mode)) return
     // STROM150_CAMERA_NAV: finish the bird's-eye flyover before unmounting 3D.
     if (mode === 'floorplan' && (viewMode === 'wall' || viewMode === 'threeD')) {
-      if (requestExit150(() => setViewMode('floorplan'))) return
+      if(enterPreviewTimer150.current!==null){
+        window.clearTimeout(enterPreviewTimer150.current)
+        enterPreviewTimer150.current=null
+      }
+      setEnterPreview150(null)
+      setExitPreview158('preparing')
+      if (requestExit150(() => {
+        // Called only when the 5-second reverse flight has reached the exact BP pose.
+        setExitPreview158('fading')
+        if(exitTimer158.current!==null)window.clearTimeout(exitTimer158.current)
+        exitTimer158.current=window.setTimeout(()=>{
+          exitTimer158.current=null
+          setViewMode('floorplan')
+          setExitPreview158(null)
+        },EXIT_FADE158)
+      }))return
+      setExitPreview158(null)
     }
     if (viewMode === 'floorplan' && (mode === 'wall' || mode === 'threeD') && floor) {
       if (enterPreviewTimer150.current !== null) window.clearTimeout(enterPreviewTimer150.current)
@@ -854,13 +889,13 @@ export function App() {
 
         {error && <div className="error-box">API-Fehler: {error}</div>}
 
-        <section className={`workspace ${enterPreview150 ? `strom150c-enter-${enterPreview150}` : ""}` }>
+        <section className={`workspace ${enterPreview150 ? `strom150c-enter-${enterPreview150}` : ""}${exitPreview158 ? ` strom158-exit-${exitPreview158}` : ""}` }>
           {!selectedObject && (
             <div className="hint-box standalone">
               Bitte waehle links in der Seitenleiste ein Objekt aus oder lege ein neues Objekt an. Danach werden Etage und Raeume fuer dieses Objekt geladen.
             </div>
           )}
-          {selectedObject && (viewMode === 'floorplan' || (enterPreview150 !== null && (viewMode === 'wall' || viewMode === 'threeD'))) && floor && (
+          {selectedObject && (viewMode === 'floorplan' || ((enterPreview150 !== null || exitPreview158 !== null) && (viewMode === 'wall' || viewMode === 'threeD'))) && floor && (
             <FloorplanEditor
               key={floor.id}
               floor={floor}

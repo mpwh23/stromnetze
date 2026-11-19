@@ -1,6 +1,6 @@
 /** STROM150_CAMERA_BRIDGE: coordinate view navigation without delaying React rendering. */
 export type BlueprintScreen150o={x:number;y:number;ax:number;ay:number;bx:number;by:number}
-export type BlueprintFrame150={floorId:string;levelId:string;cx:number;cy:number;widthM:number;heightM:number;screen150o?:BlueprintScreen150o}
+export type BlueprintFrame150={floorId:string;levelId:string;cx:number;cy:number;widthM:number;heightM:number;screen150o?:BlueprintScreen150o;layout150o?:{left:number;top:number;width:number;height:number}}
 export type Mode150='wall'|'threeD'
 export type Enter150={mode:Mode150;frame:BlueprintFrame150}
 let pending150:Enter150|null=null
@@ -12,6 +12,8 @@ let readySent150=false
 // STROM150I_ANALYSIS_5S: temporary diagnostic timings; no camera geometry changes.
 export const ENTER_FADE150=5000
 export const DURATION150=5000
+/** STROM158_REVERSE_EXACT: fade begins only after 5s reverse flight finishes. */
+export const EXIT_FADE158=5000
 
 function storedLevel150(floorId:string):string{
   try {
@@ -47,6 +49,8 @@ function viewFrame150(floorId:string):BlueprintFrame150{
       const planRect=plan?.getBoundingClientRect()
       const hostRect=host?.getBoundingClientRect()
       if(plan&&planRect&&hostRect&&planRect.width>50&&planRect.height>50){
+        result.layout150o={left:planRect.left-hostRect.left,top:planRect.top-hostRect.top,
+          width:planRect.width,height:planRect.height}
         plan.style.setProperty('--strom150o-left',`${planRect.left-hostRect.left}px`)
         plan.style.setProperty('--strom150o-top',`${planRect.top-hostRect.top}px`)
         plan.style.setProperty('--strom150o-width',`${planRect.width}px`)
