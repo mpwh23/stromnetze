@@ -1,3 +1,4 @@
+import CanonicalGrid152 from './CanonicalGrid152' // STROM152_BLUEPRINT_GRID
 import {levelElevationsDatum151} from '../building/coordinateReference151' // STROM151_COORDINATE_DATUM
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Canvas, ThreeEvent, useFrame, useThree } from '@react-three/fiber'
@@ -349,6 +350,8 @@ function RealBuildingScene({ model, stairs, extraLevels146, activeOffsetM146, sh
           />
         ))}
         <RoofScope149.Provider value={{levelId:activeLevelId148,revision:roofRevision148}}>
+            {/* STROM152_BLUEPRINT_GRID: portal into absolute Three scene; it is not centered on the building. */}
+            <CanonicalGrid152 points={model.rooms.flatMap(room152=>room152.vertices)} />
             {/* STROM150_CAMERA: model XY = Blueprint XY, floor plane = 3D XZ */}
             <CameraFlight150 points={model.rooms.flatMap(room150 => room150.vertices)} /><SolidWallMeshes
           model={model}
@@ -397,7 +400,7 @@ function RealBuildingScene({ model, stairs, extraLevels146, activeOffsetM146, sh
             )))}
         </group>
       ))}
-      <gridHelper args={[Math.max(40, model.spanM * 4), 40, '#bbc7d5', '#dce5ef']} position={[model.center.x, model.floorElevationM - 0.035, model.center.y]} />
+      <gridHelper args={[Math.max(40, model.spanM * 4), 40, '#bbc7d5', '#dce5ef']} position={[model.center.x, model.floorElevationM - 0.035, model.center.y]}  visible={false}/>
       <SceneControls model={cameraModel146} />
     </Canvas>
   )
