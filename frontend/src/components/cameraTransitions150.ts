@@ -8,8 +8,8 @@ let activeExit150:((done:()=>void)=>void)|null=null
 let activeReady150:(()=>void)|null=null
 let exitPending150=false
 let readySent150=false
-export const ENTER_FADE150=250
-export const DURATION150=750
+export const ENTER_FADE150=500
+export const DURATION150=1500
 
 function storedLevel150(floorId:string):string{
   try {
@@ -66,7 +66,7 @@ export function requestExit150(finish:()=>void):boolean{
   if(exitPending150)return true
   exitPending150=true
   let completed=false
-  const timeout=window.setTimeout(complete,1100)
+  const timeout=window.setTimeout(complete,DURATION150+1000)
   function complete(){if(completed)return;completed=true;window.clearTimeout(timeout);exitPending150=false;finish()}
   try {activeExit150(complete)}catch{complete()}
   return true
