@@ -8,7 +8,7 @@ import {
 import type { BlueprintFrame150, Enter150 } from './cameraTransitions150'
 import { captureThreeFloorExtrema150q } from './threeFloorExtrema150q' // STROM150Q_3D_FLOOR_EXTENTS
 import { calibrateFloorStart150r, floorWorldPoints150r } from './cameraFloorMatch150r' // STROM150R_CAMERA_MATCH
-import { alignBlueprintViewport153 } from './cameraViewportAlignment153' // STROM153_CAMERA_VIEWPORT_FIT
+import { alignBlueprintGrid154 } from './cameraGridAlignment154' // STROM154_GRID_PIXEL_ALIGNMENT
 
 type PlanPoint = { x: number; y: number }
 type OrbitControl = { target?: THREE.Vector3; enabled?: boolean; update?: () => void }
@@ -302,7 +302,9 @@ export default function CameraFlight150({ points }: { points: readonly PlanPoint
         // actual 3D projection to the stored Blueprint xMin/xMax/yMin/yMax.
         // No waiting, no changes to either 5-second transition duration.
         try {
-          alignBlueprintViewport153(state.scene,camera,state.gl.domElement,
+          // STROM154_GRID_PIXEL_ALIGNMENT: direct 0/0 + 1m X/Y match from
+          // the click-time SVG matrix. Do NOT align using floor bounding extents.
+          alignBlueprintGrid154(state.scene,camera,state.gl.domElement,
             running.start,currentFrame150(),pose=>apply(camera,pose))
         } catch(error){console.warn('[Strom 153] Viewport-Abgleich nicht möglich',error)}
         apply(camera,running.start)
