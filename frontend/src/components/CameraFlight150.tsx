@@ -7,6 +7,7 @@ import {
 } from './cameraTransitions150'
 import type { BlueprintFrame150, Enter150 } from './cameraTransitions150'
 import { captureThreeFloorExtrema150q } from './threeFloorExtrema150q' // STROM150Q_3D_FLOOR_EXTENTS
+import { calibrateFloorStart150r, floorWorldPoints150r } from './cameraFloorMatch150r' // STROM150R_CAMERA_MATCH
 
 type PlanPoint = { x: number; y: number }
 type OrbitControl = { target?: THREE.Vector3; enabled?: boolean; update?: () => void }
@@ -282,6 +283,11 @@ export default function CameraFlight150({ points }: { points: readonly PlanPoint
       running.end = finalDefault
       running.phase = 'prepare'
       lock()
+      // STROM150R_CAMERA_MATCH: calibrate the locked 3D start pose from *actual*
+      // transformed, selected-level floor anchors against the click-time BP transform.
+      // It changes only the START of this flight, never the final default camera.
+      calibrateFloorStart150r(state.scene,camera,state.gl.domElement,start,currentFrame150(),
+        pose => apply(camera,pose))
       apply(camera, start)
       return
     }
@@ -296,7 +302,7 @@ export default function CameraFlight150({ points }: { points: readonly PlanPoint
         // STROM150Q_3D_FLOOR_EXTENTS: actual 3D camera projection at the start of the fade.
         // This diagnostic never changes camera/controls or delays the animation.
         try {
-          captureThreeFloorExtrema150q(pointsRef.current, state.camera, state.gl.domElement, 0)
+          captureThreeFloorExtrema150q(pointsRef.current, state.camera, state.gl.domElement, 0, floorWorldPoints150r(state.scene))
         } catch (error) { console.warn('[STROM 150q] 3D-Boden-Messung fehlgeschlagen', error) }
         notifyEnterReady150()
       }

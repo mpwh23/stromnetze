@@ -24,6 +24,7 @@ const round150q=(v:number)=>Math.round(v*10)/10
 
 export function captureThreeFloorExtrema150q(
   points:readonly FloorPoint150q[],camera:THREE.Camera,canvas:HTMLCanvasElement,floorY:number,
+  worldPoints150r?:readonly THREE.Vector3[],
 ):FloorSnapshot150q|null{
   let reference:BlueprintReference150q|null=null
   try{
@@ -38,11 +39,12 @@ export function captureThreeFloorExtrema150q(
   const width=Number.isFinite(bpView?.width)&&bpView!.width>0?bpView!.width:bounds.width
   const height=Number.isFinite(bpView?.height)&&bpView!.height>0?bpView!.height:bounds.height
   let xMin=Infinity,xMax=-Infinity,yMin=Infinity,yMax=-Infinity,count=0
-  const probe=new THREE.Vector3()
-  for(const point of points){
-    if(!Number.isFinite(point.x)||!Number.isFinite(point.y))continue
-    // Real 3D scene maps Blueprint X/Y to world X/Z; the floor is world Y=0.
-    probe.set(point.x,floorY,point.y).project(camera)
+  // STROM150R_REAL_FLOOR_PROBE: use real mesh-parent matrixWorld points; Y=0 is
+  // valid ONLY as fallback when the reference meshes do not exist yet.
+  const real=worldPoints150r&&worldPoints150r.length>0
+  const probes=real?worldPoints150r!:points.filter(p=>Number.isFinite(p.x)&&Number.isFinite(p.y)).map(p=>new THREE.Vector3(p.x,floorY,p.y))
+  for(const position of probes){
+    const probe=position.clone().project(camera)
     if(!Number.isFinite(probe.x)||!Number.isFinite(probe.y)||!Number.isFinite(probe.z))continue
     const x=bounds.left+(probe.x+1)*bounds.width/2-left
     const y=bounds.top+(1-probe.y)*bounds.height/2-top
@@ -65,7 +67,8 @@ export function captureThreeFloorExtrema150q(
   }:null
   const result:FloorSnapshot150q={
     version:'150q',phase:'Beginn der 3D-Blende',measuredAt:new Date().toISOString(),units:'CSS-Pixel',
-    reference:bpView?'Blueprint-Viewport (0,0)':'3D-Canvas (0,0), BP-Referenz fehlt',floorY,
+    reference:real?'Blueprint-Viewport (0,0), echte 3D-Weltpunkte':bpView?'Blueprint-Viewport (0,0), ersatzweise Y=0':'3D-Canvas (0,0), BP-Referenz fehlt',
+    floorY:real?probes.reduce((sum,p)=>sum+p.y,0)/probes.length:floorY,
     viewport:{screenLeft:round150q(left),screenTop:round150q(top),width:round150q(width),height:round150q(height)},
     canvas:{screenLeft:round150q(bounds.left),screenTop:round150q(bounds.top),width:round150q(bounds.width),height:round150q(bounds.height)},
     floor,deltaToBlueprint,
@@ -79,7 +82,7 @@ export function captureThreeFloorExtrema150q(
     const subsection=document.createElement('span')
     subsection.id='strom-150q-floor-values'
     subsection.style.cssText='display:block;margin-top:8px;color:#78e6f1;font-weight:650;'
-    subsection.textContent='3D-Bodenfläche · Blendenbeginn (cyan)\n'
+    subsection.textContent=(real?'3D-Bodenfläche (echte Weltkoordinaten) · Blendenbeginn (cyan)\n':'3D-Bodenfläche (Näherung Y=0) · Blendenbeginn (cyan)\n')
       +`Xmin: ${floor.xMinPx} px  | Xmax: ${floor.xMaxPx} px\n`
       +`Ymin: ${floor.yMinPx} px  | Ymax: ${floor.yMaxPx} px\n`
       +(deltaToBlueprint?`Δ zu BP Xmin/Xmax: ${deltaToBlueprint.xMinPx} / ${deltaToBlueprint.xMaxPx} px\n`

@@ -385,7 +385,7 @@ function RealBuildingScene({ model, stairs, extraLevels146, activeOffsetM146, sh
           <RoofMeshes148 floorId={entry146.model.floorId} levelId={entry146.id} rooms={entry146.model.rooms}
             revision={roofRevision148} selectedId={selectedRoof148} onSelect={onSelectRoof148} />
           {entry146.model.rooms.map(room149=><FloorSlab149 key={`slab149-${room149.id}`} room={room149}
-            thicknessM={readSlabThickness149(entry146.model.floorId,entry146.id,window.localStorage)} />)}
+            thicknessM={readSlabThickness149(entry146.model.floorId,entry146.id,window.localStorage)} ghost150r />)}
           {entry146.stairs.map((surface146) => (
             <StairSolid key={surface146.key} surface={surface146} selected={false} onSelect={() => undefined} />
           ))}
