@@ -81,6 +81,14 @@ export function captureCameraHandoff155(
   const worldPosition=camera.getWorldPosition(new THREE.Vector3())
   const worldRotation=camera.getWorldQuaternion(new THREE.Quaternion())
   const angles=new THREE.Euler().setFromQuaternion(worldRotation,'XYZ')
+  // STROM157_OPTICAL_AXIS_TO_EYE: real camera orientation, unaffected by lens/viewOffset.
+  // Positive architectural Z is the direction from floor to the observer.
+  // The actual forward viewing direction is the opposite vector (toward -Z).
+  const toEye157=camera.getWorldDirection(new THREE.Vector3()).negate().normalize()
+  const zero157=(value:number):number=>Math.abs(value)<0.0005?0:round155(value)
+  const opticalAxisToEye157={
+    x:zero157(toEye157.x),y:zero157(toEye157.z),z:zero157(toEye157.y),
+  }
   // The ray through NDC (0,0) is the ACTUAL pixel-centre ray, even if
   // projectionMatrix has a film/lens shift; no camera controls are consulted.
   const near=new THREE.Vector3(0,0,-1).unproject(camera)
@@ -134,6 +142,8 @@ export function captureCameraHandoff155(
       architecturalPosition:{x:round155(worldPosition.x),y:round155(worldPosition.z),z:round155(worldPosition.y)},
       direction:coords155(direction),
       architecturalDirection:{x:round155(direction.x),y:round155(direction.z),z:round155(direction.y)},
+      // Optical camera axis in plan coordinates, oriented toward the observer.
+      opticalAxisToEye157,
       blueprintCenterRayOnHeightZero:bpCentreRayHit?{x:round155(bpCentreRayHit.x),y:round155(bpCentreRayHit.z)}:null,
       lensOffsetCssPx:offAxisView,
       viewportCenterOnZ0:hit?coords155(hit):null,
@@ -163,7 +173,8 @@ export function captureCameraHandoff155(
     panel.appendChild(section)
   }
   const bp=blueprint?.visiblePlan
-  const p=result.camera.position,d=result.camera.direction,r=result.camera.rotationXYZDegrees
+  const p=result.camera.position,r=result.camera.rotationXYZDegrees
+  const facing=result.camera.opticalAxisToEye157
   const gaze=result.camera.viewportCenterOnZ0
   const bpRay=result.camera.blueprintCenterRayOnHeightZero
   const lens=result.camera.lensOffsetCssPx
@@ -178,7 +189,7 @@ export function captureCameraHandoff155(
        +`Pixel-Mitte: ${blueprint.screen.centerX} / ${blueprint.screen.centerY}\n`:'')
     +`3D-KAMERA (PLAN: X Breite / Y Tiefe / Z Hoehe)\n`
     +`Position: X ${p.x} / Y ${p.z} / Z ${p.y} m\n`
-    +`Blickrichtung XYZ (Plan): (${d.x}, ${d.z}, ${d.y})\n`
+    +`Blickachse zur Kamera XYZ (Plan): (${facing.x}, ${facing.y}, ${facing.z})\n`
     +(bpRay?`Punkt unter Blueprint-Mitte (Z=0): X ${bpRay.x} / Y ${bpRay.y}\n`
       :'Blueprint-Mitte: kein Strahlschnitt\n')
     +(gaze?`Punkt unter 3D-Canvas-Mitte (Z=0): X ${gaze.x} / Y ${gaze.z}\n`
