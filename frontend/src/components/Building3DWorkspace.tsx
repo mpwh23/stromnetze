@@ -2,6 +2,11 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { Canvas, ThreeEvent, useFrame, useThree } from '@react-three/fiber'
 import * as THREE from 'three'
 import RoofMeshes148 from './RoofMeshes148'
+import FloorSlab149 from './FloorSlab149'
+import { clipSolidWalls149 } from '../building/roofCut149'
+import { readRoofSlopes148 } from '../building/roofSlopes148'
+import { levelElevations149, stairRise149, readSlabThickness149 } from '../building/levelGeometry149'
+import { createContext, useContext } from 'react'
 import RoofEditor148 from './RoofEditor148'
 import { ROOF_EVENT148 } from '../building/roofSlopes148' 
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js'
@@ -50,6 +55,8 @@ function FloorMesh({ room, selected, onSelect }: { room: BuildingRoom; selected:
 // No second set of wall solids, no overlays across real door/window openings.
 type HoveredSolidWall = WallHitSelection3D & { plane: WallHoverPlane }
 
+// STROM149_CUT_WALL: the current floor and ghost floor resolve roofs independently.
+const RoofScope149 = createContext({levelId:'',revision:0})
 function SolidWallMeshes({ model, onSelectRoom, onSelectWall, transparent }: {
   model: BuildingModel
   onSelectRoom: (id: string) => void
@@ -61,9 +68,12 @@ function SolidWallMeshes({ model, onSelectRoom, onSelectWall, transparent }: {
 
   // Preserve the 139 model and geometry byte-for-byte: only its material
   // surface triangles are copied into the optional hover visualization.
+  const roofScope149 = useContext(RoofScope149)
   const geometry = useMemo(() => {
     const surface = buildSolidSurface(model)
-    const repaired145 = repairWallSurface145(surface.positions)
+    const slopes149 = readRoofSlopes148(model.floorId,window.localStorage).filter(item=>item.levelId===roofScope149.levelId)
+    const clipped149 = slopes149.length ? clipSolidWalls149(model,surface.positions,slopes149) : surface.positions
+    const repaired145 = repairWallSurface145(clipped149)
     if (repaired145.repairedPlanes || repaired145.skippedPlanes) {
       console.info('[STROM145 Wandgeometrie]', {
         vorher: repaired145.inputTriangles, nachher: repaired145.outputTriangles,
@@ -75,7 +85,7 @@ function SolidWallMeshes({ model, onSelectRoom, onSelectWall, transparent }: {
     mesh.computeVertexNormals()
     mesh.computeBoundingSphere()
     return mesh
-  }, [model])
+  }, [model,roofScope149.levelId,roofScope149.revision])
   useEffect(() => () => geometry.dispose(), [geometry])
 
   const hoverGeometry = useMemo(() => {
@@ -309,6 +319,7 @@ function RealBuildingScene({ model, stairs, extraLevels146, activeOffsetM146, sh
     const maxSpan = Math.max(...levels.map((entry) => entry.model.spanM))
     return { ...model, floorElevationM: base, floorHeightM: top - base, spanM: maxSpan }
   }, [model, extraLevels146, showAllLevels146, activeOffsetM146])
+  const activeSlab149 = readSlabThickness149(model.floorId,activeLevelId148,window.localStorage)
   const distance = Math.max(8, cameraModel146.spanM * 1.2, cameraModel146.floorHeightM * 1.35)
   return (
     <Canvas
@@ -335,12 +346,14 @@ function RealBuildingScene({ model, stairs, extraLevels146, activeOffsetM146, sh
             onSelect={() => { onSelectRoom(surface.roomId); onSelectDoor(''); onSelectWall?.(null) }}
           />
         ))}
-        <SolidWallMeshes
+        <RoofScope149.Provider value={{levelId:activeLevelId148,revision:roofRevision148}}><SolidWallMeshes
           model={model}
           onSelectRoom={(id) => { onSelectRoom(id); onSelectDoor('') }}
           onSelectWall={onSelectWall}
           transparent={transparent}
-        />
+        /></RoofScope149.Provider>
+        {/* STROM149_FLOOR_SLAB: physical thickness below each finished room floor. */}
+        {model.rooms.map(room149=><FloorSlab149 key={`slab149-${room149.id}`} room={room149} thicknessM={activeSlab149} />)}
         {model.walls.flatMap((wall) => wall.openings
           .filter((opening) => opening.type === 'door' && opening.centerM >= -0.0001 && opening.centerM <= wall.lengthM + 0.0001 && model.doors.some((door) => door.id === opening.id))
           .map((door) => (
@@ -365,9 +378,11 @@ function RealBuildingScene({ model, stairs, extraLevels146, activeOffsetM146, sh
           {entry146.model.rooms.map((room146) => (
             <FloorMesh key={room146.id} room={room146} selected={false} onSelect={() => undefined} />
           ))}
-          <SolidWallMeshes model={entry146.model} onSelectRoom={() => undefined} transparent={transparent} />
+          <RoofScope149.Provider value={{levelId:entry146.id,revision:roofRevision148}}><SolidWallMeshes model={entry146.model} onSelectRoom={() => undefined} transparent={transparent} /></RoofScope149.Provider>
           <RoofMeshes148 floorId={entry146.model.floorId} levelId={entry146.id} rooms={entry146.model.rooms}
             revision={roofRevision148} selectedId={selectedRoof148} onSelect={onSelectRoof148} />
+          {entry146.model.rooms.map(room149=><FloorSlab149 key={`slab149-${room149.id}`} room={room149}
+            thicknessM={readSlabThickness149(entry146.model.floorId,entry146.id,window.localStorage)} />)}
           {entry146.stairs.map((surface146) => (
             <StairSolid key={surface146.key} surface={surface146} selected={false} onSelect={() => undefined} />
           ))}
@@ -552,20 +567,19 @@ export default function Building3DWorkspace({ floor, rooms, selectedRoomId, onSe
       if (saved146 && typeof saved146 === 'object' && !Array.isArray(saved146)) assignments146 = saved146 as Record<string, string>
     } catch { /* unreadable legacy storage is treated as main layer */ }
     const directions147 = readStairDirections147(floor.id, window.localStorage)
-    let elevation146 = Number(floor.elevationM) || 0
+    const elevation149 = levelElevations149(levelOptions144,Number(floor.elevationM)||0)
     return levelOptions144.map((item146, idx146) => {
       const floorRooms146 = rooms.filter((room146) => (assignments146[room146.id] || 'layer-main') === item146.id)
       const allowedIds146 = new Set(floorRooms146.map((room146) => room146.id))
       const floorObjects146 = objects.filter((object146) => allowedIds146.has(object146.roomId))
       const layerFloor146: Floor = { ...floor, name: `${floor.name} / ${item146.name}`,
-        elevationM: elevation146, heightM: item146.heightM }
-      elevation146 += item146.heightM
+        elevationM: elevation149[item146.id], heightM: item146.heightM }
       return { id: item146.id,
         model: buildBuildingModel(layerFloor146, floorRooms146, floorObjects146),
-        stairs: buildStair3DSurfaces(floorRooms146, item146.heightM, window.localStorage).map((surface146) => ({
+        stairs: buildStair3DSurfaces(floorRooms146, stairRise149(levelOptions144,item146.id), window.localStorage).map((surface146) => ({
           ...surface146, levelId: item146.id, levelOffsetM: 0, direction147: directions147[surface146.roomId] === 'down' ? 'down' : 'up',
         })),
-        offsetM: showAllLevels146 && separateLevels146 ? idx146 * 1.15 : 0 }
+        offsetM: showAllLevels146 && separateLevels146 ? (levelOptions144.length-1-idx146) * 1.15 : 0 }
     })
   }, [floor, rooms, objects, levelOptions144, levelRevision, showAllLevels146, separateLevels146])
   const activeOffsetM146 = showAllLevels146 && separateLevels146

@@ -1,6 +1,7 @@
 import type { Floor, Room } from '../types'
 import type { BlueprintLevelView, KeyValueReader } from './blueprintLevels'
 import { buildStair3DSurfaces, type Stair3DSurface } from './stair3d'
+import { levelElevations149, stairRise149, cleanSlab149 } from './levelGeometry149'
 
 export type PlacedStairSurface143 = Stair3DSurface & {
   /** Offset relative to the currently rendered level, applied by the 3D group. */
@@ -38,9 +39,9 @@ export function build3DStairsAcrossLevels143(floor: Floor, rooms: Room[], active
       if (!item || typeof item !== 'object') return []
       const entry = item as Record<string, unknown>
       if (typeof entry.id !== 'string' || !entry.id) return []
-      return [{ id: entry.id, heightM: heightM(entry.heightM, fallback) }]
+      return [{ id: entry.id, heightM: heightM(entry.heightM, fallback), slabThicknessM: cleanSlab149(entry.slabThicknessM) }]
     }) : []
-  if (!levels.length) levels.push({ id: 'layer-main', heightM: fallback })
+  if (!levels.length) levels.push({ id: 'layer-main', heightM: fallback, slabThicknessM: 0 })
   const roomAssignmentsRaw = readJson(storage, prefix + 'roomAssignments')
   const assignments = roomAssignmentsRaw && typeof roomAssignmentsRaw === 'object' && !Array.isArray(roomAssignmentsRaw)
     ? roomAssignmentsRaw as Record<string, unknown> : {}
@@ -59,14 +60,13 @@ export function build3DStairsAcrossLevels143(floor: Floor, rooms: Room[], active
     group?.push(room)
   }
   const surfaces: PlacedStairSurface143[] = []
-  let levelBottom = numeric(floor.elevationM, 0)
+  const elevations149 = levelElevations149(levels,numeric(floor.elevationM,0))
   for (const level of levels) {
-    const offset = Math.round((levelBottom - activeLevel.elevationM) * 1000) / 1000
+    const offset = Math.round((elevations149[level.id] - activeLevel.elevationM) * 1000) / 1000
     const levelRooms = groups.get(level.id) ?? []
-    for (const surface of buildStair3DSurfaces(levelRooms, level.heightM, storage)) {
+    for (const surface of buildStair3DSurfaces(levelRooms, stairRise149(levels,level.id), storage)) {
       surfaces.push({ ...surface, levelId: level.id, levelOffsetM: offset, direction147: directions147[surface.roomId] === 'down' ? 'down' : 'up' })
     }
-    levelBottom += level.heightM
   }
   return { surfaces, savedLayouts, activeLayouts }
 }

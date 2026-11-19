@@ -58,7 +58,7 @@ export function linkedStairPortals148(
     const sourceLayerId=assignments[room.id]||'layer-main'
     const sourceIndex=layers.findIndex(l=>l.id===sourceLayerId)
     const direction=directions[room.id]
-    if(sourceIndex<0 || !((direction==='up' && sourceIndex+1===targetIndex)||(direction==='down'&&sourceIndex-1===targetIndex)))return []
+    if(sourceIndex<0 || !((direction==='up' && sourceIndex-1===targetIndex)||(direction==='down'&&sourceIndex+1===targetIndex)))return []
     return [{room,sourceLayerId,targetLayerId}]
   })
 }

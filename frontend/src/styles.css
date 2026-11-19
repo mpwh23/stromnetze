@@ -4882,3 +4882,13 @@ svg [class*="dimension"], svg [class*="technical"], svg [class*="measure"] { vec
 .strom-roof-actions148 button {padding:7px 10px;border-radius:7px;border:1px solid #adc1dc;background:#e5efff;color:#234467;cursor:pointer;}
 .strom-roof-actions148 button:first-child {background:#285fd0;color:white;}
 .strom-roof-editor148 p {font-size:12px;color:#315b8f;margin:2px 0;}
+
+/* STROM149: clear end handles, movable roof plane, slab property and reference editor. */
+.strom-roof-line148 .strom-roof-handle149 { fill:#fff;stroke:#245fb8;stroke-width:2;cursor:crosshair;pointer-events:all; }
+.strom-roof-line148.selected { cursor:move; touch-action:none; }
+.layer-slab-control149 { border-top:1px dashed #d7e1ed;padding-top:5px; }
+.strom-roof-reference149 {display:flex;flex-direction:column;gap:6px;border:1px solid #d6e1f0;border-radius:8px;padding:8px;}
+.strom-roof-reference149 legend {font-size:12px;font-weight:650;color:#405674;padding:0 4px;}
+.strom-roof-reference149 select {width:100%;max-width:100%;min-height:31px;border:1px solid #b7c8df;border-radius:5px;background:white;color:#234;}
+.strom-roof-reference149 button {min-height:31px;border:1px solid #a4bcdf;border-radius:5px;background:#e8f0fd;color:#234f93;cursor:pointer;}
+.strom-roof-reference149 button:disabled {opacity:.5;cursor:default;}

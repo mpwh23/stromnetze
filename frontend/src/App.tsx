@@ -5,7 +5,9 @@ import { snapRectEdge146, snapTranslatedEdge146 } from './building/edgeSnap146'
 import { readStairDirections147, sameStairFootprint147, stairDirectionKey147, type StairDirection147 } from './building/stairOverlay147'
 import { readStairPairs148, saveStairPairs148, linkStairs148, inferLegacyStairPairs148, linkedStairPortals148, type StairPairs148 } from './building/stairLinks148'
 import { readRoofSlopes148, saveRoofSlopes148, nearestRoomEdge148, inwardRoofAngle148, angleVector148, ROOF_EVENT148, type RoofSlope148 } from './building/roofSlopes148'
-import RoofEditor148 from './components/RoofEditor148' 
+import RoofEditor148 from './components/RoofEditor148'
+import type { PointerEvent as RoofPointer149 } from 'react'
+import { cleanSlab149, dragRoofLine149 } from './building/levelGeometry149' 
 import Building3DWorkspace from './components/Building3DWorkspace'
 import {
   createObject,
@@ -128,7 +130,7 @@ type DistancePair = {
   distanceM: number
 }
 
-type FloorplanLayer = { id: string; name: string; visible: boolean; heightM?: number }
+type FloorplanLayer = { id: string; name: string; visible: boolean; heightM?: number ; slabThicknessM?: number }
 type LayerVisibilityMode = 'active' | 'adjacentGhostNoDims' | 'adjacentGhostDims' | 'allGhostNoDims'
 
 const defaultLayerId = 'layer-main'
@@ -236,6 +238,7 @@ function normalizeLayers(input: unknown): FloorplanLayer[] {
       name: typeof item.name === 'string' && item.name.trim() ? item.name.trim() : `Ebene ${index + 1}`,
       visible: item.visible !== false,
       heightM: Number.isFinite(Number(item.heightM)) && Number(item.heightM) >= 0.1 && Number(item.heightM) <= 10 ? round3(Number(item.heightM)) : undefined,
+      slabThicknessM: cleanSlab149(item.slabThicknessM),
     }))
   return layers.length > 0 ? layers : defaultFloorplanLayers()
 }
@@ -1438,6 +1441,9 @@ function FloorplanEditor({
   const [titleDrag, setTitleDrag] = useState<{ roomId: string; startClientX: number; startClientY: number; startOffset: TitleOffset } | null>(null)
   const [stairPairs148, setStairPairs148] = useState<StairPairs148>(() => readStairPairs148(floor.id, window.localStorage))
   const [roofSlopes148, setRoofSlopes148] = useState<RoofSlope148[]>(() => readRoofSlopes148(floor.id, window.localStorage))
+  const roofDrag149 = useRef<{id:string;mode:'move'|'start'|'end';initial:RoofSlope148;origin:PointM}|null>(null)
+  const roofLive149 = useRef<RoofSlope148[]>([])
+
   const [roofStart148, setRoofStart148] = useState<PointM|null>(null)
   const [selectedRoof148, setSelectedRoof148] = useState('')
   const [stairDirections147, setStairDirections147] = useState<Record<string, StairDirection147>>(
@@ -1475,6 +1481,43 @@ function FloorplanEditor({
       setStairPairs148(combined)
     }
   },[floor.id,rooms,roomLayerAssignments,stairDirections147,stairPairs148])
+
+  // STROM149_ROOF_DRAG: SVG-pointer-captured geometric editing, one 2D/3D store.
+  function pointerToMeters149(event: RoofPointer149<SVGElement>):PointM|null {
+    const svg=event.currentTarget.ownerSVGElement
+    const transform=svg?.getScreenCTM()
+    if(!svg||!transform)return null
+    const pt=svg.createSVGPoint();pt.x=event.clientX;pt.y=event.clientY
+    const local=pt.matrixTransform(transform.inverse())
+    const px=mToX(1)-mToX(0),py=mToY(1)-mToY(0)
+    return Math.abs(px)>1e-9&&Math.abs(py)>1e-9?{x:(local.x-mToX(0))/px,y:(local.y-mToY(0))/py}:null
+  }
+  function beginRoofDrag149(event:RoofPointer149<SVGElement>,roof:RoofSlope148,mode:'move'|'start'|'end') {
+    if(event.button!==0)return
+    const pos=pointerToMeters149(event)
+    if(!pos)return
+    event.preventDefault();event.stopPropagation()
+    roofDrag149.current={id:roof.id,mode,initial:roof,origin:pos}
+    roofLive149.current=roofSlopes148
+    event.currentTarget.setPointerCapture(event.pointerId)
+    setSelectedRoof148(roof.id);onSelectRoom(roof.roomId)
+  }
+  function moveRoofDrag149(event:RoofPointer149<SVGElement>) {
+    const active=roofDrag149.current,pos=pointerToMeters149(event)
+    if(!active||!pos)return
+    event.stopPropagation()
+    const dx=pos.x-active.origin.x,dy=pos.y-active.origin.y
+    const next=dragRoofLine149(active.initial,active.mode,dx,dy)
+    roofLive149.current=roofLive149.current.map(item=>item.id===active.id?next:item)
+    setRoofSlopes148(roofLive149.current)
+  }
+  function endRoofDrag149(event:RoofPointer149<SVGElement>) {
+    if(!roofDrag149.current)return
+    event.preventDefault();event.stopPropagation()
+    roofDrag149.current=null
+    try {saveRoofSlopes148(floor.id,roofLive149.current)}
+    catch(error){onError(error instanceof Error?error.message:String(error))}
+  }
 
   const selectedRoom = rooms.find((room) => room.id === selectedRoomId) ?? null
   // STROM147_STAIR_DIRECTIONS: one physical location, two independent stair-room records.
@@ -2807,7 +2850,7 @@ function toggleRecessOffsetDirection() {
       finalName = `${cleanedName} ${suffix}`
       suffix += 1
     }
-    const layer: FloorplanLayer = { id: `layer-${Date.now()}`, name: finalName, visible: true, heightM: activeLayer.heightM ?? floor.heightM }
+    const layer: FloorplanLayer = { id: `layer-${Date.now()}`, name: finalName, visible: true, heightM: activeLayer.heightM ?? floor.heightM, slabThicknessM: 0 }
     setLayers((current) => [...current, layer])
     setActiveLayerId(layer.id)
     setLayerVisibilityMode('active')
@@ -2815,7 +2858,7 @@ function toggleRecessOffsetDirection() {
   }
 
   function addLayer() {
-    const layer: FloorplanLayer = { id: `layer-${Date.now()}`, name: `Ebene ${layers.length + 1}`, visible: true, heightM: activeLayer.heightM ?? floor.heightM }
+    const layer: FloorplanLayer = { id: `layer-${Date.now()}`, name: `Ebene ${layers.length + 1}`, visible: true, heightM: activeLayer.heightM ?? floor.heightM, slabThicknessM: 0 }
     setLayers((current) => [...current, layer])
     setActiveLayerId(layer.id)
     setLayerVisibilityMode('active')
@@ -2841,6 +2884,13 @@ function toggleRecessOffsetDirection() {
       return
     }
     setLayers((current) => current.map((layer) => layer.id === id ? { ...layer, visible: !layer.visible } : layer))
+  }
+
+  // STROM149: Bodenplatte gehört zur Etage, deren fertige Bodenhöhe der 3D-Datumspunkt ist.
+  function setLayerSlab149(id: string, millimetres: number) {
+    if (!Number.isFinite(millimetres)) return
+    const slabThicknessM = cleanSlab149(Math.max(0,Math.min(1500,millimetres))/1000)
+    setLayers((current) => current.map((layer) => layer.id === id ? { ...layer, slabThicknessM } : layer))
   }
 
   function setLayerHeightM(id: string, millimetres: number) {
@@ -3063,6 +3113,17 @@ function toggleRecessOffsetDirection() {
                           onKeyDown={(event) => { if (event.key === 'Enter') event.currentTarget.blur() }}
                         />
                       </label>
+<label className="layer-height-control layer-slab-control149" title="Bodendicke der Etage unterhalb des fertigen Fußbodens, in Millimetern">
+    <span>Bodendicke (mm)</span>
+    <input key={`${layer.id}-slab-${Math.round((layer.slabThicknessM ?? 0)*1000)}`}
+      aria-label={`Bodendicke ${layer.name} in Millimetern`} type="number" min="0" max="1500" step="10"
+      defaultValue={Math.round((layer.slabThicknessM ?? 0)*1000)}
+      onMouseDown={event=>event.stopPropagation()} onClick={event=>event.stopPropagation()}
+      onDragStart={event=>event.preventDefault()}
+      onBlur={event=>setLayerSlab149(layer.id,Number(event.currentTarget.value))}
+      onKeyDown={event=>{if(event.key==='Enter')event.currentTarget.blur()}}
+    />
+  </label>
                       <button
                         type="button"
                         className="layer-grip"
@@ -3249,9 +3310,17 @@ function toggleRecessOffsetDirection() {
               const axis=angleVector148(roof.directionDeg)
               const tip={x:middle.x+axis.x*0.60,y:middle.y+axis.y*0.60}
               return <g key={roof.id} className={`strom-roof-line148 ${selectedRoof148===roof.id?'selected':''}`}
-                onClick={event=>{event.stopPropagation();setSelectedRoof148(roof.id);onSelectRoom(roof.roomId);setTool('select')}}>
+                onClick={event=>{event.stopPropagation();setSelectedRoof148(roof.id);onSelectRoom(roof.roomId);setTool('select')}}
+                onPointerDown={event=>beginRoofDrag149(event,roof,'move')}
+                onPointerMove={moveRoofDrag149} onPointerUp={endRoofDrag149} onPointerCancel={endRoofDrag149}>
                 <title>{`Dachschräge: ${roof.pitchDeg}°, Beginn ${Math.round(roof.startHeightM*1000)} mm. Anklicken zum Bearbeiten.`}</title>
                 <line x1={mToX(roof.start.x)} y1={mToY(roof.start.y)} x2={mToX(roof.end.x)} y2={mToY(roof.end.y)}/>
+                {selectedRoof148===roof.id&&<>
+                  <circle className="strom-roof-handle149" cx={mToX(roof.start.x)} cy={mToY(roof.start.y)} r={8/zoom}
+                    onPointerDown={event=>beginRoofDrag149(event,roof,'start')}><title>Startpunkt der Dachlinie drehen oder verschieben</title></circle>
+                  <circle className="strom-roof-handle149" cx={mToX(roof.end.x)} cy={mToY(roof.end.y)} r={8/zoom}
+                    onPointerDown={event=>beginRoofDrag149(event,roof,'end')}><title>Endpunkt der Dachlinie drehen oder verschieben</title></circle>
+                </>}
                 <line className="strom-roof-arrow148" x1={mToX(middle.x)} y1={mToY(middle.y)} x2={mToX(tip.x)} y2={mToY(tip.y)}/>
                 <text x={mToX(tip.x)} y={mToY(tip.y)-7} textAnchor="middle">{roof.pitchDeg}° · {Math.round(roof.startHeightM*1000)} mm</text>
               </g>

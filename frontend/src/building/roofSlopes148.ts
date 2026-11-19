@@ -28,7 +28,7 @@ export function normalizeSlope148(v: unknown): RoofSlope148 | null {
       typeof r.levelId !== 'string' || !r.levelId || !validPoint(r.start) || !validPoint(r.end)) return null
   const pitchDeg = Number(r.pitchDeg), startHeightM = Number(r.startHeightM), directionDeg = Number(r.directionDeg)
   if (![pitchDeg, startHeightM, directionDeg].every(Number.isFinite) ||
-      pitchDeg < 0 || pitchDeg > 65 || startHeightM < 0 || startHeightM > 15 ||
+      pitchDeg < 0 || pitchDeg > 65 || startHeightM < -15 || startHeightM > 15 ||
       Math.hypot(r.end.x-r.start.x, r.end.y-r.start.y) < 0.03) return null
   return {id:r.id,roomId:r.roomId,levelId:r.levelId,start:{...r.start},end:{...r.end},
     directionDeg: ((directionDeg%360)+360)%360, pitchDeg, startHeightM}
