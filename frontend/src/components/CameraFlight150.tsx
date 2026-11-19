@@ -10,7 +10,10 @@ type Pose150={position:THREE.Vector3;rotation:THREE.Quaternion;target:THREE.Vect
 type Flight150={start:Pose150;end:Pose150;started:number;done?:()=>void;restoreControls?:boolean}
 const easing150=(t:number)=>1-Math.pow(1-t,3)
 const clamp150=(n:number,a:number,b:number)=>Math.min(b,Math.max(a,n))
-const UP150=new THREE.Vector3(0,0,-1)
+// STROM150F_BLUEPRINT_AXES: 2D screen X -> +3D X, 2D screen Y-down -> +3D Z.
+const RIGHT150F=new THREE.Vector3(1,0,0)
+const UP150F=new THREE.Vector3(0,0,-1)
+const BACK150F=new THREE.Vector3(0,1,0)
 
 function planBounds150(points:readonly P150[],frame:BlueprintFrame150|null){
   let minX=Infinity,maxX=-Infinity,minY=Infinity,maxY=-Infinity
@@ -42,7 +45,8 @@ function topPose150(camera:THREE.Camera,bounds:ReturnType<typeof planBounds150>,
   }
   const position=new THREE.Vector3(bounds.cx,distance,bounds.cy)
   // Blueprint X/Y maps onto 3D X/Z; the overhead camera is exactly vertical.
-  const topView=new THREE.Matrix4().lookAt(position,target,UP150)
+  // An explicit orthogonal basis avoids roll at the camera's polar singularity.
+  const topView=new THREE.Matrix4().makeBasis(RIGHT150F,UP150F,BACK150F)
   return {position,rotation:new THREE.Quaternion().setFromRotationMatrix(topView),target,zoom:newZoom}
 }
 function snapshot150(camera:THREE.Camera,control:Control150|null,fallbackTarget:THREE.Vector3):Pose150{
@@ -71,6 +75,26 @@ export default function CameraFlight150({points}:{points:readonly P150[]}){
   const latest=useRef<{points:readonly P150[];aspect:number}>({points,aspect:Math.max(.3,size.width/Math.max(size.height,1))})
   latest.current={points,aspect:Math.max(.3,size.width/Math.max(size.height,1))}
   const controls150=()=>((getState().controls||null) as Control150|null)
+  const orbitFrozen150f=useRef<{control:Control150;update?:()=>void;enabled?:boolean}|null>(null)
+  const unfreezeOrbit150f=()=>{
+    const frozen=orbitFrozen150f.current
+    if(!frozen)return
+    if(frozen.update)frozen.control.update=frozen.update
+    if(frozen.enabled!==undefined)frozen.control.enabled=frozen.enabled
+    orbitFrozen150f.current=null
+  }
+  const freezeOrbit150f=()=>{
+    const control=controls150()
+    if(!control)return
+    if(orbitFrozen150f.current?.control===control)return
+    unfreezeOrbit150f()
+    const previous={control,update:control.update,enabled:control.enabled}
+    orbitFrozen150f.current=previous
+    control.enabled=false
+    if(control.update){
+      try { control.update=()=>{} } catch { /* camera pose is reapplied after controls */ }
+    }
+  }
 
   const apply=(pose:Pose150)=>{
     camera.position.copy(pose.position)
@@ -93,13 +117,14 @@ export default function CameraFlight150({points}:{points:readonly P150[]}){
       const current=snapshot150(camera,controls,bird.target)
       queuedEntry.current=null
       entryWaiting.current=false
-      if(controls)controls.enabled=false
+      freezeOrbit150f()
       flight.current={start:current,end:bird,started:performance.now(),done,
         restoreControls:initialControlsEnabled.current}
       invalidate()
     })
     return ()=>{
       unregister()
+      unfreezeOrbit150f()
       const controls=controls150()
       if(controls&&initialControlsEnabled.current!==undefined)
         controls.enabled=initialControlsEnabled.current
@@ -124,7 +149,7 @@ export default function CameraFlight150({points}:{points:readonly P150[]}){
       initialControlsEnabled.current=controls?.enabled
       const bounds=planBounds150(latest.current.points,incoming.frame)
       const bird=topPose150(camera,bounds,latest.current.aspect)
-      if(controls)controls.enabled=false
+      freezeOrbit150f()
       apply(bird)
       // Hold the top pose until it has actually been rendered by WebGL.
       entryWaitFrames150e.current=0
@@ -135,6 +160,8 @@ export default function CameraFlight150({points}:{points:readonly P150[]}){
     }
     const running=flight.current
     if(!running)return
+    // Re-acquire controls if Drei registers them after the first frame.
+    freezeOrbit150f()
     if(entryWaiting.current){
       // The previous useFrame applied the top pose; one R3F render has now completed.
       // No renderer.info counters, which can be reset by React Three Fiber/Three.
@@ -162,8 +189,10 @@ export default function CameraFlight150({points}:{points:readonly P150[]}){
         running.done()
       }else{
         const controls=controls150()
+        unfreezeOrbit150f()
         if(controls){
-          // Synchronize orbit internals *before* restoring interaction.
+          // Reconcile controls at the exact original target/pose on entry completion.
+          if(controls.target)controls.target.copy(b.target)
           controls.update?.()
           apply(b)
           controls.enabled=running.restoreControls??true
