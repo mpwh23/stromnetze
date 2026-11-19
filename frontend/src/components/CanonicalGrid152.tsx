@@ -43,6 +43,23 @@ export default function CanonicalGrid152({points}:{points:readonly Point152[]}) 
     return result
   },[half,step])
   useEffect(()=>()=>gridGeometry.dispose(),[gridGeometry])
+  // STROM153_3D_AXIS_STYLES: lines are 1 CSS pixel, regardless of camera distance.
+  // Red X, green plan Y (Three Z), blue height Z (Three Y).
+  const axisGeometry153=useMemo(()=>{
+    const make=(coords:number[])=>{
+      const geo=new THREE.BufferGeometry()
+      geo.setAttribute('position',new THREE.Float32BufferAttribute(coords,3))
+      return geo
+    }
+    const z= Math.max(6,Math.min(20,half))
+    return {
+      x:make([-half,-0.013,0,half,-0.013,0]),
+      y:make([0,-0.012,-half,0,-0.012,half]),
+      z:make([0,-z,0,0,z,0]),
+    }
+  },[half])
+  useEffect(()=>()=>Object.values(axisGeometry153).forEach(geometry=>geometry.dispose()),[axisGeometry153])
+
   useFrame(()=>{
     // Default is identity: Three X = Blueprint X, Three Z = Blueprint Y.
     // Any transformation measured on a REAL floor reference takes priority.
@@ -85,19 +102,16 @@ export default function CanonicalGrid152({points}:{points:readonly Point152[]}) 
       <lineSegments geometry={gridGeometry} frustumCulled={false}>
         <lineBasicMaterial color="#8798ae" transparent opacity={0.45} toneMapped={false}/>
       </lineSegments>
-      {/* Blueprint X=0 (through Y axis) and Y=0 (through X axis); both in real metres. */}
-      <mesh name="strom152-x-axis" position={[0,-0.015,0]}>
-        <boxGeometry args={[half*2,0.006,0.05]}/>
-        <meshBasicMaterial color="#cb5a63" toneMapped={false}/>
-      </mesh>
-      <mesh name="strom152-y-axis" position={[0,-0.014,0]}>
-        <boxGeometry args={[0.05,0.006,half*2]}/>
-        <meshBasicMaterial color="#327aaf" toneMapped={false}/>
-      </mesh>
-      <mesh name="strom152-origin" position={[0,-0.008,0]}>
-        <sphereGeometry args={[0.07,12,8]}/>
-        <meshBasicMaterial color="#253f68" toneMapped={false}/>
-      </mesh>
+      {/* STROM153_3D_AXIS_STYLES: matched viewport-pixel width, no thick boxes. */}
+      <lineSegments name="strom152-x-axis" geometry={axisGeometry153.x} frustumCulled={false}>
+        <lineBasicMaterial color="#e14b4b" linewidth={1} toneMapped={false}/>
+      </lineSegments>
+      <lineSegments name="strom152-y-axis" geometry={axisGeometry153.y} frustumCulled={false}>
+        <lineBasicMaterial color="#269e59" linewidth={1} toneMapped={false}/>
+      </lineSegments>
+      <lineSegments name="strom153-z-axis" geometry={axisGeometry153.z} frustumCulled={false}>
+        <lineBasicMaterial color="#3377db" linewidth={1} toneMapped={false}/>
+      </lineSegments>
     </group>,scene,
   )
 }

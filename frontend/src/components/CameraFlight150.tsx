@@ -8,6 +8,7 @@ import {
 import type { BlueprintFrame150, Enter150 } from './cameraTransitions150'
 import { captureThreeFloorExtrema150q } from './threeFloorExtrema150q' // STROM150Q_3D_FLOOR_EXTENTS
 import { calibrateFloorStart150r, floorWorldPoints150r } from './cameraFloorMatch150r' // STROM150R_CAMERA_MATCH
+import { alignBlueprintViewport153 } from './cameraViewportAlignment153' // STROM153_CAMERA_VIEWPORT_FIT
 
 type PlanPoint = { x: number; y: number }
 type OrbitControl = { target?: THREE.Vector3; enabled?: boolean; update?: () => void }
@@ -297,6 +298,14 @@ export default function CameraFlight150({ points }: { points: readonly PlanPoint
       apply(camera, running.start)
       running.preparedFrames++
       if (running.preparedFrames >= 3) {
+        // STROM153_CAMERA_VIEWPORT_FIT: at the LAST concealed frame, fit the
+        // actual 3D projection to the stored Blueprint xMin/xMax/yMin/yMax.
+        // No waiting, no changes to either 5-second transition duration.
+        try {
+          alignBlueprintViewport153(state.scene,camera,state.gl.domElement,
+            running.start,currentFrame150(),pose=>apply(camera,pose))
+        } catch(error){console.warn('[Strom 153] Viewport-Abgleich nicht möglich',error)}
+        apply(camera,running.start)
         running.phase = 'fade'
         running.startedAt = performance.now() + ENTER_FADE150
         // STROM150Q_3D_FLOOR_EXTENTS: actual 3D camera projection at the start of the fade.

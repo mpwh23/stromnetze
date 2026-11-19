@@ -1,3 +1,4 @@
+// STROM153_BP_AXIS_STYLES: XY lines use one viewport-pixel width.
 import {readZeroLevel151,writeZeroLevel151,resolveZeroLevel151} from './building/coordinateReference151' // STROM151_COORDINATE_DATUM
 import {queueEntry150,requestExit150,registerEnterReady150,ENTER_FADE150} from './components/cameraTransitions150' // STROM150_CAMERA_BRIDGE
 import StromIcon150 from './components/StromIcon150'
@@ -5514,8 +5515,8 @@ function Grid() {
   const lines = []
   for (let meter = canvas.minM; meter <= canvas.maxM; meter += 1) {
     const major = meter % 5 === 0
-    lines.push(<line key={`x-${meter}`} x1={mToX(meter)} y1={mToY(canvas.minM)} x2={mToX(meter)} y2={mToY(canvas.maxM)} className={major ? 'major' : ''} />)
-    lines.push(<line key={`y-${meter}`} x1={mToX(canvas.minM)} y1={mToY(meter)} x2={mToX(canvas.maxM)} y2={mToY(meter)} className={major ? 'major' : ''} />)
+    lines.push(<line key={`x-${meter}`} x1={mToX(meter)} y1={mToY(canvas.minM)} x2={mToX(meter)} y2={mToY(canvas.maxM)} className={meter === 0 ? 'strom153-zero-y' : (major ? 'major' : '')} />)
+    lines.push(<line key={`y-${meter}`} x1={mToX(canvas.minM)} y1={mToY(meter)} x2={mToX(canvas.maxM)} y2={mToY(meter)} className={meter === 0 ? 'strom153-zero-x' : (major ? 'major' : '')} />)
     if (major) {
       lines.push(<text key={`tx-${meter}`} x={mToX(meter)} y={mToY(canvas.minM) - 10} textAnchor="middle">{meter} m</text>)
       lines.push(<text key={`ty-${meter}`} x={mToX(canvas.minM) - 12} y={mToY(meter) + 4} textAnchor="end">{meter} m</text>)

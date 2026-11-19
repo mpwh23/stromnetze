@@ -4988,3 +4988,13 @@ svg [class*="dimension"], svg [class*="technical"], svg [class*="measure"] { vec
 .layer-zero-legend151 {display:flex;align-items:center;justify-content:space-between;
   padding:3px 7px;font-size:11px;color:#526d95;}
 .layer-zero-legend151 strong {color:#275dd1;}
+
+/* STROM153_AXIS_PIXEL_WIDTH: equal width in Blueprint and Three.js (WebGL 1 CSS px).
+   SVG vector-effect prevents line widths growing with Blueprint zoom. */
+.floorplan-canvas .grid line,
+.floorplan-canvas .grid line.major {
+  stroke-width:1px !important;
+  vector-effect:non-scaling-stroke;
+}
+.floorplan-canvas .grid line.strom153-zero-x {stroke:#e14b4b !important;stroke-opacity:1;}
+.floorplan-canvas .grid line.strom153-zero-y {stroke:#269e59 !important;stroke-opacity:1;}
