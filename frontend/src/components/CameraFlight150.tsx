@@ -77,6 +77,43 @@ type Flight = {
   viewOffset156?: ViewOffset156
   finish?: () => void
 }
+
+// STROM162_EXACT_RENDERED_BLUEPRINT_RETURN: record and reproduce the real,
+// fully rendered top-view camera, including the full WebGL lens shift.
+type Lens162={fullWidth:number;fullHeight:number;offsetX:number;offsetY:number;width:number;height:number}
+type SavedTop162={pose:CameraPose;lens:Lens162|null}
+type LensTransition162={from:Lens162|null;to:Lens162|null}
+function snapshotLens162(camera:THREE.Camera):Lens162|null {
+  const c=camera as THREE.PerspectiveCamera | THREE.OrthographicCamera
+  if(!('isPerspectiveCamera' in c) && !('isOrthographicCamera' in c))return null
+  const v=c.view
+  if(!v?.enabled)return null
+  const result={fullWidth:v.fullWidth,fullHeight:v.fullHeight,offsetX:v.offsetX,offsetY:v.offsetY,
+    width:v.width,height:v.height}
+  if(!Object.values(result).every(Number.isFinite)||result.fullWidth<1||result.fullHeight<1||
+      result.width<1||result.height<1)return null
+  return result
+}
+function setLens162(camera:THREE.Camera,lens:Lens162|null):void {
+  const c=camera as THREE.PerspectiveCamera | THREE.OrthographicCamera
+  if(!('isPerspectiveCamera' in c) && !('isOrthographicCamera' in c))return
+  if(lens)c.setViewOffset(lens.fullWidth,lens.fullHeight,lens.offsetX,lens.offsetY,lens.width,lens.height)
+  else if(c.view?.enabled)c.clearViewOffset()
+}
+function interpolateLens162(camera:THREE.Camera,from:Lens162|null,to:Lens162|null,k:number):void {
+  if(k<=0){setLens162(camera,from);return}
+  if(k>=1){setLens162(camera,to);return}
+  if(!from && !to)return
+  const start=from||{...to!,offsetX:0,offsetY:0}
+  const finish=to||{...from!,offsetX:0,offsetY:0}
+  const mix=(a:number,b:number)=>a+(b-a)*k
+  setLens162(camera,{
+    fullWidth:mix(start.fullWidth,finish.fullWidth),
+    fullHeight:mix(start.fullHeight,finish.fullHeight),
+    offsetX:mix(start.offsetX,finish.offsetX),offsetY:mix(start.offsetY,finish.offsetY),
+    width:mix(start.width,finish.width),height:mix(start.height,finish.height),
+  })
+}
 type FrozenControl = { control: OrbitControl; update?: () => void; enabled?: boolean }
 const clamp01 = (t: number) => Math.min(1, Math.max(0, t))
 const easeOut = (t: number) => 1 - (1 - t) ** 3
@@ -221,7 +258,9 @@ export default function CameraFlight150({ points }: { points: readonly PlanPoint
   const pending = useRef<Enter150 | null>(null)
   const requestedExit = useRef<(() => void) | null>(null)
   const flight = useRef<Flight | null>(null)
-  const savedTop161b = useRef<{pose: CameraPose; lens: ViewOffset156 | null} | null>(null) // STROM161B_RETURN_SAVED_CALIBRATED_POSE
+  const savedTop162 = useRef<SavedTop162 | null>(null)
+  const returnLens162 = useRef<LensTransition162 | null>(null)
+  const returnHold162 = useRef(0)
   const frozen = useRef<FrozenControl | null>(null)
   const pointsRef = useRef(points)
   const exactOverhead158=useRef<{pose:CameraPose;offset?:ViewOffset156}|null>(null)
@@ -280,26 +319,14 @@ export default function CameraFlight150({ points }: { points: readonly PlanPoint
   // OrbitControls renders at -1; priority 0 writes the final camera of each R3F frame.
   useFrame(state => {
     const camera = state.camera
-
-    // 161b: Save the real calibrated top view. No writes to the entry camera.
-    const entering161b = flight.current
-    if (!savedTop161b.current && entering161b?.kind === 'entry' &&
-        (entering161b.phase === 'fade' || entering161b.phase === 'flight')) {
-      const p161b = entering161b.start
-      savedTop161b.current = {
-        pose: {
-          position: p161b.position.clone(), rotation: p161b.rotation.clone(),
-          target: p161b.target.clone(), up: p161b.up.clone(), zoom: p161b.zoom,
-        },
-        lens: entering161b.viewOffset156 ? {...entering161b.viewOffset156} : null,
-      }
-    }
     const control = orbit()
     const aspect = Math.max(0.3, state.size.width / Math.max(1, state.size.height))
 
     // STROM158_REVERSE_EXACT: reverse the actual calibrated entry pose,
     // rather than constructing an uncalibrated overhead approximation.
     if (requestedExit.current) {
+      const exitStartingLens162 = snapshotLens162(camera) // read BEFORE any camera mutation
+
       const finish = requestedExit.current
       requestedExit.current = null
       pending.current = null
@@ -332,22 +359,29 @@ export default function CameraFlight150({ points }: { points: readonly PlanPoint
         startedAt: performance.now(), steady: 0, settleFrames: 0, preparedFrames: 0,
         viewOffset156:offset,finish,
       }
-      // 161b: Override ONLY the exit target with the genuine forward start.
-      const savedEnd161b = savedTop161b.current
-      if (savedEnd161b && flight.current?.kind === 'exit') {
-        flight.current.end = {
-          position: savedEnd161b.pose.position.clone(),
-          rotation: savedEnd161b.pose.rotation.clone(),
-          target: savedEnd161b.pose.target.clone(),
-          up: savedEnd161b.pose.up.clone(), zoom: savedEnd161b.pose.zoom,
+      // Use exactly the displayed blueprint pose. Preserves the 159b forward.
+      returnHold162.current = 0
+      const exactTop162 = savedTop162.current
+      if (exactTop162 && flight.current?.kind === 'exit') {
+        const p162=exactTop162.pose
+        flight.current.end={
+          position:p162.position.clone(),rotation:p162.rotation.clone(),
+          target:p162.target.clone(),up:p162.up.clone(),zoom:p162.zoom,
         }
-        flight.current.viewOffset156 = savedEnd161b.lens ? {...savedEnd161b.lens} : undefined
+        // The lens is handled by interpolateLens162. Don't also run the old
+        // forward-facing compensator in the reverse direction.
+        flight.current.viewOffset156=undefined
+        returnLens162.current={from:exitStartingLens162,to:exactTop162.lens}
+      } else {
+        returnLens162.current=null
       }
 
     }
 
     if (pending.current) {
-      savedTop161b.current = null // a NEW Blueprint -> 3D flight
+      savedTop162.current = null // new Blueprint viewport is the new truth
+      returnLens162.current = null
+      returnHold162.current = 0
       pending.current = null
       const initial = capture(camera, control)
       // Let the scene / OrbitControls finish their default camera setup while
@@ -438,6 +472,14 @@ export default function CameraFlight150({ points }: { points: readonly PlanPoint
       apply(camera, running.start)
       if(running.viewOffset156)applyViewOffset156(camera,running.viewOffset156,1)
       if (performance.now() >= running.startedAt) running.phase = 'flight'
+
+      // Passive observation: capture precisely what the fade is actually rendering.
+      if (!savedTop162.current) {
+        savedTop162.current = {pose:capture(camera,control),lens:snapshotLens162(camera)}
+        const p162=savedTop162.current.pose.position
+        console.info('[STROM 162] blueprint camera captured',
+          {x:p162.x,y:p162.z,z:p162.y,lens:savedTop162.current.lens})
+      }
       return
     }
 
@@ -457,13 +499,21 @@ export default function CameraFlight150({ points }: { points: readonly PlanPoint
       zoom: a.zoom + (b.zoom - a.zoom) * k,
     }
     apply(camera, pose)
-    if (running.kind === 'exit' && running.viewOffset156)
-      applyViewOffset156(camera, running.viewOffset156, k) // STROM161B_REVERSE_LENS_TO_SAVED_TOP
+    if (running.kind === 'exit' && returnLens162.current)
+      interpolateLens162(camera,returnLens162.current.from,returnLens162.current.to,k)
     // Entry: shifted -> unshifted; reverse: unshifted -> the same shifted BP view.
     if(running.viewOffset156)
       applyViewOffset156(camera,running.viewOffset156,
         running.kind==='entry'?1-k:k)
     if (t < 1) return
+
+    // Keep final Blueprint viewport alive for three THREE/WebGL frames.
+    if (running.kind === 'exit') {
+      apply(camera,b)
+      if (returnLens162.current) interpolateLens162(camera,returnLens162.current.from,returnLens162.current.to,1)
+      returnHold162.current += 1
+      if (returnHold162.current < 3) { invalidate(); return }
+    }
 
     // STROM150N_NO_END_JUMP: no second camera pose or manual reset on unlock.
     apply(camera, b)
