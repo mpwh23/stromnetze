@@ -1,6 +1,7 @@
 import { useLayoutEffect, useRef } from 'react'
 import { useFrame, useThree } from '@react-three/fiber'
 import * as THREE from 'three'
+import { clonePose160, interpolatePose160, easeOut160, type ReturnPose160, type ReturnLens160 } from './returnFlight160' // STROM160_REVERSE_FROM_SAVED_TOP_VIEW
 import {
   consumeEntry150, restoreEntry150, currentFrame150,
   registerExit150, notifyEnterReady150, DURATION150, ENTER_FADE150, EXIT_FLIGHT159,
@@ -221,6 +222,9 @@ export default function CameraFlight150({ points }: { points: readonly PlanPoint
   const pending = useRef<Enter150 | null>(null)
   const requestedExit = useRef<(() => void) | null>(null)
   const flight = useRef<Flight | null>(null)
+  const entryAnchor160 = useRef<{pose: ReturnPose160; lens: ReturnLens160 | null} | null>(null)
+  const reverseRequest160 = useRef<(() => void) | null>(null)
+  const reverse160 = useRef<{start: ReturnPose160; end: ReturnPose160; lens: ReturnLens160 | null; started: number; done: () => void; closing: boolean} | null>(null)
   const frozen = useRef<FrozenControl | null>(null)
   const pointsRef = useRef(points)
   const exactOverhead158=useRef<{pose:CameraPose;offset?:ViewOffset156}|null>(null)
@@ -259,8 +263,15 @@ export default function CameraFlight150({ points }: { points: readonly PlanPoint
     pending.current = consumeEntry150()
     if (pending.current) invalidate()
     const unbind = registerExit150(done => {
-      requestedExit.current = done
-      invalidate()
+      // STROM160: use the camera pose actually displayed during forward fade.
+      if (entryAnchor160.current) {
+        reverseRequest160.current = done
+        invalidate()
+      } else {
+            requestedExit.current = done
+            invalidate()
+
+      }
     })
     return () => {
       unbind()
@@ -279,6 +290,72 @@ export default function CameraFlight150({ points }: { points: readonly PlanPoint
   // OrbitControls renders at -1; priority 0 writes the final camera of each R3F frame.
   useFrame(state => {
     const camera = state.camera
+
+    // STROM160_REVERSE_FROM_SAVED_TOP_VIEW: remember the *actual* calibrated
+    // blueprint pose and its lens offset, not a freshly calculated top view.
+    const entry160 = flight.current as unknown as {
+      kind?: string; phase?: string; start?: ReturnPose160; viewOffset156?: ReturnLens160
+    } | null
+    if (!entryAnchor160.current && entry160?.kind === 'entry' &&
+        (entry160.phase === 'fade' || entry160.phase === 'flight') && entry160.start) {
+      entryAnchor160.current = {
+        pose: clonePose160(entry160.start),
+        lens: entry160.viewOffset156 ? {...entry160.viewOffset156} : null,
+      }
+    }
+
+    // The entry path below is unchanged. The reverse driver takes ownership
+    // only when the EXIT callback was invoked after a completed entry.
+    if (reverseRequest160.current && entryAnchor160.current) {
+      const finish160 = reverseRequest160.current
+      reverseRequest160.current = null
+      const control160 = (get().controls || null) as {target?: THREE.Vector3; enabled?: boolean} | null
+      const cam160 = camera as THREE.OrthographicCamera
+      const start160: ReturnPose160 = {
+        position: camera.position.clone(),
+        rotation: camera.quaternion.clone(),
+        target: control160?.target?.clone() || new THREE.Vector3(),
+        up: camera.up.clone(),
+        zoom: Number.isFinite(cam160.zoom) ? cam160.zoom : 1,
+      }
+      lock()
+      reverse160.current = {
+        start: start160,
+        end: clonePose160(entryAnchor160.current.pose),
+        lens: entryAnchor160.current.lens ? {...entryAnchor160.current.lens} : null,
+        started: performance.now(),
+        done: finish160,
+        closing: false,
+      }
+      // Do not invoke any of the old reverse calibration/reset handlers.
+    }
+    if (reverse160.current) {
+      const return160 = reverse160.current
+      const t160 = Math.min(1, Math.max(0, (performance.now() - return160.started) / 1000))
+      const k160 = easeOut160(t160)
+      const value160 = interpolatePose160(return160.start, return160.end, k160)
+      camera.position.copy(value160.position)
+      camera.quaternion.copy(value160.rotation)
+      camera.up.copy(value160.up)
+      const zoomCamera160 = camera as THREE.PerspectiveCamera
+      if (typeof zoomCamera160.zoom === 'number') {
+        zoomCamera160.zoom = value160.zoom
+        zoomCamera160.updateProjectionMatrix()
+      }
+      const controls160 = (get().controls || null) as {target?: THREE.Vector3; enabled?: boolean} | null
+      controls160?.target?.copy(value160.target)
+      if (controls160) controls160.enabled = false
+      if (return160.lens) applyViewOffset156(camera, return160.lens, k160)
+      camera.updateMatrixWorld(true)
+      invalidate()
+      // Keep the exact top-view (including off-axis projection) throughout
+      // the existing 500 ms reverse fade. Finish is signalled once only.
+      if (t160 >= 1 && !return160.closing) {
+        return160.closing = true
+        return160.done()
+      }
+      return
+    }
     const control = orbit()
     const aspect = Math.max(0.3, state.size.width / Math.max(1, state.size.height))
 
