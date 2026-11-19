@@ -7,6 +7,7 @@ import {
 } from './cameraTransitions150'
 import type { BlueprintFrame150, Enter150 } from './cameraTransitions150'
 import { captureCameraHandoff155 } from './cameraHandoffDiagnostics155' // STROM155_CAMERA_VIEWPORT_DIAGNOSTICS
+import { alignBlueprintCenter156,applyViewOffset156,clearViewOffset156,type ViewOffset156 } from './cameraBlueprintCenter156' // STROM156_BLUEPRINT_CAMERA_CENTER
 import { captureThreeFloorExtrema150q } from './threeFloorExtrema150q' // STROM150Q_3D_FLOOR_EXTENTS
 import { calibrateFloorStart150r, floorWorldPoints150r } from './cameraFloorMatch150r' // STROM150R_CAMERA_MATCH
 import { alignBlueprintGrid154 } from './cameraGridAlignment154' // STROM154_GRID_PIXEL_ALIGNMENT
@@ -30,6 +31,7 @@ type Flight = {
   settleFrames: number
   preparedFrames: number
   previous?: CameraPose
+  viewOffset156?: ViewOffset156
   finish?: () => void
 }
 type FrozenControl = { control: OrbitControl; update?: () => void; enabled?: boolean }
@@ -223,6 +225,8 @@ export default function CameraFlight150({ points }: { points: readonly PlanPoint
       requestedExit.current = null
       flight.current = null
       unlock()
+      // Never leave off-axis camera projection behind after unmount.
+      clearViewOffset156(get().camera)
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [get, invalidate])
@@ -305,8 +309,16 @@ export default function CameraFlight150({ points }: { points: readonly PlanPoint
         try {
           // STROM154_GRID_PIXEL_ALIGNMENT: direct 0/0 + 1m X/Y match from
           // the click-time SVG matrix. Do NOT align using floor bounding extents.
-          alignBlueprintGrid154(state.scene,camera,state.gl.domElement,
+          const gridAligned154=alignBlueprintGrid154(state.scene,camera,state.gl.domElement,
             running.start,currentFrame150(),pose=>apply(camera,pose))
+          if(gridAligned154){
+            // The WebGL canvas and Blueprint viewport are different DOM rects.
+            // Rebase the eye on the TRUE BP centre and retain screen-perfect
+            // projection with a temporary camera lens/view offset.
+            running.viewOffset156=alignBlueprintCenter156(
+              state.scene,camera,state.gl.domElement,running.start,
+              currentFrame150(),pose=>apply(camera,pose))||undefined
+          }
         } catch(error){console.warn('[Strom 153] Viewport-Abgleich nicht möglich',error)}
         apply(camera,running.start)
         running.phase = 'fade'
@@ -327,6 +339,7 @@ export default function CameraFlight150({ points }: { points: readonly PlanPoint
     }
     if (running.kind === 'entry' && running.phase === 'fade') {
       apply(camera, running.start)
+      if(running.viewOffset156)applyViewOffset156(camera,running.viewOffset156,1)
       if (performance.now() >= running.startedAt) running.phase = 'flight'
       return
     }
@@ -343,10 +356,15 @@ export default function CameraFlight150({ points }: { points: readonly PlanPoint
       zoom: a.zoom + (b.zoom - a.zoom) * k,
     }
     apply(camera, pose)
+    // Ease the compensating lens offset to zero together with the camera.
+    // At the exact final frame the native, unshifted 3D camera is restored.
+    if(running.kind==='entry'&&running.viewOffset156)
+      applyViewOffset156(camera,running.viewOffset156,1-k)
     if (t < 1) return
 
     // STROM150N_NO_END_JUMP: no second camera pose or manual reset on unlock.
     apply(camera, b)
+    if(running.kind==='entry'&&running.viewOffset156)clearViewOffset156(camera)
     flight.current = null
     if (running.kind === 'exit') {
       running.finish?.()

@@ -96,6 +96,22 @@ export function captureCameraHandoff155(
   const fovHorizontal=perspective&&projection&&Math.abs(projection[0])>1e-9
     ?THREE.MathUtils.radToDeg(2*Math.atan(1/Math.abs(projection[0]))):undefined
   const ortho=camera as THREE.OrthographicCamera
+  const bpViewportCentre=blueprint?.screen
+  let bpCentreRayHit:THREE.Vector3|null=null
+  if(bpViewportCentre&&canvasRect.width>0&&canvasRect.height>0){
+    const nx=2*(bpViewportCentre.centerX-canvasRect.left)/canvasRect.width-1
+    const ny=1-2*(bpViewportCentre.centerY-canvasRect.top)/canvasRect.height
+    const a=new THREE.Vector3(nx,ny,-1).unproject(camera)
+    const b=new THREE.Vector3(nx,ny,1).unproject(camera)
+    const dir=b.clone().sub(a).normalize()
+    const start=perspective?worldPosition:a
+    const t0=Math.abs(dir.y)>1e-9?-start.y/dir.y:NaN
+    if(valid155(t0)&&t0>=0)bpCentreRayHit=start.clone().addScaledVector(dir,t0)
+  }
+  const activeView=(camera as THREE.PerspectiveCamera).view
+  const offAxisView=activeView?.enabled?{
+    offsetX:round155(activeView.offsetX,2),offsetY:round155(activeView.offsetY,2)
+  }:null
   const orthographicView=!perspective&&ortho.isOrthographicCamera?{
     widthM:round155((ortho.right-ortho.left)/ortho.zoom),
     heightM:round155((ortho.top-ortho.bottom)/ortho.zoom),
@@ -115,7 +131,11 @@ export function captureCameraHandoff155(
       axes:'Three.js world: X horizontal, Y elevation, Z horizontal (Blueprint Y)',
       type:perspective?'PerspectiveCamera':ortho.isOrthographicCamera?'OrthographicCamera':'Camera',
       position:coords155(worldPosition),
+      architecturalPosition:{x:round155(worldPosition.x),y:round155(worldPosition.z),z:round155(worldPosition.y)},
       direction:coords155(direction),
+      architecturalDirection:{x:round155(direction.x),y:round155(direction.z),z:round155(direction.y)},
+      blueprintCenterRayOnHeightZero:bpCentreRayHit?{x:round155(bpCentreRayHit.x),y:round155(bpCentreRayHit.z)}:null,
+      lensOffsetCssPx:offAxisView,
       viewportCenterOnZ0:hit?coords155(hit):null,
       rotationXYZDegrees:{x:round155(rad(angles.x),2),y:round155(rad(angles.y),2),z:round155(rad(angles.z),2)},
       fovVerticalDegrees:fovVertical===undefined?null:round155(fovVertical,2),
@@ -145,6 +165,8 @@ export function captureCameraHandoff155(
   const bp=blueprint?.visiblePlan
   const p=result.camera.position,d=result.camera.direction,r=result.camera.rotationXYZDegrees
   const gaze=result.camera.viewportCenterOnZ0
+  const bpRay=result.camera.blueprintCenterRayOnHeightZero
+  const lens=result.camera.lensOffsetCssPx
   section.textContent=
     `SICHTBARER BLUEPRINT-VIEWPORT (Plan, m)\n`
     +(bp?`Xmin: ${bp.xMin}  | Xmax: ${bp.xMax}\n`
@@ -154,12 +176,15 @@ export function captureCameraHandoff155(
     +(blueprint?`Pixel-Bereich: X ${blueprint.screen.xMin}..${blueprint.screen.xMax}`
        +` / Y ${blueprint.screen.yMin}..${blueprint.screen.yMax}\n`
        +`Pixel-Mitte: ${blueprint.screen.centerX} / ${blueprint.screen.centerY}\n`:'')
-    +`3D-KAMERA (Three.js X/Y/Z, m)\n`
-    +`Position: X ${p.x} / Y ${p.y} / Z ${p.z}\n`
-    +`Blickrichtung: (${d.x}, ${d.y}, ${d.z})\n`
-    +(gaze?`Viewport-Mitte auf Hoehe 0: X ${gaze.x} / Y ${gaze.y} / Z ${gaze.z}\n`
-      :'Viewport-Mitte auf Hoehe 0: kein Strahlschnitt\n')
-    +`Rotation XYZ: ${r.x}° / ${r.y}° / ${r.z}°\n`
+    +`3D-KAMERA (PLAN: X Breite / Y Tiefe / Z Hoehe)\n`
+    +`Position: X ${p.x} / Y ${p.z} / Z ${p.y} m\n`
+    +`Blickrichtung XYZ (Plan): (${d.x}, ${d.z}, ${d.y})\n`
+    +(bpRay?`Punkt unter Blueprint-Mitte (Z=0): X ${bpRay.x} / Y ${bpRay.y}\n`
+      :'Blueprint-Mitte: kein Strahlschnitt\n')
+    +(gaze?`Punkt unter 3D-Canvas-Mitte (Z=0): X ${gaze.x} / Y ${gaze.z}\n`
+      :'3D-Canvas-Mitte: kein Strahlschnitt\n')
+    +(lens?`Lens-/Canvas-Versatz: ${lens.offsetX}px / ${lens.offsetY}px\n`:'')
+    +`Rotation (intern Three XYZ): ${r.x}° / ${r.y}° / ${r.z}°\n`
     +(perspective?`Blickwinkel: vert. ${txt155(fovVertical,'°')} / horiz. ${txt155(fovHorizontal,'°')}\n`
       :orthographicView?`Orthografisch (kein FOV): ${orthographicView.widthM} × ${orthographicView.heightM} m\n`
         :'Blickwinkel: Kameratyp unbekannt\n')
