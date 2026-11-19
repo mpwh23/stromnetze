@@ -5,7 +5,10 @@ export type Enter150={mode:Mode150;frame:BlueprintFrame150}
 let pending150:Enter150|null=null
 let current150:Enter150|null=null
 let activeExit150:((done:()=>void)=>void)|null=null
+let activeReady150:(()=>void)|null=null
 let exitPending150=false
+let readySent150=false
+export const ENTER_FADE150=250
 export const DURATION150=750
 
 function storedLevel150(floorId:string):string{
@@ -25,8 +28,6 @@ function viewFrame150(floorId:string):BlueprintFrame150{
     if(svg&&matrix&&rect&&rect.width>30&&rect.height>30){
       const center=svg.createSVGPoint();center.x=rect.left+rect.width/2;center.y=rect.top+rect.height/2
       const p=center.matrixTransform(matrix.inverse())
-      // The Blueprint uses a 60px/m plan grid with a 70px margin and -10m origin.
-      // This is the existing canvas coordinate convention, not an arbitrary 3D zoom.
       result.cx=(p.x-670)/60;result.cy=(p.y-670)/60
       const pxPerUnit=Math.hypot(matrix.a,matrix.b)
       if(pxPerUnit>1e-5){result.widthM=rect.width/(60*pxPerUnit);result.heightM=rect.height/(60*pxPerUnit)}
@@ -38,6 +39,7 @@ export function queueEntry150(mode:Mode150,floorId:string){
   pending150={mode,frame:viewFrame150(floorId)}
   current150=pending150
   exitPending150=false
+  readySent150=false
 }
 export function consumeEntry150():Enter150|null{
   const value=pending150
@@ -46,6 +48,15 @@ export function consumeEntry150():Enter150|null{
 }
 export function restoreEntry150(value:Enter150){if(!pending150)pending150=value}
 export function currentFrame150():BlueprintFrame150|null{return current150?.frame||null}
+export function registerEnterReady150(handler:()=>void):()=>void{
+  activeReady150=handler
+  return ()=>{if(activeReady150===handler)activeReady150=null}
+}
+export function notifyEnterReady150(){
+  if(readySent150)return
+  readySent150=true
+  try {activeReady150?.()} catch {/* UI fade is optional */}
+}
 export function registerExit150(handler:(done:()=>void)=>void):()=>void{
   activeExit150=handler
   return ()=>{if(activeExit150===handler)activeExit150=null}

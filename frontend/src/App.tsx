@@ -1,4 +1,4 @@
-import {queueEntry150,requestExit150} from './components/cameraTransitions150' // STROM150_CAMERA_BRIDGE
+import {queueEntry150,requestExit150,registerEnterReady150,ENTER_FADE150} from './components/cameraTransitions150' // STROM150_CAMERA_BRIDGE
 import StromIcon150 from './components/StromIcon150'
 import { type CSSProperties, ChangeEvent as ReactChangeEvent, DragEvent as ReactDragEvent, MouseEvent as ReactMouseEvent, WheelEvent as ReactWheelEvent, useEffect, useMemo, useRef, useState } from 'react'
 import StromIcon from './components/StromIcon'
@@ -351,6 +351,20 @@ function roomSnapshotsEqual(a: Room[] | undefined, b: Room[]) {
 
 export function App() {
   const [viewMode, setViewMode] = useState<ViewMode>('floorplan')
+  // STROM150C_PRESERVE_BLUEPRINT: keep original BP visible while the 3D canvas prepares.
+  const [enterPreview150, setEnterPreview150] = useState<'loading'|'fading'|null>(null)
+  const enterPreviewTimer150 = useRef<number|null>(null)
+  useEffect(() => registerEnterReady150(() => {
+    if (enterPreviewTimer150.current !== null) window.clearTimeout(enterPreviewTimer150.current)
+    setEnterPreview150(current => current === 'loading' ? 'fading' : current)
+    enterPreviewTimer150.current = window.setTimeout(() => {
+      setEnterPreview150(null)
+      enterPreviewTimer150.current = null
+    }, ENTER_FADE150)
+  }), [])
+  useEffect(() => () => {
+    if (enterPreviewTimer150.current !== null) window.clearTimeout(enterPreviewTimer150.current)
+  }, [])
   const [legacyWallDetail, setLegacyWallDetail] = useState(false)
   const [wall3DSelected, setWall3DSelected] = useState<WallSelection | null>(null) // STROM140_3D_WALL_EDITOR
   const [wall3DRevision, setWall3DRevision] = useState(0)
@@ -708,6 +722,8 @@ export function App() {
       if (requestExit150(() => setViewMode('floorplan'))) return
     }
     if (viewMode === 'floorplan' && (mode === 'wall' || mode === 'threeD') && floor) {
+      if (enterPreviewTimer150.current !== null) window.clearTimeout(enterPreviewTimer150.current)
+      setEnterPreview150('loading')
       queueEntry150(mode, floor.id)
     }
     if (mode === 'wall' && viewMode !== 'wall') setLegacyWallDetail(false)
@@ -826,13 +842,13 @@ export function App() {
 
         {error && <div className="error-box">API-Fehler: {error}</div>}
 
-        <section className="workspace">
+        <section className={`workspace ${enterPreview150 ? `strom150c-enter-${enterPreview150}` : ""}` }>
           {!selectedObject && (
             <div className="hint-box standalone">
               Bitte waehle links in der Seitenleiste ein Objekt aus oder lege ein neues Objekt an. Danach werden Etage und Raeume fuer dieses Objekt geladen.
             </div>
           )}
-          {selectedObject && viewMode === 'floorplan' && floor && (
+          {selectedObject && (viewMode === 'floorplan' || (enterPreview150 !== null && (viewMode === 'wall' || viewMode === 'threeD'))) && floor && (
             <FloorplanEditor
               key={floor.id}
               floor={floor}
@@ -851,6 +867,12 @@ export function App() {
             />
           )}
           {selectedObject && viewMode === 'floorplan' && !floor && <div className="hint-box">Fuer dieses Objekt wird eine Etage vorbereitet...</div>}
+          {enterPreview150 === 'loading' && (viewMode === 'wall' || viewMode === 'threeD') && (
+            <div className="strom150c-loader" role="status" aria-live="polite">
+              <span className="strom150c-loader-ring" aria-hidden="true" />
+              <span>{viewMode === 'wall' ? 'Wanddetail wird geladen…' : '3D-Haus wird geladen…'}</span>
+            </div>
+          )}
           {selectedObject && viewMode === 'wall' && floor && hasWallDetailAccess && (
             legacyWallDetail ? (
               <div className="wall-detail-legacy-wrapper">
