@@ -8,8 +8,9 @@ let activeExit150:((done:()=>void)=>void)|null=null
 let activeReady150:(()=>void)|null=null
 let exitPending150=false
 let readySent150=false
-export const ENTER_FADE150=500
-export const DURATION150=1500
+// STROM150I_ANALYSIS_5S: temporary diagnostic timings; no camera geometry changes.
+export const ENTER_FADE150=5000
+export const DURATION150=5000
 
 function storedLevel150(floorId:string):string{
   try {

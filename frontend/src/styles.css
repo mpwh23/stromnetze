@@ -4945,7 +4945,7 @@ svg [class*="dimension"], svg [class*="technical"], svg [class*="measure"] { vec
  position:absolute;inset:0;width:100%;height:100%;max-height:100%;overflow:hidden;
  z-index:15;pointer-events:none;opacity:1;
 }
-.workspace.strom150c-enter-fading > .floorplan-layout {opacity:0;transition:opacity 500ms ease;}
+.workspace.strom150c-enter-fading > .floorplan-layout {opacity:0;transition:opacity 5000ms ease;}
 .strom150c-loader {
  position:absolute;inset:0;z-index:20;pointer-events:none;display:flex;
  align-items:center;justify-content:center;flex-direction:column;gap:12px;
