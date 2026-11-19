@@ -9,11 +9,13 @@ let activeExit150:((done:()=>void)=>void)|null=null
 let activeReady150:(()=>void)|null=null
 let exitPending150=false
 let readySent150=false
-// STROM150I_ANALYSIS_5S: temporary diagnostic timings; no camera geometry changes.
-export const ENTER_FADE150=5000
-export const DURATION150=5000
-/** STROM158_REVERSE_EXACT: fade begins only after 5s reverse flight finishes. */
-export const EXIT_FADE158=5000
+// STROM159_TIMINGS: loading remains readiness-driven; milliseconds below.
+export const ENTER_FADE150=750
+export const DURATION150=2500
+/** STROM158_REVERSE_EXACT: fade starts after the reverse flight ends. */
+export const EXIT_FADE158=500
+/** STROM159_TIMINGS: reverse flight independently configurable from forward flight. */
+export const EXIT_FLIGHT159=1000
 
 function storedLevel150(floorId:string):string{
   try {
@@ -140,7 +142,8 @@ function collectBlueprintExtents150p(mode:Mode150,floorId:string){
       +'padding:12px 14px;border-radius:8px;background:rgba(18,32,54,.94);color:#fff;'
       +'box-shadow:0 3px 15px rgba(0,0,0,.25);font:12px/1.5 ui-monospace,monospace;'
       +'max-width:min(480px, calc(100vw - 32px));max-height:calc(100vh - 32px);overflow-y:auto;white-space:pre-wrap;'
-    document.body.appendChild(panel)
+    /* STROM159B_NO_COORDINATE_POPUP: do not attach debug window. */
+    panel.remove()
   }
   const o=d.outsidePx
   panel.textContent=`Blueprint → ${mode==='wall'?'Wanddetail':'3D-Haus'} · Messung vor Wechsel\n`
@@ -184,7 +187,7 @@ export function requestExit150(finish:()=>void):boolean{
   if(exitPending150)return true
   exitPending150=true
   let completed=false
-  const timeout=window.setTimeout(complete,DURATION150+1000)
+  const timeout=window.setTimeout(complete,EXIT_FLIGHT159+2000)
   function complete(){if(completed)return;completed=true;window.clearTimeout(timeout);exitPending150=false;finish()}
   try {activeExit150(complete)}catch{complete()}
   return true

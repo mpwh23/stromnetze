@@ -3,7 +3,7 @@ import { useFrame, useThree } from '@react-three/fiber'
 import * as THREE from 'three'
 import {
   consumeEntry150, restoreEntry150, currentFrame150,
-  registerExit150, notifyEnterReady150, DURATION150, ENTER_FADE150,
+  registerExit150, notifyEnterReady150, DURATION150, ENTER_FADE150, EXIT_FLIGHT159,
 } from './cameraTransitions150'
 import type { BlueprintFrame150, Enter150 } from './cameraTransitions150'
 import { captureCameraHandoff155 } from './cameraHandoffDiagnostics155' // STROM155_CAMERA_VIEWPORT_DIAGNOSTICS
@@ -413,7 +413,9 @@ export default function CameraFlight150({ points }: { points: readonly PlanPoint
       return
     }
 
-    const t = clamp01((performance.now() - running.startedAt) / DURATION150)
+    // STROM159_TIMINGS: separate 2500ms forward from 1000ms reverse duration.
+    const duration159=running.kind==='exit'?EXIT_FLIGHT159:DURATION150
+    const t = clamp01((performance.now() - running.startedAt) / duration159)
     // Inverse temporal path: forward easeOut(s)=1-(1-s)^3,
     // reverse progress=1-easeOut(1-t)=t^3. No camera jumps.
     const k = running.kind==='exit'?t*t*t:easeOut(t)
