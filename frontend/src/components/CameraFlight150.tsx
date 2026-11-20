@@ -8,7 +8,7 @@ import {
 import type { BlueprintFrame150, Enter150 } from './cameraTransitions150'
 import { captureCameraHandoff155 } from './cameraHandoffDiagnostics155' // STROM155_CAMERA_VIEWPORT_DIAGNOSTICS
 import { alignBlueprintCenter156,applyViewOffset156,clearViewOffset156,type ViewOffset156 } from './cameraBlueprintCenter156' // STROM156_BLUEPRINT_CAMERA_CENTER
-import { alignViewportExactly163 } from './cameraViewportExact163' // STROM163_BLUEPRINT_VIEWPORT_TRUTH
+import { alignGridAnalytic164 } from './cameraGridAnalytic164' // STROM164_ONE_EXACT_TRANSFORM
 import { captureThreeFloorExtrema150q } from './threeFloorExtrema150q' // STROM150Q_3D_FLOOR_EXTENTS
 import { calibrateFloorStart150r, floorWorldPoints150r } from './cameraFloorMatch150r' // STROM150R_CAMERA_MATCH
 import { alignBlueprintGrid154 } from './cameraGridAlignment154' // STROM154_GRID_PIXEL_ALIGNMENT
@@ -456,9 +456,18 @@ export default function CameraFlight150({ points }: { points: readonly PlanPoint
         // STROM163_BLUEPRINT_VIEWPORT_TRUTH: direct camera over the CURRENT
         // Blueprint viewport centre. Override both earlier 154/156 estimates.
         // Never recalculate this during the fade or flight.
-        const exact163=alignViewportExactly163(state.scene,camera,state.gl.domElement,
+        const exact163=alignGridAnalytic164(state.scene,camera,state.gl.domElement,
           running.start,currentFrame150(),pose=>apply(camera,pose))
-        if(exact163)running.viewOffset156=exact163
+        if(!exact163){
+          // Retry with current (not guessed) scene/canvas geometry on next frame.
+          // Never start a fade using an unverified camera or grid.
+          running.preparedFrames += 1
+          if(running.preparedFrames<=120)invalidate()
+          else if(running.preparedFrames===121)
+            console.error('[STROM164] Exact grid alignment unavailable: no unverified fade started')
+          return
+        }
+        running.viewOffset156=exact163
         running.phase = 'fade'
         running.startedAt = performance.now() + ENTER_FADE150
         // STROM150Q_3D_FLOOR_EXTENTS: actual 3D camera projection at the start of the fade.

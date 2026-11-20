@@ -5028,3 +5028,11 @@ svg [class*="dimension"], svg [class*="technical"], svg [class*="measure"] { vec
 
 /* STROM159_HIDE_CAMERA_DIAGNOSTICS: hide any stale 150p/155 popup from cached JS. */
 #strom-150p-viewport-geometry, #strom-155-camera-values { display:none !important; }
+
+/* STROM164_FIVE_METRE_GRID: identical Blueprint and 3D screen-pixel cadence. */
+.floorplan-canvas .grid line { stroke-width:1px !important; vector-effect:non-scaling-stroke; }
+.floorplan-canvas .grid line.major:not(.strom153-zero-x):not(.strom153-zero-y) {
+  stroke-width:2px !important;
+}
+.floorplan-canvas .grid line.strom153-zero-x,
+.floorplan-canvas .grid line.strom153-zero-y { stroke-width:1px !important; }
