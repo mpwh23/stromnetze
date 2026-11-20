@@ -11,6 +11,7 @@ import {
   solveTopView165, fallbackTopView165, poseAt165, gridErrorPx165, planToWorld165,
 } from './cameraTop165'
 import type { OrbitView165, Rect165, TopView165 } from './cameraTop165'
+import { progress166, reverseTime166, setGrowth166 } from './wallGrowth166'
 
 /** STROM165_ONE_CAMERA_OWNER
  * Einziger Kameratreiber fuer Blueprint -> 3D -> Blueprint.
@@ -18,8 +19,12 @@ import type { OrbitView165, Rect165, TopView165 } from './cameraTop165'
  * Hinweg:  settle  (3D baut sich verdeckt auf, Standardansicht wird gemerkt)
  *          prepare (Draufsicht aus dem LIVE-Blueprint berechnen, zeichnen, nachmessen)
  *          fade    (Draufsicht steht still, Blueprint blendet aus)
- *          flight  (Flug zur Standardansicht, Ease-out)
- * Rueckweg: flight (Flug zur Draufsicht, Ease-out) -> hold (nachmessen, dann Blende)
+ *          flight  (Flug zur Standardansicht, Ease-out; Waende wachsen mit Ease-in-out)
+ * Rueckweg: flight (genau der Hinflug rueckwaerts, doppelt so schnell: Kamera Ease-in,
+ *                   Waende sinken in den Blueprint) -> hold (nachmessen, dann Blende)
+ *
+ * STROM166_REVERSE_MIRROR / STROM166_WALL_GROWTH: Kamera und Wandhoehe haengen an EINER
+ * Zeitachse t (progress166). Der Rueckweg spielt t rueckwaerts ab (reverseTime166).
  *
  * Die OrbitControls sind im R3F-Store angemeldet (Building3DWorkspace) und werden hier
  * fuer die Dauer des Uebergangs wirklich gesperrt. Vor 165 fehlte die Anmeldung; die
@@ -36,6 +41,7 @@ type Run165 = {
   phase: 'settle' | 'prepare' | 'fade' | 'flight' | 'hold' | 'done'
   top: TopView165 | null
   orbit: OrbitState165 | null
+  /** Rueckweg: Zeitpunkt t des Hinwegs, an dem umgekehrt wird (1 = aus der fertigen 3D-Ansicht). */
   from: number
   startedAt: number
   frames: number
@@ -61,7 +67,6 @@ const STALE_KEYS165 = [
   'strom.camera163.alignment', 'strom.camera164.alignment',
 ]
 const clamp01 = (t: number) => Math.min(1, Math.max(0, t))
-const easeOut = (t: number) => 1 - (1 - t) ** 3
 
 function planBounds(points: readonly PlanPoint[]) {
   let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity
@@ -162,6 +167,12 @@ export default function CameraFlight150({ points }: { points: readonly PlanPoint
     cam.updateMatrixWorld(true)
     invalidate()
   }
+  /** Hinweg-Zeitpunkt t (0 = Draufsicht, 1 = 3D-Standardansicht): Kamera UND Wandhoehe. */
+  const place = (camera: THREE.Camera, top: TopView165, target: OrbitView165, t: number, grid: THREE.Matrix4 | null) => {
+    const progress = progress166(t)
+    setGrowth166(progress.height)
+    apply(camera, top, target, progress.camera, grid)
+  }
   const captureOrbit = (camera: THREE.Camera, grid: THREE.Matrix4 | null): OrbitState165 => {
     const control = orbit()
     const forward = camera.getWorldDirection(new THREE.Vector3())
@@ -186,6 +197,7 @@ export default function CameraFlight150({ points }: { points: readonly PlanPoint
     camera.quaternion.copy(target.quaternion)
     restoreLens(camera)
     camera.updateMatrixWorld(true)
+    setGrowth166(1)
     unlock()
     invalidate()
   }
@@ -203,6 +215,8 @@ export default function CameraFlight150({ points }: { points: readonly PlanPoint
 
   useLayoutEffect(() => {
     pending.current = consumeEntry150()
+    // STROM166_WALL_GROWTH: mit Uebergang starten die Waende flach im Blueprint.
+    setGrowth166(pending.current ? 0 : 1)
     if (pending.current) invalidate()
     for (const key of STALE_KEYS165) { try { window.localStorage.removeItem(key) } catch { /* optional */ } }
     const unbind = registerExit150(done => {
@@ -240,6 +254,7 @@ export default function CameraFlight150({ points }: { points: readonly PlanPoint
       unlock()
       // Never leave the transition lens behind after unmount.
       restoreLens(get().camera)
+      setGrowth166(1)
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [get, invalidate])
@@ -257,14 +272,15 @@ export default function CameraFlight150({ points }: { points: readonly PlanPoint
       const grid = gridMatrix(state.scene)
       if (!cam) { run.current = null; finish(); return }
       if (!baseLens.current) baseLens.current = { fov: cam.fov, near: cam.near, far: cam.far }
-      // Laeuft der Hinflug noch, kehrt der Rueckflug an genau dieser Stelle um.
+      // Laeuft der Hinweg noch, kehrt der Rueckweg an genau dieser Stelle um.
       let from = 1
       let target: OrbitState165 | null = null
       let top = savedTop.current
-      if (active && active.kind === 'entry' && active.top && active.orbit && (active.phase === 'fade' || active.phase === 'flight')) {
-        from = active.phase === 'fade' ? 0 : easeOut(clamp01((now - active.startedAt) / DURATION150))
-        target = active.orbit
-        top = active.top
+      if (active && active.kind === 'entry') {
+        // Laden/Blende: Waende sind noch flach, Kamera steht in der Draufsicht -> kein Flug.
+        from = active.phase === 'flight' ? clamp01((now - active.startedAt) / DURATION150) : 0
+        target = active.orbit || captureOrbit(camera, grid)
+        top = active.top || top
       } else {
         if (active) restoreLens(camera)
         target = captureOrbit(camera, grid)
@@ -298,6 +314,7 @@ export default function CameraFlight150({ points }: { points: readonly PlanPoint
     if (!active) return
 
     if (active.kind === 'entry' && active.phase === 'settle') {
+      setGrowth166(0)
       // Die Szene und die Controls stellen verdeckt ihre Standardansicht ein.
       camera.updateMatrixWorld(true)
       const current = camera.matrixWorld.clone()
@@ -341,7 +358,7 @@ export default function CameraFlight150({ points }: { points: readonly PlanPoint
           else active.reason = 'Blueprint oder 3D-Fenster noch in Bewegung'
         }
         active.top = solved.top
-        apply(camera, active.top, active.orbit, 0, grid)
+        place(camera, active.top, active.orbit, 0, grid)
         check.current.armed = true
         if (active.verified >= VERIFY_FRAMES165) {
           savedTop.current = active.top
@@ -379,14 +396,14 @@ export default function CameraFlight150({ points }: { points: readonly PlanPoint
     if (!active.top || !active.orbit) { run.current = null; unlock(); return }
 
     if (active.kind === 'entry' && active.phase === 'fade') {
-      apply(camera, active.top, active.orbit, 0, grid)
+      place(camera, active.top, active.orbit, 0, grid)
       if (now >= active.startedAt) active.phase = 'flight'
       return
     }
 
     if (active.kind === 'entry') {
       const t = clamp01((now - active.startedAt) / DURATION150)
-      if (t < 1) { apply(camera, active.top, active.orbit, easeOut(t), grid); return }
+      if (t < 1) { place(camera, active.top, active.orbit, t, grid); return }
       // STROM150N_NO_END_JUMP: genau die vorher gemerkte Standardansicht, danach uebernehmen die Controls.
       finishOrbit(camera, active.orbit)
       run.current = null
@@ -400,14 +417,15 @@ export default function CameraFlight150({ points }: { points: readonly PlanPoint
       if (solved.live && typeof solved.top !== 'string') active.top = solved.top
     }
     if (active.phase === 'flight') {
-      const t = clamp01((now - active.startedAt) / EXIT_FLIGHT159)
-      // Ease-out auch auf dem Rueckweg: schnell los, weich in die Draufsicht.
-      apply(camera, active.top, active.orbit, active.from * (1 - easeOut(t)), grid)
-      if (t >= 1) { active.phase = 'hold'; active.frames = 0; active.verified = 0 }
+      // Der Hinweg rueckwaerts in halber Zeit: aus Ease-out wird Ease-in in die Draufsicht.
+      const duration = active.from * EXIT_FLIGHT159
+      const tau = duration > 0 ? clamp01((now - active.startedAt) / duration) : 1
+      place(camera, active.top, active.orbit, reverseTime166(active.from, tau), grid)
+      if (tau >= 1) { active.phase = 'hold'; active.frames = 0; active.verified = 0 }
       else return
     }
-    // hold / done: Draufsicht steht still, bis 3D ausgeblendet und entfernt ist.
-    apply(camera, active.top, active.orbit, 0, grid)
+    // hold / done: Draufsicht mit flachen Waenden steht still, bis 3D ausgeblendet und entfernt ist.
+    place(camera, active.top, active.orbit, 0, grid)
     if (active.phase === 'done') return
     const last = check.current
     active.frames++

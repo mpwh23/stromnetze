@@ -16,10 +16,11 @@ let readySent150=false
 // STROM159_TIMINGS: loading remains readiness-driven; milliseconds below.
 export const ENTER_FADE150=750
 export const DURATION150=2500
-/** STROM158_REVERSE_EXACT: fade starts after the reverse flight ends. */
-export const EXIT_FADE158=500
-/** STROM159_TIMINGS: reverse flight independently configurable from forward flight. */
-export const EXIT_FLIGHT159=1000
+/** STROM166_REVERSE_MIRROR: der Rueckweg ist der Hinweg rueckwaerts, doppelt so schnell.
+ * Erst Flug (Ease-in) in die Draufsicht, dann Blende zum Blueprint. */
+export const EXIT_FLIGHT159=DURATION150/2
+/** Rueckblende; die CSS-Dauer in styles.css (STROM166_REVERSE_MIRROR) muss gleich sein. */
+export const EXIT_FADE158=ENTER_FADE150/2
 
 function storedLevel150(floorId:string):string{
   try {

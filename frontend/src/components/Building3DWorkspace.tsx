@@ -21,6 +21,8 @@ import StromIcon from './StromIcon'
 import { selectWallEdgeFrom3DHit, type WallHitSelection3D } from '../building/wallHitSelection'
 import { pickWallHoverPlane, buildWallHoverTriangles, type WallHoverPlane } from '../building/wallHoverGeometry'
 import type { ReactNode } from 'react'
+import { useLayoutEffect } from 'react'
+import { registerGrowth166, type GrowthKind166 } from './wallGrowth166'
 import { buildBuildingModel, type BuildingModel, type BuildingRoom, type BuildingWall, type BuildingOpening } from '../building/model'
 import { active3DFloor, readActiveBlueprintLevel, listBlueprintLevelOptions144, selectBlueprintLevel144 } from '../building/blueprintLevels'
 // STROM143B_STAIR_AUDIT: StairSolid is rendered and storage availability is displayed.
@@ -51,6 +53,14 @@ function FloorMesh({ room, selected, onSelect }: { room: BuildingRoom; selected:
       <meshStandardMaterial color={selected ? '#5797ec' : hovered ? '#a9cdfa' : room.kind === 'stair' ? '#e2ebf9' : '#e9edf2'} emissive={selected ? '#2563eb' : '#000000'} emissiveIntensity={selected ? 0.16 : 0} side={THREE.DoubleSide} roughness={0.87} />
     </mesh>
   )
+}
+
+/** STROM166_WALL_GROWTH: Hoehengruppe. Der Kameraflug setzt scale.y (0 = flach im Blueprint).
+ * 'level' = ganze weitere Etage (Hoehe UND Lage relativ zu Z=0, beim Absenken ausgeblendet). */
+function Growth166({ kind = 'height', children }: { kind?: GrowthKind166; children: ReactNode }) {
+  const ref = useRef<THREE.Group>(null)
+  useLayoutEffect(() => (ref.current ? registerGrowth166(ref.current, kind) : undefined), [kind])
+  return <group ref={ref} name={kind === 'level' ? 'strom166-level-growth' : 'strom166-growth'}>{children}</group>
 }
 
 // STROM141_WALL_HOVER: same Blueprint wall edge for hover and click.
@@ -348,27 +358,27 @@ function RealBuildingScene({ model, stairs, extraLevels146, activeOffsetM146, sh
         {model.rooms.map((room) => (
           <FloorMesh key={room.id} room={room} selected={selectedRoomId === room.id} onSelect={() => { onSelectRoom(room.id); onSelectDoor(''); onSelectWall?.(null) }} />
         ))}
-        {stairs.map((surface) => (
+        <Growth166>{stairs.map((surface) => (
           <StairSolid
             key={surface.key}
             surface={surface}
             selected={surface.roomId === selectedRoomId}
             onSelect={() => { onSelectRoom(surface.roomId); onSelectDoor(''); onSelectWall?.(null) }}
           />
-        ))}
+        ))}</Growth166>
         <RoofScope149.Provider value={{levelId:activeLevelId148,revision:roofRevision148}}>
             {/* STROM152_BLUEPRINT_GRID: portal into absolute Three scene; it is not centered on the building. */}
             <CanonicalGrid152 points={model.rooms.flatMap(room152=>room152.vertices)} />
             {/* STROM150_CAMERA: model XY = Blueprint XY, floor plane = 3D XZ */}
-            <CameraFlight150 points={model.rooms.flatMap(room150 => room150.vertices)} /><SolidWallMeshes
+            <CameraFlight150 points={model.rooms.flatMap(room150 => room150.vertices)} /><Growth166><SolidWallMeshes
           model={model}
           onSelectRoom={(id) => { onSelectRoom(id); onSelectDoor('') }}
           onSelectWall={onSelectWall}
           transparent={transparent}
-        /></RoofScope149.Provider>
+        /></Growth166></RoofScope149.Provider>
         {/* STROM149_FLOOR_SLAB: physical thickness below each finished room floor. */}
         {model.rooms.map(room149=><FloorSlab149 key={`slab149-${room149.id}`} room={room149} thicknessM={activeSlab149} />)}
-        {model.walls.flatMap((wall) => wall.openings
+        <Growth166>{model.walls.flatMap((wall) => wall.openings
           .filter((opening) => opening.type === 'door' && opening.centerM >= -0.0001 && opening.centerM <= wall.lengthM + 0.0001 && model.doors.some((door) => door.id === opening.id))
           .map((door) => (
             <DoorHandle
@@ -382,13 +392,13 @@ function RealBuildingScene({ model, stairs, extraLevels146, activeOffsetM146, sh
                 onSelectWall?.({ roomId: door.roomId, edgeIndex: door.edgeIndex })
               }}
             />
-          )))}
+          )))}</Growth166>
         {/* STROM148_ROOF_3D: roof faces are built from saved Blueprint slope records. */}
-        <RoofMeshes148 floorId={model.floorId} levelId={activeLevelId148} rooms={model.rooms}
-          revision={roofRevision148} selectedId={selectedRoof148} onSelect={onSelectRoof148} />
+        <Growth166><RoofMeshes148 floorId={model.floorId} levelId={activeLevelId148} rooms={model.rooms}
+          revision={roofRevision148} selectedId={selectedRoof148} onSelect={onSelectRoof148} /></Growth166>
       </group>
       {showAllLevels146 && extraLevels146.map((entry146) => (
-        <group key={`floor-146-${entry146.id}`} position={[0, entry146.model.floorElevationM + entry146.offsetM, 0]}>
+        <Growth166 kind="level" key={`floor-146-${entry146.id}`}><group position={[0, entry146.model.floorElevationM + entry146.offsetM, 0]}>
           {entry146.model.rooms.map((room146) => (
             <FloorMesh key={room146.id} room={room146} selected={false} onSelect={() => undefined} />
           ))}
@@ -405,7 +415,7 @@ function RealBuildingScene({ model, stairs, extraLevels146, activeOffsetM146, sh
             .map((door146) => (
               <DoorHandle key={`${wall146.id}/${door146.id}`} door={door146} wall={wall146} selected={false} onSelect={() => undefined} />
             )))}
-        </group>
+        </group></Growth166>
       ))}
       <gridHelper args={[Math.max(40, model.spanM * 4), 40, '#bbc7d5', '#dce5ef']} position={[model.center.x, model.floorElevationM - 0.035, model.center.y]}  visible={false}/>
       <SceneControls model={cameraModel146} />
