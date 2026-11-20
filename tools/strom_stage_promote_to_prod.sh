@@ -7,6 +7,16 @@ STAMP="$(date +%Y%m%d_%H%M%S)"
 BACKUP_DIR="/home/mpwh/strom_backups/stage_promote_${STAMP}"
 run_sudo() { if [ "$(id -u)" -eq 0 ]; then "$@"; else sudo "$@"; fi; }
 [ -d "$STAGE_DIR/frontend" ] || { echo "Stage fehlt: $STAGE_DIR" >&2; exit 1; }
+# STROM165_BACKEND_GUARD: Stage darf ein abweichendes Produktions-Backend nicht stillschweigend ueberschreiben.
+backend_sums165() { ( cd "$1" 2>/dev/null && find . -type f \( -name '*.go' -o -name go.mod -o -name go.sum \) | LC_ALL=C sort | xargs -r sha256sum ); }
+if [ -d "$PROJECT_DIR/backend" ] && [ "${STROM_PROMOTE_BACKEND:-0}" != "1" ]; then
+  if [ "$(backend_sums165 "$PROJECT_DIR/backend")" != "$(backend_sums165 "$STAGE_DIR/backend")" ]; then
+    echo "ABBRUCH: Go-Quelltext in backend/ unterscheidet sich zwischen Produktion und Stage:" >&2
+    diff <(backend_sums165 "$PROJECT_DIR/backend") <(backend_sums165 "$STAGE_DIR/backend") >&2 || true
+    echo "Erst angleichen. Bewusst mit dem Stage-Stand ueberschreiben: STROM_PROMOTE_BACKEND=1 $0" >&2
+    exit 1
+  fi
+fi
 mkdir -p "$BACKUP_DIR"
 rsync -a --delete --exclude 'frontend/node_modules' --exclude 'frontend/dist' "$PROJECT_DIR/" "$BACKUP_DIR/project/"
 run_sudo rsync -a --delete "$WEB_DIR/" "$BACKUP_DIR/web/" || true

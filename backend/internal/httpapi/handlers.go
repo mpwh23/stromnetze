@@ -86,126 +86,208 @@ func (api *API) users(w http.ResponseWriter, r *http.Request) {
 }
 
 func (api *API) listUsers(w http.ResponseWriter, r *http.Request) {
-	rows, err := api.db.Pool.Query(r.Context(), `
+    if api.adminpanel != nil {
+        if err := api.syncCentralUsersForList(r.Context()); err != nil {
+            writeError(w, http.StatusInternalServerError, err)
+            return
+        }
+    }
+
+    rows, err := api.db.Pool.Query(r.Context(), `
         SELECT id::text, name, COALESCE(is_admin, false), COALESCE(can_view_all_objects, false), COALESCE(in_list, false), created_at
         FROM app_users
         WHERE COALESCE(in_list, false) = true
         ORDER BY lower(name), created_at
     `)
-	if err != nil {
-		writeError(w, http.StatusInternalServerError, err)
-		return
-	}
-	defer rows.Close()
+    if err != nil {
+        writeError(w, http.StatusInternalServerError, err)
+        return
+    }
+    defer rows.Close()
 
-	users := []model.AppUser{}
-	for rows.Next() {
-		var user model.AppUser
-		if err := rows.Scan(&user.ID, &user.Name, &user.IsAdmin, &user.CanViewAllObjects, &user.InList, &user.CreatedAt); err != nil {
-			writeError(w, http.StatusInternalServerError, err)
-			return
-		}
-		users = append(users, user)
-	}
-	if err := rows.Err(); err != nil {
-		writeError(w, http.StatusInternalServerError, err)
-		return
-	}
-	writeJSON(w, http.StatusOK, users)
+    users := []model.AppUser{}
+    for rows.Next() {
+        var user model.AppUser
+        if err := rows.Scan(&user.ID, &user.Name, &user.IsAdmin, &user.CanViewAllObjects, &user.InList, &user.CreatedAt); err != nil {
+            writeError(w, http.StatusInternalServerError, err)
+            return
+        }
+        users = append(users, user)
+    }
+    if err := rows.Err(); err != nil {
+        writeError(w, http.StatusInternalServerError, err)
+        return
+    }
+    writeJSON(w, http.StatusOK, users)
 }
 
-func (api *API) createUser(w http.ResponseWriter, r *http.Request) {
-	if !api.getBoolSetting(r.Context(), "accept_new_user", true) {
-		writeError(w, http.StatusForbidden, errors.New("new users are currently disabled"))
-		return
-	}
-	var req model.CreateUserRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		writeError(w, http.StatusBadRequest, err)
-		return
-	}
-	req.Name = strings.TrimSpace(req.Name)
-	if req.Name == "" {
-		writeError(w, http.StatusBadRequest, errors.New("user name is required"))
-		return
-	}
-	if strings.TrimSpace(req.Password) == "" {
-		writeError(w, http.StatusBadRequest, errors.New("password is required"))
-		return
-	}
 
-	var user model.AppUser
-	err := api.db.Pool.QueryRow(r.Context(), `
+func (api *API) createUser(w http.ResponseWriter, r *http.Request) {
+    if !api.getBoolSetting(r.Context(), "accept_new_user", true) {
+        writeError(w, http.StatusForbidden, errors.New("new users are currently disabled"))
+        return
+    }
+    var req model.CreateUserRequest
+    if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+        writeError(w, http.StatusBadRequest, err)
+        return
+    }
+    req.Name = strings.TrimSpace(req.Name)
+    if req.Name == "" {
+        writeError(w, http.StatusBadRequest, errors.New("user name is required"))
+        return
+    }
+    if strings.TrimSpace(req.Password) == "" {
+        writeError(w, http.StatusBadRequest, errors.New("password is required"))
+        return
+    }
+
+    if api.adminpanel != nil {
+        ident, err := api.createCentralUserWithAccess(r.Context(), req.Name, req.Password)
+        if err != nil {
+            writeError(w, http.StatusConflict, err)
+            return
+        }
+        user, err := api.ensureLocalUserForCentral(r.Context(), ident, true)
+        if err != nil {
+            writeError(w, http.StatusInternalServerError, err)
+            return
+        }
+        writeJSON(w, http.StatusCreated, user)
+        return
+    }
+
+    var user model.AppUser
+    err := api.db.Pool.QueryRow(r.Context(), `
         INSERT INTO app_users (name, password_hash, in_list)
         VALUES ($1, crypt($2, gen_salt('bf')), true)
         RETURNING id::text, name, COALESCE(is_admin, false), COALESCE(can_view_all_objects, false), COALESCE(in_list, false), created_at
     `, req.Name, req.Password).Scan(&user.ID, &user.Name, &user.IsAdmin, &user.CanViewAllObjects, &user.InList, &user.CreatedAt)
-	if err != nil {
-		writeError(w, http.StatusInternalServerError, err)
-		return
-	}
-	writeJSON(w, http.StatusCreated, user)
+    if err != nil {
+        writeError(w, http.StatusInternalServerError, err)
+        return
+    }
+    writeJSON(w, http.StatusCreated, user)
 }
 
-func (api *API) userLogin(w http.ResponseWriter, r *http.Request) {
-	var req model.LoginUserRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		writeError(w, http.StatusBadRequest, err)
-		return
-	}
-	req.UserID = strings.TrimSpace(req.UserID)
-	if req.UserID == "" {
-		writeError(w, http.StatusBadRequest, errors.New("userId is required"))
-		return
-	}
 
-	var user model.AppUser
-	var ok bool
-	err := api.db.Pool.QueryRow(r.Context(), `
+func (api *API) userLogin(w http.ResponseWriter, r *http.Request) {
+    var req model.LoginUserRequest
+    if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+        writeError(w, http.StatusBadRequest, err)
+        return
+    }
+    req.UserID = strings.TrimSpace(req.UserID)
+    if req.UserID == "" {
+        writeError(w, http.StatusBadRequest, errors.New("userId is required"))
+        return
+    }
+
+    if api.adminpanel != nil {
+        centralID, localName, err := api.localUserCentralID(r.Context(), req.UserID)
+        if err != nil {
+            if isNoRows(err) {
+                writeError(w, http.StatusUnauthorized, errors.New("invalid login"))
+                return
+            }
+            writeError(w, http.StatusInternalServerError, err)
+            return
+        }
+
+        var ident centralIdentity
+        var found bool
+        if centralID > 0 {
+            ident, found, err = api.fetchCentralIdentityByID(r.Context(), centralID)
+        } else {
+            ident, found, err = api.fetchCentralIdentityByUsername(r.Context(), localName)
+        }
+        if err != nil {
+            writeError(w, http.StatusInternalServerError, err)
+            return
+        }
+        if !found || !ident.HasAccess || !verifyCentralPassword(ident.PasswordHash, req.Password) {
+            writeError(w, http.StatusUnauthorized, errors.New("invalid central login or missing strom access"))
+            return
+        }
+
+        user, err := api.ensureLocalUserForCentral(r.Context(), ident, true)
+        if err != nil {
+            writeError(w, http.StatusInternalServerError, err)
+            return
+        }
+        writeJSON(w, http.StatusOK, user)
+        return
+    }
+
+    var user model.AppUser
+    var ok bool
+    err := api.db.Pool.QueryRow(r.Context(), `
         SELECT id::text, name, COALESCE(is_admin, false), COALESCE(can_view_all_objects, false), COALESCE(in_list, false), created_at,
                CASE WHEN password_hash IS NULL OR password_hash = '' THEN true ELSE password_hash = crypt($2, password_hash) END AS ok
         FROM app_users
         WHERE id = $1
     `, req.UserID, req.Password).Scan(&user.ID, &user.Name, &user.IsAdmin, &user.CanViewAllObjects, &user.InList, &user.CreatedAt, &ok)
-	if err != nil {
-		if isNoRows(err) {
-			writeError(w, http.StatusUnauthorized, errors.New("invalid login"))
-			return
-		}
-		writeError(w, http.StatusInternalServerError, err)
-		return
-	}
-	if !ok {
-		writeError(w, http.StatusUnauthorized, errors.New("invalid password"))
-		return
-	}
-	writeJSON(w, http.StatusOK, user)
+    if err != nil {
+        if isNoRows(err) {
+            writeError(w, http.StatusUnauthorized, errors.New("invalid login"))
+            return
+        }
+        writeError(w, http.StatusInternalServerError, err)
+        return
+    }
+    if !ok {
+        writeError(w, http.StatusUnauthorized, errors.New("invalid password"))
+        return
+    }
+    writeJSON(w, http.StatusOK, user)
 }
 
+
 func (api *API) userByName(w http.ResponseWriter, r *http.Request) {
-	name := strings.TrimSpace(r.URL.Query().Get("name"))
-	if name == "" {
-		writeError(w, http.StatusBadRequest, errors.New("name query parameter is required"))
-		return
-	}
-	var user model.AppUser
-	err := api.db.Pool.QueryRow(r.Context(), `
+    name := strings.TrimSpace(r.URL.Query().Get("name"))
+    if name == "" {
+        writeError(w, http.StatusBadRequest, errors.New("name query parameter is required"))
+        return
+    }
+
+    if api.adminpanel != nil {
+        ident, found, err := api.fetchCentralIdentityByUsername(r.Context(), name)
+        if err != nil {
+            writeError(w, http.StatusInternalServerError, err)
+            return
+        }
+        if !found || !ident.HasAccess {
+            writeError(w, http.StatusNotFound, errors.New("central user not found or not allowed for strom"))
+            return
+        }
+        user, err := api.ensureLocalUserForCentral(r.Context(), ident, true)
+        if err != nil {
+            writeError(w, http.StatusInternalServerError, err)
+            return
+        }
+        writeJSON(w, http.StatusOK, user)
+        return
+    }
+
+    var user model.AppUser
+    err := api.db.Pool.QueryRow(r.Context(), `
         SELECT id::text, name, COALESCE(is_admin, false), COALESCE(can_view_all_objects, false), COALESCE(in_list, false), created_at
         FROM app_users
         WHERE lower(name) = lower($1)
         ORDER BY created_at
         LIMIT 1
     `, name).Scan(&user.ID, &user.Name, &user.IsAdmin, &user.CanViewAllObjects, &user.InList, &user.CreatedAt)
-	if err != nil {
-		if isNoRows(err) {
-			writeError(w, http.StatusNotFound, errors.New("user not found"))
-			return
-		}
-		writeError(w, http.StatusInternalServerError, err)
-		return
-	}
-	writeJSON(w, http.StatusOK, user)
+    if err != nil {
+        if isNoRows(err) {
+            writeError(w, http.StatusNotFound, errors.New("user not found"))
+            return
+        }
+        writeError(w, http.StatusInternalServerError, err)
+        return
+    }
+    writeJSON(w, http.StatusOK, user)
 }
+
 
 func (api *API) adminUsers(w http.ResponseWriter, r *http.Request) {
 	if !api.validateAdminPassword(r.Context(), r.URL.Query().Get("password")) {
@@ -224,57 +306,134 @@ func (api *API) adminUsers(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func (api *API) validateAdminPassword(ctx context.Context, password string) bool {
-	var ok bool
-	err := api.db.Pool.QueryRow(ctx, `
-        SELECT COALESCE(bool_or(password_hash = crypt($1, password_hash)), false)
-        FROM app_users
-        WHERE COALESCE(is_admin, false) = true AND password_hash IS NOT NULL AND password_hash <> ''
-    `, password).Scan(&ok)
-	return err == nil && ok
-}
 
 func (api *API) listAdminUsers(w http.ResponseWriter, r *http.Request) {
-	rows, err := api.db.Pool.Query(r.Context(), `
+    if api.adminpanel != nil {
+        identities, err := api.fetchCentralUsers(r.Context(), false)
+        if err != nil {
+            writeError(w, http.StatusInternalServerError, err)
+            return
+        }
+        users := []model.AppUser{}
+        for _, ident := range identities {
+            user, err := api.ensureLocalUserForCentral(r.Context(), ident, ident.HasAccess)
+            if err != nil {
+                writeError(w, http.StatusInternalServerError, err)
+                return
+            }
+            users = append(users, user)
+        }
+        writeJSON(w, http.StatusOK, users)
+        return
+    }
+
+    rows, err := api.db.Pool.Query(r.Context(), `
         SELECT id::text, name, COALESCE(is_admin, false), COALESCE(can_view_all_objects, false), COALESCE(in_list, false), created_at
         FROM app_users
         ORDER BY lower(name), created_at
     `)
-	if err != nil {
-		writeError(w, http.StatusInternalServerError, err)
-		return
-	}
-	defer rows.Close()
-	users := []model.AppUser{}
-	for rows.Next() {
-		var user model.AppUser
-		if err := rows.Scan(&user.ID, &user.Name, &user.IsAdmin, &user.CanViewAllObjects, &user.InList, &user.CreatedAt); err != nil {
-			writeError(w, http.StatusInternalServerError, err)
-			return
-		}
-		users = append(users, user)
-	}
-	if err := rows.Err(); err != nil {
-		writeError(w, http.StatusInternalServerError, err)
-		return
-	}
-	writeJSON(w, http.StatusOK, users)
+    if err != nil {
+        writeError(w, http.StatusInternalServerError, err)
+        return
+    }
+    defer rows.Close()
+    users := []model.AppUser{}
+    for rows.Next() {
+        var user model.AppUser
+        if err := rows.Scan(&user.ID, &user.Name, &user.IsAdmin, &user.CanViewAllObjects, &user.InList, &user.CreatedAt); err != nil {
+            writeError(w, http.StatusInternalServerError, err)
+            return
+        }
+        users = append(users, user)
+    }
+    if err := rows.Err(); err != nil {
+        writeError(w, http.StatusInternalServerError, err)
+        return
+    }
+    writeJSON(w, http.StatusOK, users)
 }
 
-func (api *API) updateAdminUser(w http.ResponseWriter, r *http.Request) {
-	id := strings.TrimSpace(r.URL.Query().Get("id"))
-	if id == "" {
-		writeError(w, http.StatusBadRequest, errors.New("id query parameter is required"))
-		return
-	}
-	var req model.AdminUserUpdateRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		writeError(w, http.StatusBadRequest, err)
-		return
-	}
 
-	var user model.AppUser
-	err := api.db.Pool.QueryRow(r.Context(), `
+func (api *API) updateAdminUser(w http.ResponseWriter, r *http.Request) {
+    id := strings.TrimSpace(r.URL.Query().Get("id"))
+    if id == "" {
+        writeError(w, http.StatusBadRequest, errors.New("id query parameter is required"))
+        return
+    }
+    var req model.AdminUserUpdateRequest
+    if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+        writeError(w, http.StatusBadRequest, err)
+        return
+    }
+
+    if api.adminpanel != nil {
+        centralID, localName, err := api.localUserCentralID(r.Context(), id)
+        if err != nil {
+            if isNoRows(err) {
+                writeError(w, http.StatusNotFound, errors.New("user not found"))
+                return
+            }
+            writeError(w, http.StatusInternalServerError, err)
+            return
+        }
+        if centralID <= 0 {
+            ident, found, err := api.fetchCentralIdentityByUsername(r.Context(), localName)
+            if err != nil {
+                writeError(w, http.StatusInternalServerError, err)
+                return
+            }
+            if !found {
+                writeError(w, http.StatusBadRequest, errors.New("local user has no central mapping"))
+                return
+            }
+            centralID = ident.AdminUserID
+        }
+
+        if req.Name != nil && strings.TrimSpace(*req.Name) != "" {
+            _, err = api.adminpanel.ExecContext(r.Context(), "UPDATE admin_users SET username = ?, display_name = ? WHERE id = ?", strings.TrimSpace(*req.Name), strings.TrimSpace(*req.Name), centralID)
+            if err != nil {
+                writeError(w, http.StatusInternalServerError, err)
+                return
+            }
+        }
+
+        roleKey := "user"
+        canViewAll := false
+        if req.CanViewAllObjects != nil {
+            canViewAll = *req.CanViewAllObjects
+        } else {
+            _ = api.db.Pool.QueryRow(r.Context(), "SELECT COALESCE(can_view_all_objects,false) FROM app_users WHERE id = $1", id).Scan(&canViewAll)
+        }
+        if canViewAll {
+            roleKey = "admin"
+        }
+        canAccess := true
+        if req.InList != nil {
+            canAccess = *req.InList
+        } else {
+            _ = api.db.Pool.QueryRow(r.Context(), "SELECT COALESCE(in_list,false) FROM app_users WHERE id = $1", id).Scan(&canAccess)
+        }
+        if err := api.setCentralAccess(r.Context(), centralID, canAccess, roleKey); err != nil {
+            writeError(w, http.StatusInternalServerError, err)
+            return
+        }
+
+        ident, found, err := api.fetchCentralIdentityByID(r.Context(), centralID)
+        if err != nil || !found {
+            writeError(w, http.StatusInternalServerError, errors.New("central user not readable after update"))
+            return
+        }
+        user, err := api.ensureLocalUserForCentral(r.Context(), ident, canAccess)
+        if err != nil {
+            writeError(w, http.StatusInternalServerError, err)
+            return
+        }
+        writeJSON(w, http.StatusOK, user)
+        return
+    }
+
+    var user model.AppUser
+    err := api.db.Pool.QueryRow(r.Context(), `
         UPDATE app_users
         SET name = CASE WHEN $2::text IS NULL OR btrim($2::text) = '' THEN name ELSE btrim($2::text) END,
             can_view_all_objects = COALESCE($3, can_view_all_objects),
@@ -282,49 +441,76 @@ func (api *API) updateAdminUser(w http.ResponseWriter, r *http.Request) {
         WHERE id = $1
         RETURNING id::text, name, COALESCE(is_admin, false), COALESCE(can_view_all_objects, false), COALESCE(in_list, false), created_at
     `, id, req.Name, req.CanViewAllObjects, req.InList).Scan(&user.ID, &user.Name, &user.IsAdmin, &user.CanViewAllObjects, &user.InList, &user.CreatedAt)
-	if err != nil {
-		if isNoRows(err) {
-			writeError(w, http.StatusNotFound, errors.New("user not found"))
-			return
-		}
-		writeError(w, http.StatusInternalServerError, err)
-		return
-	}
-	writeJSON(w, http.StatusOK, user)
+    if err != nil {
+        if isNoRows(err) {
+            writeError(w, http.StatusNotFound, errors.New("user not found"))
+            return
+        }
+        writeError(w, http.StatusInternalServerError, err)
+        return
+    }
+    writeJSON(w, http.StatusOK, user)
 }
 
+
 func (api *API) deleteAdminUser(w http.ResponseWriter, r *http.Request) {
-	id := strings.TrimSpace(r.URL.Query().Get("id"))
-	if id == "" {
-		writeError(w, http.StatusBadRequest, errors.New("id query parameter is required"))
-		return
-	}
-	var isAdmin bool
-	if err := api.db.Pool.QueryRow(r.Context(), "SELECT COALESCE(is_admin, false) FROM app_users WHERE id = $1", id).Scan(&isAdmin); err != nil {
-		if isNoRows(err) {
-			writeError(w, http.StatusNotFound, errors.New("user not found"))
-			return
-		}
-		writeError(w, http.StatusInternalServerError, err)
-		return
-	}
-	if isAdmin {
-		var adminCount int
-		if err := api.db.Pool.QueryRow(r.Context(), "SELECT count(*) FROM app_users WHERE COALESCE(is_admin, false) = true").Scan(&adminCount); err != nil {
-			writeError(w, http.StatusInternalServerError, err)
-			return
-		}
-		if adminCount <= 1 {
-			writeError(w, http.StatusBadRequest, errors.New("last admin user cannot be deleted"))
-			return
-		}
-	}
-	if _, err := api.db.Pool.Exec(r.Context(), "DELETE FROM app_users WHERE id = $1", id); err != nil {
-		writeError(w, http.StatusInternalServerError, err)
-		return
-	}
-	writeJSON(w, http.StatusOK, map[string]bool{"ok": true})
+    id := strings.TrimSpace(r.URL.Query().Get("id"))
+    if id == "" {
+        writeError(w, http.StatusBadRequest, errors.New("id query parameter is required"))
+        return
+    }
+
+    if api.adminpanel != nil {
+        centralID, _, err := api.localUserCentralID(r.Context(), id)
+        if err != nil {
+            if isNoRows(err) {
+                writeError(w, http.StatusNotFound, errors.New("user not found"))
+                return
+            }
+            writeError(w, http.StatusInternalServerError, err)
+            return
+        }
+        if centralID > 0 {
+            if err := api.setCentralAccess(r.Context(), centralID, false, "user"); err != nil {
+                writeError(w, http.StatusInternalServerError, err)
+                return
+            }
+        }
+        if _, err := api.db.Pool.Exec(r.Context(), "UPDATE app_users SET in_list = false, is_admin = false, can_view_all_objects = false WHERE id = $1", id); err != nil {
+            writeError(w, http.StatusInternalServerError, err)
+            return
+        }
+        writeJSON(w, http.StatusOK, map[string]bool{"ok": true})
+        return
+    }
+
+    var isAdmin bool
+    if err := api.db.Pool.QueryRow(r.Context(), "SELECT COALESCE(is_admin, false) FROM app_users WHERE id = $1", id).Scan(&isAdmin); err != nil {
+        if isNoRows(err) {
+            writeError(w, http.StatusNotFound, errors.New("user not found"))
+            return
+        }
+        writeError(w, http.StatusInternalServerError, err)
+        return
+    }
+    if isAdmin {
+        var adminCount int
+        if err := api.db.Pool.QueryRow(r.Context(), "SELECT count(*) FROM app_users WHERE COALESCE(is_admin, false) = true").Scan(&adminCount); err != nil {
+            writeError(w, http.StatusInternalServerError, err)
+            return
+        }
+        if adminCount <= 1 {
+            writeError(w, http.StatusBadRequest, errors.New("last admin user cannot be deleted"))
+            return
+        }
+    }
+    if _, err := api.db.Pool.Exec(r.Context(), "DELETE FROM app_users WHERE id = $1", id); err != nil {
+        writeError(w, http.StatusInternalServerError, err)
+        return
+    }
+    writeJSON(w, http.StatusOK, map[string]bool{"ok": true})
 }
+
 
 func (api *API) publicSettings(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, api.readAppSettings(r.Context()))
@@ -367,25 +553,31 @@ func (api *API) adminSettings(w http.ResponseWriter, r *http.Request) {
 }
 
 func (api *API) adminPassword(w http.ResponseWriter, r *http.Request) {
-	if !api.validateAdminPassword(r.Context(), r.URL.Query().Get("password")) {
-		writeError(w, http.StatusUnauthorized, errors.New("invalid admin password"))
-		return
-	}
-	var req model.AdminPasswordChangeRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		writeError(w, http.StatusBadRequest, err)
-		return
-	}
-	if strings.TrimSpace(req.NewPassword) == "" {
-		writeError(w, http.StatusBadRequest, errors.New("new password is required"))
-		return
-	}
-	if _, err := api.db.Pool.Exec(r.Context(), "UPDATE app_users SET password_hash = crypt($1, gen_salt('bf')) WHERE COALESCE(is_admin, false) = true", req.NewPassword); err != nil {
-		writeError(w, http.StatusInternalServerError, err)
-		return
-	}
-	writeJSON(w, http.StatusOK, map[string]bool{"ok": true})
+    if api.adminpanel != nil {
+        writeError(w, http.StatusBadRequest, errors.New("Passwortaenderungen werden zentral im Adminpanel vorgenommen"))
+        return
+    }
+
+    if !api.validateAdminPassword(r.Context(), r.URL.Query().Get("password")) {
+        writeError(w, http.StatusUnauthorized, errors.New("invalid admin password"))
+        return
+    }
+    var req model.AdminPasswordChangeRequest
+    if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+        writeError(w, http.StatusBadRequest, err)
+        return
+    }
+    if strings.TrimSpace(req.NewPassword) == "" {
+        writeError(w, http.StatusBadRequest, errors.New("new password is required"))
+        return
+    }
+    if _, err := api.db.Pool.Exec(r.Context(), "UPDATE app_users SET password_hash = crypt($1, gen_salt('bf')) WHERE COALESCE(is_admin, false) = true", req.NewPassword); err != nil {
+        writeError(w, http.StatusInternalServerError, err)
+        return
+    }
+    writeJSON(w, http.StatusOK, map[string]bool{"ok": true})
 }
+
 
 func (api *API) readAppSettings(ctx context.Context) model.AppSettings {
 	return model.AppSettings{

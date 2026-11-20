@@ -269,6 +269,13 @@ function DoorHandle({ door, wall, selected, onSelect }: { door: BuildingOpening;
 function SceneControls({ model }: { model: BuildingModel }) {
   const { camera, gl } = useThree()
   const controls = useMemo(() => new OrbitControls(camera, gl.domElement), [camera, gl.domElement])
+  // STROM165_ONE_CAMERA_OWNER: Controls im R3F-Store anmelden. Erst dadurch kann der
+  // Kameraflug (CameraFlight150) sie waehrend Blende und Flug wirklich sperren.
+  const setRootState165 = useThree((state) => state.set)
+  useEffect(() => {
+    setRootState165({ controls })
+    return () => setRootState165({ controls: null })
+  }, [controls, setRootState165])
   const fittedSpan146 = useRef<number | null>(null)
   useEffect(() => {
     const nextTarget146 = new THREE.Vector3(model.center.x, model.floorElevationM + model.floorHeightM / 2, model.center.y)

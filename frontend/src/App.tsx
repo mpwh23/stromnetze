@@ -1,6 +1,6 @@
 // STROM153_BP_AXIS_STYLES: XY lines use one viewport-pixel width.
 import {readZeroLevel151,writeZeroLevel151,resolveZeroLevel151} from './building/coordinateReference151' // STROM151_COORDINATE_DATUM
-import {queueEntry150,requestExit150,registerEnterReady150,ENTER_FADE150,EXIT_FADE158,currentFrame150} from './components/cameraTransitions150' // STROM150_CAMERA_BRIDGE
+import {queueEntry150,requestExit150,registerEnterReady150,registerEnterFailed165,notifyEnterFailed165,ENTER_FADE150,EXIT_FADE158,currentFrame150} from './components/cameraTransitions150' // STROM150_CAMERA_BRIDGE
 import StromIcon150 from './components/StromIcon150'
 import { type CSSProperties, ChangeEvent as ReactChangeEvent, DragEvent as ReactDragEvent, MouseEvent as ReactMouseEvent, WheelEvent as ReactWheelEvent, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import StromIcon from './components/StromIcon'
@@ -13,7 +13,18 @@ import RoofEditor148 from './components/RoofEditor148'
 import type { PointerEvent as RoofPointer149 } from 'react'
 import { cleanSlab149 } from './building/levelGeometry149'
 import { snapRoofDrag149e } from './building/roofSnap149e' // STROM149E_ROOF_SNAP 
-import Building3DWorkspace from './components/Building3DWorkspace'
+import { lazy, Suspense, type ComponentProps } from 'react'
+// STROM165_LAZY_3D: Three.js und die 3D-Ansicht werden erst beim ersten Oeffnen geladen.
+function Building3DUnavailable165() {
+  useEffect(() => { notifyEnterFailed165('Das 3D-Modul konnte nicht geladen werden. Bitte die Seite neu laden.') }, [])
+  return <div className="hint-box standalone">Das 3D-Modul konnte nicht geladen werden. Bitte die Seite neu laden.</div>
+}
+const Building3DWorkspaceLazy165 = lazy(() => import('./components/Building3DWorkspace').catch(() => ({
+  default: Building3DUnavailable165 as unknown as typeof import('./components/Building3DWorkspace').default,
+})))
+function Building3DWorkspace(props: ComponentProps<typeof Building3DWorkspaceLazy165>) {
+  return <Suspense fallback={null}><Building3DWorkspaceLazy165 {...props} /></Suspense>
+}
 import {
   createObject,
   createRoom,
@@ -189,6 +200,20 @@ function saveCanvasViewport(floorId: string, state: CanvasViewportState) {
   } catch {
     // localStorage kann in privaten Browserkontexten blockiert sein.
   }
+}
+
+// STROM165_WALL_ZOOM_RESTORE: Zoom vor und nach dem Einstieg in die klassische Wandansicht.
+const wallIntroZoom165: Record<string, { before: number; after: number }> = {}
+function restoreBlueprintZoomAfterWall165(floorId: string) {
+  const record = wallIntroZoom165[floorId]
+  if (!record) return
+  delete wallIntroZoom165[floorId]
+  const stored = loadCanvasViewport(floorId)
+  // Unveraendert: exakt der alte Wert. In der Wandansicht gezoomt: gleiches Verhaeltnis.
+  const zoom = Math.abs(stored.zoom - record.after) < 0.005
+    ? record.before
+    : stored.zoom * record.before / Math.max(0.01, record.after)
+  saveCanvasViewport(floorId, { ...stored, zoom })
 }
 
 function loadWallCanvasRotation(floorId: string) {
@@ -391,6 +416,16 @@ export function App() {
       setEnterPreview150(null)
       enterPreviewTimer150.current = null
     }, ENTER_FADE150)
+  }), [])
+  // STROM165_FAIL_FAST: Abbruch sofort melden statt 30 s Ladekreis.
+  useEffect(() => registerEnterFailed165((reason) => {
+    if (enterPreviewTimer150.current !== null) {
+      window.clearTimeout(enterPreviewTimer150.current)
+      enterPreviewTimer150.current = null
+    }
+    setError(reason)
+    setEnterPreview150(null)
+    setViewMode('floorplan')
   }), [])
   useEffect(() => () => {
     if (enterPreviewTimer150.current !== null) window.clearTimeout(enterPreviewTimer150.current)
@@ -748,6 +783,8 @@ export function App() {
   function handleViewModeClick(mode: ViewMode) {
     if(exitPreview158)return // prevent overlapping mode changes during reverse flight/fade
     if (!canUseViewMode(mode)) return
+    // STROM165_WALL_ZOOM_RESTORE: exakter Blueprint-Zoom nach der klassischen Wandansicht.
+    if (viewMode === 'wall' && mode !== 'wall' && floor) restoreBlueprintZoomAfterWall165(floor.id)
     // STROM150_CAMERA_NAV: finish the bird's-eye flyover before unmounting 3D.
     if (mode === 'floorplan' && (viewMode === 'wall' || viewMode === 'threeD')) {
       if(enterPreviewTimer150.current!==null){
@@ -774,13 +811,6 @@ export function App() {
       queueEntry150(mode, floor.id)
     }
     if (mode === 'wall' && viewMode !== 'wall') setLegacyWallDetail(false)
-    if (viewMode === 'wall' && mode === 'floorplan' && floor) {
-      const storedViewport = loadCanvasViewport(floor.id)
-      saveCanvasViewport(floor.id, {
-        ...storedViewport,
-        zoom: Math.min(10, Math.max(0.22, round2(storedViewport.zoom * 1.1))),
-      })
-    }
     setViewMode(mode)
   }
 
@@ -923,7 +953,7 @@ export function App() {
           {selectedObject && viewMode === 'wall' && floor && hasWallDetailAccess && (
             legacyWallDetail ? (
               <div className="wall-detail-legacy-wrapper">
-                <button type="button" title="Zur echten 3D-Darstellung wechseln" onClick={() => setLegacyWallDetail(false)}>
+                <button type="button" title="Zur echten 3D-Darstellung wechseln" onClick={() => { if (floor) restoreBlueprintZoomAfterWall165(floor.id); setLegacyWallDetail(false) }}>
                   Zurueck zu Echtes 3D (Wanddetail)
                 </button>
                 <WallDetailEditor
@@ -5933,6 +5963,7 @@ function WallDetailEditor({
       setWallTilt(defaultWallViewPitchDeg)
       setZoom(targetZoom)
       saveCanvasViewport(floor.id, { zoom: targetZoom, left: entryViewport.left, top: entryViewport.top })
+      wallIntroZoom165[floor.id] = { before: entryViewport.zoom, after: targetZoom } // STROM165_WALL_ZOOM_RESTORE
       setIntroPhase('revealing')
       const revealStart = performance.now()
       const reveal = (revealNow: number) => {
