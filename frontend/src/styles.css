@@ -5090,3 +5090,14 @@ button.active .strom-icon, .btn.active .strom-icon, button[aria-pressed="true"] 
 .confirm-modal-delete170 .confirm-modal-confirm170:hover:not(:disabled) { background: #b91c1c; }
 .confirm-modal-delete170 button:disabled { opacity: .65; cursor: progress; }
 .confirm-modal-delete170 .confirm-modal-error170 { margin: 0 0 .9rem; padding: 8px 10px; border-radius: 10px; background: #fef2f2; border: 1px solid #fecaca; color: #991b1b; font-size: 13px; overflow-wrap: anywhere; }
+
+/* STROM171_STAIR_FLIGHT: Treppendurchgang auswaehlen, Kopplung ueber Ebenen. */
+.strom-stair-portal148:hover polygon { fill:rgba(57,128,214,.2); }
+.strom-stair-portal148.selected polygon { fill:rgba(37,99,235,.22); stroke:#2563eb; stroke-width:4; stroke-dasharray:none; }
+.strom-stair-portal-panel171 .strom-stair-question170 { max-width: 300px; }
+.strom-stair-link171 { display:flex; align-items:flex-start; gap:7px; text-align:left; border:1px solid #d8ccf5; border-radius:8px;
+  background:#f6f2ff; color:#4c2a92; padding:7px 10px; font-weight:650; font-size:12px; cursor:pointer; }
+.strom-stair-link171 .strom-icon { flex:0 0 auto; margin-top:1px; }
+.strom-stair-link171 span { display:flex; flex-direction:column; gap:2px; }
+.strom-stair-link171 small { color:#6b5a95; font-weight:500; font-size:11px; }
+.strom-stair-link171:hover { background:#ede5ff; }

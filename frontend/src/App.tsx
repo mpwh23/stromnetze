@@ -8,6 +8,7 @@ import { snapPointToVisibleRooms143, snapRectangleHandle143, snapMovedVerticesTo
 import { snapRectEdge146, snapTranslatedEdge146 } from './building/edgeSnap146'
 import { readStairDirections147, sameStairFootprint147, stairDirectionKey147, type StairDirection147 } from './building/stairOverlay147'
 import { readStairPairs148, saveStairPairs148, linkStairs148, inferLegacyStairPairs148, linkedStairPortals148, type StairPairs148 } from './building/stairLinks148'
+import { baseStairName171, readStairFlights171, saveStairFlights171, stairFlightPartner171, stairLayoutOwner171, type StairFlights171 } from './building/stairFlights171'
 import { readRoofSlopes148, saveRoofSlopes148, nearestRoomEdge148, inwardRoofAngle148, angleVector148, ROOF_EVENT148, type RoofSlope148 } from './building/roofSlopes148'
 import RoofEditor148 from './components/RoofEditor148'
 import type { PointerEvent as RoofPointer149 } from 'react'
@@ -1600,6 +1601,9 @@ function FloorplanEditor({
   const [titleOffsets, setTitleOffsets] = useState<Record<string, TitleOffset>>(() => loadTitleOffsets(floor.id))
   const [titleDrag, setTitleDrag] = useState<{ roomId: string; startClientX: number; startClientY: number; startOffset: TitleOffset } | null>(null)
   const [stairPairs148, setStairPairs148] = useState<StairPairs148>(() => readStairPairs148(floor.id, window.localStorage))
+  // STROM171_STAIR_FLIGHT: Kopplung ueber Ebenen (gekoppelter Raum -> Eigentuemer) und gewaehlter Durchgang.
+  const [stairFlights171, setStairFlights171] = useState<StairFlights171>(() => readStairFlights171(floor.id, window.localStorage))
+  const [selectedPortal171, setSelectedPortal171] = useState('')
   const [roofSlopes148, setRoofSlopes148] = useState<RoofSlope148[]>(() => readRoofSlopes148(floor.id, window.localStorage))
   const roofDrag149 = useRef<{id:string;mode:'move'|'start'|'end'|'direction';initial:RoofSlope148;origin:PointM}|null>(null)
   const roofLive149 = useRef<RoofSlope148[]>([])
@@ -1622,6 +1626,8 @@ function FloorplanEditor({
 
   useEffect(() => {
     setStairPairs148(readStairPairs148(floor.id, window.localStorage))
+    setStairFlights171(readStairFlights171(floor.id, window.localStorage))
+    setSelectedPortal171('')
     setRoofSlopes148(readRoofSlopes148(floor.id, window.localStorage))
     setRoofStart148(null)
     setSelectedRoof148('')
@@ -1703,6 +1709,59 @@ function FloorplanEditor({
     // Raum geloescht oder abgewaehlt: Treppeneditor schliessen, Auswahlwerkzeug aktiv.
     if (!selectedRoom && (stairPanelOpen || tool === 'stair')) { setStairPanelOpen(false); setTool('select') }
   }, [selectedRoom, stairPanelOpen, tool])
+
+  // STROM171_STAIR_FLIGHT: gekoppelter Treppenraum auf der Nachbarebene.
+  const stairPartnerId171 = selectedRoom && isStairRoom(selectedRoom) ? stairFlightPartner171(stairFlights171, selectedRoom.id) : null
+  const stairPartnerRoom171 = stairPartnerId171 ? rooms.find((room) => room.id === stairPartnerId171) ?? null : null
+  useEffect(() => { if (selectedRoomId) setSelectedPortal171('') }, [selectedRoomId])
+  useEffect(() => { setSelectedPortal171('') }, [activeLayerId])
+  const stairSeenRooms171 = useRef<Set<string>>(new Set())
+  useEffect(() => {
+    // Geloeschte Raeume aus der Kopplung entfernen; faellt der Eigentuemer weg, behaelt der
+    // verbleibende Treppenraum die Stufen als eigene Daten.
+    // Nur Raeume, die schon einmal geladen waren (frisch angelegte erscheinen erst nach dem Neuladen).
+    if (!rooms.length || rooms.some((room) => room.floorId !== floor.id)) return
+    const ids = new Set(rooms.map((room) => room.id))
+    const seen = stairSeenRooms171.current
+    const gone = (id: string) => seen.has(id) && !ids.has(id)
+    ids.forEach((id) => seen.add(id))
+    const next: StairFlights171 = { ...stairFlights171 }
+    let changed = false
+    for (const [coupled, owner] of Object.entries(stairFlights171)) {
+      if (!gone(coupled) && !gone(owner)) continue
+      changed = true
+      delete next[coupled]
+      if (ids.has(coupled) && gone(owner)) {
+        for (const prefix of ['strom-stair-layout:', 'strom-stair-edge-assignments:']) {
+          const raw = window.localStorage.getItem(prefix + owner)
+          if (raw && !window.localStorage.getItem(prefix + coupled)) window.localStorage.setItem(prefix + coupled, raw)
+        }
+      }
+    }
+    if (!changed) return
+    try { saveStairFlights171(floor.id, next); setStairFlights171(next) }
+    catch (err) { onError(`Treppenkopplung konnte nicht gespeichert werden: ${String(err)}`) }
+  }, [floor.id, rooms, stairFlights171])
+  const stairSyncPrev171 = useRef<Map<string, string>>(new Map())
+  useEffect(() => {
+    // Grundriss gekoppelt: geaenderte Seite gewinnt, sonst der Eigentuemer. Nicht waehrend des Ziehens.
+    if (roomDrag || groupDrag || polygonEdgeDrag || vertexDrag || rectHandleDrag) return
+    const sig = (room: Room) => JSON.stringify(room.vertices.map((point) => [round3(point.x), round3(point.y)]))
+    const byId = new Map(rooms.map((room) => [room.id, room]))
+    const prev = stairSyncPrev171.current
+    for (const [coupledId, ownerId] of Object.entries(stairFlights171)) {
+      const owner = byId.get(ownerId), coupled = byId.get(coupledId)
+      if (!owner || !coupled) continue
+      const so = sig(owner), sc = sig(coupled)
+      if (so === sc) continue
+      const ownerChanged = prev.has(ownerId) && prev.get(ownerId) !== so
+      const coupledChanged = prev.has(coupledId) && prev.get(coupledId) !== sc
+      const source = coupledChanged && !ownerChanged ? coupled : owner
+      const target = source === owner ? coupled : owner
+      void onPersistRoom({ ...target, shapeType: source.shapeType, vertices: source.vertices.map((point) => ({ ...point })), areaM2: polygonAreaM2(source.vertices) })
+    }
+    stairSyncPrev171.current = new Map(rooms.map((room) => [room.id, sig(room)]))
+  }, [rooms, stairFlights171, roomDrag, groupDrag, polygonEdgeDrag, vertexDrag, rectHandleDrag])
 
   const recessBaseRoom = recessBaseRoomId ? rooms.find((room) => room.id === recessBaseRoomId) ?? null : null
   const rectPreview = rectDraft ? normalizeRect(rectDraft.start, rectDraft.end) : null
@@ -1914,6 +1973,10 @@ function FloorplanEditor({
   // STROM148_STAIR_PORTAL: the SAME stair room is visible on its arrival level.
   // This is a reference, not a duplicate database room; opening it selects its true source floor.
   const stairPortals148 = linkedStairPortals148(rooms,layers,roomLayerAssignments,stairDirections147,activeLayerId)
+    .filter(({ room }) => { // STROM171: hier bereits als gekoppelter Treppenraum vorhanden
+      const partner = stairFlightPartner171(stairFlights171, room.id)
+      return !partner || !rooms.some((item) => item.id === partner) || (roomLayerAssignments[partner] ?? defaultLayerId) !== activeLayerId
+    })
 
   const activeLayerRooms = useMemo(
     () => rooms.filter((room) => (roomLayerAssignments[room.id] ?? defaultLayerId) === activeLayerId),
@@ -2085,9 +2148,39 @@ function FloorplanEditor({
     onSelectRoom(selectedRoom.id)
   }
 
+  // STROM171_STAIR_FLIGHT: Treppendurchgang -> gekoppelter Treppenraum auf dieser Ebene.
+  async function createCoupledStair171(source: Room) {
+    if (stairCreating170.current) return
+    if (Object.entries(stairFlights171).some(([coupled, owner]) => owner === source.id && (roomLayerAssignments[coupled] ?? defaultLayerId) === activeLayerId)) return
+    stairCreating170.current = true
+    setStairCreateBusy170(true)
+    const here: StairDirection147 = stairDirections147[source.id] === 'down' ? 'up' : 'down'
+    try {
+      onError(null)
+      onCaptureUndoSnapshot()
+      const created = await createRoom({
+        floorId: floor.id,
+        name: `${baseStairName171(source.name)} (${here === 'up' ? 'aufwärts' : 'abwärts'})`,
+        shapeType: source.shapeType,
+        roomType: 'stair',
+        wallThicknessM: source.wallThicknessM,
+        vertices: source.vertices.map((point) => ({ ...point })),
+      })
+      setRoomLayerAssignments((current) => ({ ...current, [created.id]: activeLayerId }))
+      storeStairDirections147({ ...stairDirections147, [created.id]: here })
+      const nextFlights: StairFlights171 = { ...stairFlights171, [created.id]: source.id }
+      saveStairFlights171(floor.id, nextFlights)
+      setStairFlights171(nextFlights)
+      setSelectedPortal171('')
+      await onReload()
+      onSelectRoom(created.id)
+    } catch (err) { onError(err instanceof Error ? err.message : String(err)) }
+    finally { stairCreating170.current = false; setStairCreateBusy170(false) }
+  }
+
   // STROM170: Fehlgriff korrigieren, solange nur eine Richtung existiert.
   function swapStairDirection170() {
-    if (!selectedRoom || !isStairRoom(selectedRoom) || !selectedStairDirection147 || stairRoomsHere147.length !== 1) return
+    if (!selectedRoom || !isStairRoom(selectedRoom) || !selectedStairDirection147 || stairRoomsHere147.length !== 1 || stairPartnerId171) return
     storeStairDirections147({ ...stairDirections147, [selectedRoom.id]: selectedStairDirection147 === 'up' ? 'down' : 'up' })
   }
 
@@ -2105,7 +2198,7 @@ function FloorplanEditor({
       // Do not duplicate the physical walls or the existing stair layout data.
       const created = await createRoom({
         floorId: floor.id,
-        name: `${selectedRoom.name} (${opposite === 'up' ? 'aufwärts' : 'abwärts'})`,
+        name: `${baseStairName171(selectedRoom.name)} (${opposite === 'up' ? 'aufwärts' : 'abwärts'})`, // STROM171
         shapeType: selectedRoom.shapeType,
         roomType: 'stair',
         wallThicknessM: selectedRoom.wallThicknessM,
@@ -3000,6 +3093,7 @@ function toggleRecessOffsetDirection() {
 
   function handleCanvasMouseDown(event: ReactMouseEvent<SVGSVGElement>) {
     ;(event.currentTarget as unknown as HTMLElement).focus({ preventScroll: true })
+    if (!(event.target as Element).closest?.('.strom-stair-portal148')) setSelectedPortal171('') // STROM171
     if (tool !== 'select' || event.button !== 0) return
     if (event.target !== event.currentTarget || !canvasScrollRef.current) return
     panDragRef.current = {
@@ -3502,6 +3596,24 @@ function toggleRecessOffsetDirection() {
           </div>
         )}
 
+        {/* STROM171_STAIR_FLIGHT: gewaehlter Treppendurchgang */}
+        {(() => {
+          const portal171 = stairPortals148.find((item) => item.room.id === selectedPortal171)
+          if (!portal171 || selectedRoom) return null
+          const sourceName171 = layers.find((layer) => layer.id === portal171.sourceLayerId)?.name || 'Nachbarebene'
+          const here171: StairDirection147 = stairDirections147[portal171.room.id] === 'down' ? 'up' : 'down'
+          return (
+            <div className="strom-stair-direction-floating147 strom-stair-ask170 strom-stair-portal-panel171" role="group" aria-label="Treppendurchgang">
+              <div className="strom-stair-direction-title147">Treppendurchgang · aus {sourceName171}</div>
+              <p className="strom-stair-question170">„{portal171.room.name}“ kommt {here171 === 'down' ? 'von unten' : 'von oben'} hier an. Auf dieser Ebene als {here171 === 'down' ? 'Abwärts' : 'Aufwärts'}-Treppe anlegen? Stufen und Grundriss bleiben mit {sourceName171} gekoppelt.</p>
+              <div className="strom-stair-create-row170">
+                <button type="button" className="strom-stair-create147" disabled={stairCreateBusy170} onClick={() => void createCoupledStair171(portal171.room)}>
+                  <StromIcon name={here171 === 'down' ? 'stair-down' : 'stair-up'} size={18} /> {stairCreateBusy170 ? 'Wird angelegt …' : `Treppe hier anlegen (${here171 === 'down' ? 'abwärts' : 'aufwärts'})`}</button>
+                <button type="button" className="strom-stair-swap170" onClick={() => { setSelectedPortal171(''); setActiveLayerId(portal171.sourceLayerId); onSelectRoom(portal171.room.id) }}>Zur Treppe in {sourceName171}</button>
+              </div>
+            </div>
+          )
+        })()}
         {selectedRoom && isStairRoom(selectedRoom) && (roomLayerAssignments[selectedRoom.id] ?? defaultLayerId) === activeLayerId && (
           <div className={`strom-stair-direction-floating147 ${selectedStairDirection147 ? '' : 'strom-stair-ask170'}`} role="group" aria-label="Treppenraumrichtung">
             <div className="strom-stair-direction-title147">{selectedStairDirection147 ? `Treppenraum · ${selectedStairDirection147 === 'up' ? 'Aufwärts' : 'Abwärts'}` : 'Neue Treppe · Richtung wählen'}</div>
@@ -3516,11 +3628,18 @@ function toggleRecessOffsetDirection() {
                 aria-pressed={selectedStairDirection147 === 'down'} disabled={stairMissing170('down')}
                 onClick={() => chooseStairDirection147('down')}><StromIcon name="stair-down" title="Abwärts" size={18} /> Abwärts</button>
             </div>
+            {stairPartnerRoom171 && (
+              <button type="button" className="strom-stair-link171" title="Gekoppelten Treppenraum auf der Nachbarebene anzeigen"
+                onClick={() => { setActiveLayerId(roomLayerAssignments[stairPartnerRoom171.id] ?? defaultLayerId); onSelectRoom(stairPartnerRoom171.id) }}>
+                <StromIcon name="snap-layers" size={16} />
+                <span>Gekoppelt mit „{stairPartnerRoom171.name}“ · {layers.find((layer) => layer.id === (roomLayerAssignments[stairPartnerRoom171.id] ?? defaultLayerId))?.name || 'Nachbarebene'}<small>Stufen und Grundriss gemeinsam</small></span>
+              </button>
+            )}
             {selectedStairDirection147 && stairRoomsHere147.length === 1 && (
               <div className="strom-stair-create-row170">
                 <button type="button" className="strom-stair-create147" disabled={stairCreateBusy170} title="Zweiten unabhängigen Treppenraum auf derselben Grundfläche erstellen; vorhandene Stufen nicht kopieren"
                   onClick={() => void createOtherStair147()}><StromIcon name="new-object" title="Gegenrichtung anlegen" size={18} /> {stairCreateBusy170 ? 'Wird angelegt …' : 'Gegenrichtung anlegen'}</button>
-                <button type="button" className="strom-stair-swap170" title="Falsche Richtung gewählt? Richtung dieses Treppenraums umkehren" onClick={swapStairDirection170}>Richtung ändern</button>
+                {!stairPartnerId171 && <button type="button" className="strom-stair-swap170" title="Falsche Richtung gewählt? Richtung dieses Treppenraums umkehren" onClick={swapStairDirection170}>Richtung ändern</button>}
               </div>
             )}
             {stairRoomsHere147.length > 2 && <small>Hinweis: Mehr als zwei überlappende Treppenräume gefunden</small>}
@@ -3592,9 +3711,9 @@ function toggleRecessOffsetDirection() {
             {/* STROM144_BLUEPRINT_DOOR_LEVEL: doors are local to the active level, not ghost levels. */}
             {/* STROM148_STAIR_PORTAL: references to a stairwell on its adjoining storey */}
             {stairPortals148.map(({room,sourceLayerId})=>(
-              <g key={`stair-portal148-${room.id}`} className="strom-stair-portal148"
-                onClick={event=>{event.stopPropagation();setActiveLayerId(sourceLayerId);onSelectRoom(room.id);setTool('select')}}>
-                <title>{`Treppenraum ${room.name} aus ${layers.find(l=>l.id===sourceLayerId)?.name||'Nachbarebene'} bearbeiten`}</title>
+              <g key={`stair-portal148-${room.id}`} className={`strom-stair-portal148 ${selectedPortal171 === room.id ? 'selected' : ''}`} data-portal171={room.id}
+                onClick={event=>{event.stopPropagation();setSelectedPortal171(room.id);onSelectRoom('');setTool('select')}}>
+                <title>{`Treppendurchgang aus ${layers.find(l=>l.id===sourceLayerId)?.name||'Nachbarebene'}: anklicken, um hier einen gekoppelten Treppenraum anzulegen`}</title>
                 <polygon points={pointsToSvg(room.vertices)} />
                 <text x={mToX(centroid(room.vertices).x)} y={mToY(centroid(room.vertices).y)} textAnchor="middle">
                   Treppenöffnung ↕ · {room.name}
@@ -3831,7 +3950,8 @@ function pointInPolygonForStairPanel(point: PointM, polygon: PointM[]) {
 }
 
 function stairLayoutStorageKey(roomId: string) {
-  return `strom-stair-layout:${roomId}`
+  // STROM171_STAIR_FLIGHT: gekoppelter Treppenraum liest/schreibt die Stufen des Eigentuemers.
+  return `strom-stair-layout:${stairLayoutOwner171(roomId)}`
 }
 
 function readStairLayoutElements(roomId: string): StairEditorElement[] {
@@ -3870,7 +3990,7 @@ function writeStairLayoutElements(roomId: string, elements: StairEditorElement[]
 }
 
 function stairEdgeAssignmentsStorageKey(roomId: string) {
-  return `strom-stair-edge-assignments:${roomId}`
+  return `strom-stair-edge-assignments:${stairLayoutOwner171(roomId)}` // STROM171_STAIR_FLIGHT
 }
 
 function readStairEdgeAssignments(roomId: string): StairFloorEdgeLinkModel[] {
