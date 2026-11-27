@@ -448,6 +448,9 @@ export function App() {
   const [openings, setOpenings] = useState<Opening[]>([])
   const [selectedRoomId, setSelectedRoomId] = useState<string>('')
   const [deleteConfirmRoomId, setDeleteConfirmRoomId] = useState<string>('')
+  // STROM170_ROOM_DELETE: Fortschritt und Fehler im Bestaetigungsfenster selbst anzeigen.
+  const [deleteBusy170, setDeleteBusy170] = useState(false)
+  const [deleteError170, setDeleteError170] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [booting, setBooting] = useState(true)
   const [sidebarMode, setSidebarMode] = useState<SidebarMode>('normal')
@@ -515,6 +518,7 @@ export function App() {
             floorId: room.floorId,
             name: room.name,
             shapeType: room.shapeType,
+            roomType: room.roomType, // STROM170: Treppenraum bleibt nach Rueckgaengig ein Treppenraum
             wallThicknessM: room.wallThicknessM,
             vertices: room.vertices,
           })
@@ -741,21 +745,45 @@ export function App() {
 
   function requestDeleteSelectedRoom() {
     if (!selectedRoomId) return
+    setDeleteError170('')
     setDeleteConfirmRoomId(selectedRoomId)
   }
 
+  // STROM170_ROOM_DELETE: Tueren, Fenster und Steckdosen des Raums zuerst entfernen.
+  // Ein Fremdschluessel in wall_objects verhindert sonst das Loeschen von Raeumen mit Wandobjekten.
+  async function deleteWallObjectsOfRoom170(roomId: string, floorId: string) {
+    let objects: Awaited<ReturnType<typeof getWallObjects>>
+    try { objects = await getWallObjects(floorId) }
+    catch (err) { throw new Error(`Wandobjekte konnten nicht gelesen werden: ${err instanceof Error ? err.message : String(err)}`) }
+    for (const item of objects.filter((entry) => entry.roomId === roomId)) {
+      try { await deleteWallObjectFromApi(item.id) }
+      catch (err) { throw new Error(`Wandobjekt (${item.objectType}) konnte nicht entfernt werden: ${err instanceof Error ? err.message : String(err)}`) }
+    }
+  }
+
   async function confirmDeleteSelectedRoom() {
-    if (!deleteConfirmRoomId) return
+    const roomId = deleteConfirmRoomId
+    const target = rooms.find((item) => item.id === roomId)
+    if (!roomId || !target || deleteBusy170) return
+    setDeleteBusy170(true)
+    setDeleteError170('')
     try {
       setError(null)
       captureUndoSnapshot()
-      await deleteRoom(deleteConfirmRoomId)
-      setRooms((current) => current.filter((item) => item.id !== deleteConfirmRoomId))
-      if (selectedRoomId === deleteConfirmRoomId) setSelectedRoomId('')
+      await deleteWallObjectsOfRoom170(roomId, target.floorId)
+      try { await deleteRoom(roomId) }
+      catch (err) { throw new Error(`Server hat das Loeschen abgelehnt: ${err instanceof Error ? err.message : String(err)}`) }
+      setRooms((current) => current.filter((item) => item.id !== roomId))
+      if (selectedRoomId === roomId) setSelectedRoomId('')
       setDeleteConfirmRoomId('')
       await reload()
     } catch (err) {
-      setError(err instanceof Error ? err.message : String(err))
+      const message = err instanceof Error ? err.message : String(err)
+      setDeleteError170(message)
+      setError(message)
+      console.warn('STROM170 Raum loeschen fehlgeschlagen', message)
+    } finally {
+      setDeleteBusy170(false)
     }
   }
 
@@ -1034,7 +1062,9 @@ export function App() {
       {deleteConfirmRoom && (
         <ConfirmDeleteModal
           room={deleteConfirmRoom}
-          onCancel={() => setDeleteConfirmRoomId('')}
+          busy={deleteBusy170}
+          error={deleteError170}
+          onCancel={() => { if (!deleteBusy170) { setDeleteConfirmRoomId(''); setDeleteError170('') } }}
           onConfirm={() => void confirmDeleteSelectedRoom()}
         />
       )}
@@ -1049,18 +1079,24 @@ export function App() {
   )
 }
 
-function ConfirmDeleteModal({ room, onCancel, onConfirm }: { room: Room; onCancel: () => void; onConfirm: () => void }) {
+function ConfirmDeleteModal({ room, busy = false, error = '', onCancel, onConfirm }: { room: Room; busy?: boolean; error?: string; onCancel: () => void; onConfirm: () => void }) {
+  // STROM170_ROOM_DELETE: Enter bestaetigt, Escape bricht ab; Fortschritt und Fehler sichtbar.
+  const confirmRef170 = useRef<HTMLButtonElement | null>(null)
+  useEffect(() => { confirmRef170.current?.focus() }, [])
+  const stair170 = isStairRoom(room)
   return (
-    <div className="modal-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) onCancel() }}>
-      <section className="confirm-modal" role="dialog" aria-modal="true" aria-label="Raum loeschen bestaetigen">
+    <div className="modal-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) onCancel() }}
+      onKeyDown={(event) => { if (event.key === 'Escape') { event.preventDefault(); onCancel() } }}>
+      <section className="confirm-modal confirm-modal-delete170" role="dialog" aria-modal="true" aria-label="Raum loeschen bestaetigen" aria-busy={busy}>
         <div>
           <span className="eyebrow">Loeschen</span>
-          <h2>Raum loeschen?</h2>
-          <p>Der Raum <strong>{room.name}</strong> wird aus dem Blueprint entfernt.</p>
+          <h2>{stair170 ? 'Treppenraum loeschen?' : 'Raum loeschen?'}</h2>
+          <p>Der {stair170 ? 'Treppenraum' : 'Raum'} <strong>{room.name}</strong> wird mit seinen Tueren, Fenstern und Steckdosen aus dem Blueprint entfernt.</p>
+          {error && <p className="confirm-modal-error170" role="alert">Loeschen fehlgeschlagen: {error}</p>}
         </div>
         <div className="button-row">
-          <button type="button" onClick={onCancel}>Abbrechen</button>
-          <button type="button" className="danger" onClick={onConfirm}>Loeschen</button>
+          <button type="button" className="confirm-modal-cancel170" onClick={onCancel} disabled={busy}>Abbrechen</button>
+          <button type="button" ref={confirmRef170} className="danger confirm-modal-confirm170" onClick={onConfirm} disabled={busy}>{busy ? 'Wird geloescht ...' : error ? 'Erneut versuchen' : 'Loeschen'}</button>
         </div>
       </section>
     </div>
@@ -1657,6 +1693,16 @@ function FloorplanEditor({
   const stairUp147 = stairRoomsHere147.find((room) => stairDirections147[room.id] === 'up') ?? null
   const stairDown147 = stairRoomsHere147.find((room) => stairDirections147[room.id] === 'down') ?? null
   const selectedStairDirection147 = selectedRoom ? stairDirections147[selectedRoom.id] : undefined
+  // STROM170_STAIR_DIRECTION: Gegenrichtung bleibt ausgegraut, bis sie angelegt ist.
+  const stairUnassigned170 = selectedRoom ? stairRoomsHere147.find((room) => room.id !== selectedRoom.id && !stairDirections147[room.id]) ?? null : null
+  const stairMissing170 = (direction: StairDirection147) => Boolean(selectedStairDirection147) && selectedStairDirection147 !== direction
+    && !(direction === 'up' ? stairUp147 : stairDown147) && !stairUnassigned170
+  const stairCreating170 = useRef(false)
+  const [stairCreateBusy170, setStairCreateBusy170] = useState(false)
+  useEffect(() => {
+    // Raum geloescht oder abgewaehlt: Treppeneditor schliessen, Auswahlwerkzeug aktiv.
+    if (!selectedRoom && (stairPanelOpen || tool === 'stair')) { setStairPanelOpen(false); setTool('select') }
+  }, [selectedRoom, stairPanelOpen, tool])
 
   const recessBaseRoom = recessBaseRoomId ? rooms.find((room) => room.id === recessBaseRoomId) ?? null : null
   const rectPreview = rectDraft ? normalizeRect(rectDraft.start, rectDraft.end) : null
@@ -1976,7 +2022,8 @@ function FloorplanEditor({
         return
       }
 
-      if (event.key === 'Delete' && (selectedRoom || allSelected)) {
+      // STROM170: Im Treppeneditor loescht Entf nicht den ganzen Raum.
+      if (event.key === 'Delete' && !stairPanelOpen && (selectedRoom || allSelected)) {
         event.preventDefault()
         void deleteSelectedFromCanvas()
         return
@@ -2007,7 +2054,7 @@ function FloorplanEditor({
     }
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [tool, selectedRoom, allSelected, roomDrag, groupDrag, polygonEdgeDrag, vertexDrag, rectHandleDrag, zoom, onDeleteSelectedRoom, onPersistRoom, onCaptureUndoSnapshot])
+  }, [tool, selectedRoom, allSelected, roomDrag, groupDrag, polygonEdgeDrag, vertexDrag, rectHandleDrag, zoom, onDeleteSelectedRoom, onPersistRoom, onCaptureUndoSnapshot, stairPanelOpen])
 
   function storeStairDirections147(next: Record<string, StairDirection147>) {
     // Existing level assignments and stair element storage remain unchanged.
@@ -2020,6 +2067,7 @@ function FloorplanEditor({
 
   function chooseStairDirection147(direction: StairDirection147) {
     if (!selectedRoom || !isStairRoom(selectedRoom)) return
+    // STROM170: vorhandene Richtung anklicken zeigt den zugehoerigen Treppenraum.
     const other = direction === 'up' ? stairUp147 : stairDown147
     if (other) { onSelectRoom(other.id); return }
     const currentDirection = stairDirections147[selectedRoom.id]
@@ -2029,15 +2077,26 @@ function FloorplanEditor({
       onSelectRoom(matchingUnassigned.id)
       return
     }
+    // STROM170: noch nicht angelegte Gegenrichtung ist ausgegraut und aendert nichts.
+    if (currentDirection && currentDirection !== direction) return
     const next: Record<string, StairDirection147> = { ...stairDirections147, [selectedRoom.id]: direction }
     if (!currentDirection && matchingUnassigned) next[matchingUnassigned.id] = direction === 'up' ? 'down' : 'up'
     storeStairDirections147(next)
     onSelectRoom(selectedRoom.id)
   }
 
+  // STROM170: Fehlgriff korrigieren, solange nur eine Richtung existiert.
+  function swapStairDirection170() {
+    if (!selectedRoom || !isStairRoom(selectedRoom) || !selectedStairDirection147 || stairRoomsHere147.length !== 1) return
+    storeStairDirections147({ ...stairDirections147, [selectedRoom.id]: selectedStairDirection147 === 'up' ? 'down' : 'up' })
+  }
+
   async function createOtherStair147() {
     if (!selectedRoom || !isStairRoom(selectedRoom) || !selectedStairDirection147) return
     if (stairRoomsHere147.length > 1 || (stairUp147 && stairDown147)) return
+    if (stairCreating170.current) return // Doppelklick legt keine zweite Gegenrichtung an
+    stairCreating170.current = true
+    setStairCreateBusy170(true)
     const opposite: StairDirection147 = selectedStairDirection147 === 'up' ? 'down' : 'up'
     try {
       onError(null)
@@ -2059,8 +2118,10 @@ function FloorplanEditor({
       setStairPairs148(linked148)
       setStairPanelOpen(false)
       await onReload()
-      onSelectRoom(created.id)
+      // STROM170: Auswahl bleibt; die Gegenrichtung ist jetzt anklickbar.
+      onSelectRoom(selectedRoom.id)
     } catch (err) { onError(err instanceof Error ? err.message : String(err)) }
+    finally { stairCreating170.current = false; setStairCreateBusy170(false) }
   }
 
   async function finishRectangle(rect: RectM) {
@@ -3442,25 +3503,28 @@ function toggleRecessOffsetDirection() {
         )}
 
         {selectedRoom && isStairRoom(selectedRoom) && (roomLayerAssignments[selectedRoom.id] ?? defaultLayerId) === activeLayerId && (
-          <div className="strom-stair-direction-floating147" aria-label="Treppenraumrichtung">
-            <div className="strom-stair-direction-title147">Treppenraum · Richtung</div>
+          <div className={`strom-stair-direction-floating147 ${selectedStairDirection147 ? '' : 'strom-stair-ask170'}`} role="group" aria-label="Treppenraumrichtung">
+            <div className="strom-stair-direction-title147">{selectedStairDirection147 ? `Treppenraum · ${selectedStairDirection147 === 'up' ? 'Aufwärts' : 'Abwärts'}` : 'Neue Treppe · Richtung wählen'}</div>
+            {!selectedStairDirection147 && <p className="strom-stair-question170">Führt diese Treppe von hier nach oben oder nach unten?</p>}
             <div className="strom-stair-direction-actions147">
-              <button type="button" className={selectedStairDirection147 === 'up' ? 'active' : ''}
-                title="Aufwärts: führt von dieser Ebene zur nächsthöheren"
-                aria-pressed={selectedStairDirection147 === 'up'}
+              <button type="button" data-direction170="up" className={`${selectedStairDirection147 === 'up' ? 'active' : ''} ${stairMissing170('up') ? 'strom-stair-missing170' : ''}`.trim()}
+                title={stairMissing170('up') ? 'Aufwärts ist noch nicht angelegt – über „Gegenrichtung anlegen“ erstellen' : stairUp147 && selectedStairDirection147 !== 'up' ? 'Aufwärts-Treppenraum anzeigen' : 'Aufwärts: führt von dieser Ebene zur nächsthöheren'}
+                aria-pressed={selectedStairDirection147 === 'up'} disabled={stairMissing170('up')}
                 onClick={() => chooseStairDirection147('up')}><StromIcon name="stair-up" title="Aufwärts" size={18} /> Aufwärts</button>
-              <button type="button" className={selectedStairDirection147 === 'down' ? 'active' : ''}
-                title="Abwärts: führt von dieser Ebene zur nächsttieferen"
-                aria-pressed={selectedStairDirection147 === 'down'}
+              <button type="button" data-direction170="down" className={`${selectedStairDirection147 === 'down' ? 'active' : ''} ${stairMissing170('down') ? 'strom-stair-missing170' : ''}`.trim()}
+                title={stairMissing170('down') ? 'Abwärts ist noch nicht angelegt – über „Gegenrichtung anlegen“ erstellen' : stairDown147 && selectedStairDirection147 !== 'down' ? 'Abwärts-Treppenraum anzeigen' : 'Abwärts: führt von dieser Ebene zur nächsttieferen'}
+                aria-pressed={selectedStairDirection147 === 'down'} disabled={stairMissing170('down')}
                 onClick={() => chooseStairDirection147('down')}><StromIcon name="stair-down" title="Abwärts" size={18} /> Abwärts</button>
             </div>
-            {!selectedStairDirection147 && <small>Richtung für diesen Treppenraum zuerst festlegen</small>}
             {selectedStairDirection147 && stairRoomsHere147.length === 1 && (
-              <button type="button" className="strom-stair-create147" title="Zweiten unabhängigen Treppenraum auf derselben Grundfläche erstellen; vorhandene Stufen nicht kopieren"
-                onClick={() => void createOtherStair147()}><StromIcon name="new-object" title="Gegenrichtung anlegen" size={18} /> Gegenrichtung anlegen</button>
+              <div className="strom-stair-create-row170">
+                <button type="button" className="strom-stair-create147" disabled={stairCreateBusy170} title="Zweiten unabhängigen Treppenraum auf derselben Grundfläche erstellen; vorhandene Stufen nicht kopieren"
+                  onClick={() => void createOtherStair147()}><StromIcon name="new-object" title="Gegenrichtung anlegen" size={18} /> {stairCreateBusy170 ? 'Wird angelegt …' : 'Gegenrichtung anlegen'}</button>
+                <button type="button" className="strom-stair-swap170" title="Falsche Richtung gewählt? Richtung dieses Treppenraums umkehren" onClick={swapStairDirection170}>Richtung ändern</button>
+              </div>
             )}
             {stairRoomsHere147.length > 2 && <small>Hinweis: Mehr als zwei überlappende Treppenräume gefunden</small>}
-            {stairRoomsHere147.length === 2 && <small>Aufwärts: {stairUp147 ? 'vorhanden' : 'offen'} · Abwärts: {stairDown147 ? 'vorhanden' : 'offen'}</small>}
+            {stairUp147 && stairDown147 && <small>Beide Richtungen angelegt · Richtung anklicken zeigt den Treppenraum</small>}
           </div>
         )}
         {tool==='roof' && <div className="strom-roof-help148" title="Die Dachschräge wird im ausgewählten Raum gespeichert">Dachschräge: {roofStart148?'zweiten Punkt der Startlinie setzen':'ersten Punkt der Startlinie setzen'} · anschließend Parameter einstellen</div>}
