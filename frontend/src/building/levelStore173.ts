@@ -1,4 +1,5 @@
 import type { Floor } from '../types'
+import { migrateVisibility174 } from './levelVisibility174'
 
 /** STROM173_LEVEL_MENU: Ebenenliste wie im Blueprint lesen/schreiben (3D-Ansichten). */
 export type RawLayer173 = { id: string; name: string; visible: boolean; heightM?: number; slabThicknessM?: number }
@@ -6,6 +7,7 @@ export const layersKey173 = (floorId: string) => `strom.floorplan.layers.${floor
 export const LEVELS_CHANGED173 = 'strom:blueprint-levels-changed'
 
 export function readRawLayers173(floor: Floor, storage: Pick<Storage, 'getItem'> = window.localStorage): RawLayer173[] {
+  if (typeof window !== 'undefined' && storage === window.localStorage) migrateVisibility174(floor.id, window.localStorage) // STROM174
   const result: RawLayer173[] = []
   try {
     const raw: unknown = JSON.parse(storage.getItem(layersKey173(floor.id)) || '[]')

@@ -1,6 +1,7 @@
 import { useState, type ReactNode } from 'react'
 import StromIcon from './StromIcon'
 import { floatRef173 } from './floatDrag173'
+import type { DerivedPreset174, VisibilityPreset174 } from '../building/levelVisibility174'
 
 /** STROM173_LEVEL_MENU: ein Ebenenmenue fuer Blueprint und 3D-Ansichten (Vorlage: Blueprint). */
 export type LevelMenuLevel173 = { id: string; name: string; visible: boolean; heightM: number; slabThicknessM: number }
@@ -27,6 +28,8 @@ type LevelMenuProps173 = {
   onAdd: () => void
   onDelete: () => void
   note?: ReactNode
+  preset?: DerivedPreset174
+  onPreset?: (preset: VisibilityPreset174) => void
 }
 
 const mm173 = (m: number) => Math.round(m * 1000)
@@ -35,9 +38,13 @@ export default function LevelMenu173(props: LevelMenuProps173) {
   const { floatId, className = '', levels, activeId, zeroId, radioName, open, rowState } = props
   const [dragged, setDragged] = useState('')
   const active = levels.find((level) => level.id === activeId) ?? levels[0]
-  const eyeTitle = props.eyeTitle ?? ((_id: string, visible: boolean) => visible
-    ? 'Ebene aktuell sichtbar - klicken zum manuellen Ausblenden'
-    : 'Ebene aktuell ausgeblendet - klicken zum manuellen Einblenden')
+  const eyeTitle = props.eyeTitle ?? ((id: string, visible: boolean) => id === activeId ? 'Aktive Ebene ist immer sichtbar'
+    : visible ? 'Ebene eingeblendet - klicken zum Ausblenden' : 'Ebene ausgeblendet - klicken zum Einblenden')
+  const presets174: { id: VisibilityPreset174; label: string; icon: string; title: string }[] = [
+    { id: 'solo', label: 'Solo', icon: 'layers-current', title: 'Solo: nur die aktuelle Ebene einblenden' },
+    { id: 'neighbors', label: 'Nachbar', icon: 'layers-neighbor', title: 'Nachbar: aktuelle Ebene und die unmittelbar darüber und darunter einblenden' },
+    { id: 'all', label: 'Alle', icon: 'layers-all', title: 'Alle Ebenen einblenden' },
+  ]
   return (
     <div ref={floatRef173(floatId)} className={`canvas-layer-menu level-menu173 ${className} ${open ? 'open' : ''}`.replace(/\s+/g, ' ').trim()} aria-label="Ebenen">
       <span className="float-grip173" title="Ebenenmenü verschieben (Doppelklick: zurück an den Standardplatz)" aria-hidden="true"><StromIcon name="drag-dots" size={16} /></span>
@@ -128,7 +135,17 @@ export default function LevelMenu173(props: LevelMenuProps173) {
               )
             })}
           </div>
-          <div className="layer-menu-actions" aria-label="Ebenenaktionen">
+          <div className="layer-menu-actions layer-menu-actions174" aria-label="Ebenenaktionen">
+            {props.onPreset && (
+              <div className="layer-visibility-presets174" role="group" aria-label="Ebenen einblenden">
+                {presets174.map((item) => (
+                  <button key={item.id} type="button" data-preset174={item.id} className={props.preset === item.id ? 'active' : ''}
+                    aria-pressed={props.preset === item.id} title={item.title} onClick={() => props.onPreset?.(item.id)}>
+                    <StromIcon name={item.icon} size={16} /> {item.label}
+                  </button>
+                ))}
+              </div>
+            )}
             <button type="button" className="layer-add round-icon" title="Neue Ebene" aria-label="Neue Ebene" onClick={props.onAdd}><StromIcon name="new-object" title="Neue Ebene" /></button>
             <button type="button" className="layer-delete round-icon" title="Ausgewaehlte Ebene loeschen" aria-label="Ausgewaehlte Ebene loeschen" disabled={levels.length <= 1} onClick={props.onDelete}><StromIcon name="trash" title="Ebene loeschen" /></button>
           </div>

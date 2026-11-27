@@ -4,6 +4,7 @@ import {queueEntry150,requestExit150,registerEnterReady150,registerEnterFailed16
 import { type CSSProperties, ChangeEvent as ReactChangeEvent, DragEvent as ReactDragEvent, MouseEvent as ReactMouseEvent, WheelEvent as ReactWheelEvent, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import StromIcon from './components/StromIcon'
 import LevelMenu173 from './components/LevelMenu173' // STROM173_LEVEL_MENU
+import { applyPreset174, derivePreset174, migrateVisibility174, modeFromPreset174, presetFromMode174, type VisibilityPreset174 } from './building/levelVisibility174'
 import { floatRef173 } from './components/floatDrag173' // STROM173_FLOAT_DRAG
 import { flushSync } from 'react-dom' // STROM168_WHEEL_ZOOM
 import { snapPointToVisibleRooms143, snapRectangleHandle143, snapMovedVerticesToVisibleRooms143 } from './building/neighborSnap143'
@@ -277,6 +278,7 @@ function normalizeLayers(input: unknown): FloorplanLayer[] {
 }
 
 function loadFloorplanLayers(floorId: string): FloorplanLayer[] {
+  migrateVisibility174(floorId, window.localStorage) // STROM174_LEVEL_VISIBILITY: einmalige Umstellung
   return normalizeLayers(safeReadJson(layerStorageKey(floorId, 'list'), defaultFloorplanLayers()))
 }
 
@@ -2033,22 +2035,21 @@ function FloorplanEditor({
     ? blueprintDoorCandidate136(cursorPoint, activeLayerRooms, blueprintDoorWidth136) : null
 
 
+  const levelPreset174 = derivePreset174(layers, activeLayerId, presetFromMode174(layerVisibilityMode))
+  const toolbarMode174: LayerVisibilityMode = levelPreset174 === 'solo' ? 'active' : levelPreset174 === 'all' ? 'allGhostNoDims'
+    : levelPreset174 === 'neighbors' ? (layerVisibilityMode === 'adjacentGhostDims' ? 'adjacentGhostDims' : 'adjacentGhostNoDims') : 'allGhostNoDims'
+  const toolbarLabel174 = levelPreset174 === 'custom' ? 'Eigene Ebenenauswahl' : visibilityModeLabel(toolbarMode174)
+
   function renderStateForLayer(layerId: string) {
     const layer = layers.find((item) => item.id === layerId)
     const layerVisible = layer?.visible !== false
     const index = layerIndexMap.get(layerId) ?? 0
     const active = layerId === activeLayerId
-    if (active) return { visible: layerVisible, ghost: false, dimensions: true, interactive: layerVisible }
+    // STROM174_LEVEL_VISIBILITY: aktive Ebene immer sichtbar; jede andere nach ihrem eigenen Schalter.
+    if (active) return { visible: true, ghost: false, dimensions: true, interactive: true }
     if (!layerVisible) return { visible: false, ghost: false, dimensions: false, interactive: false }
-    if (layerVisibilityMode === 'active') return { visible: false, ghost: false, dimensions: false, interactive: false }
-    if (layerVisibilityMode === 'allGhostNoDims') return { visible: true, ghost: true, dimensions: false, interactive: false }
-    const adjacent = Math.abs(index - activeLayerIndex) === 1
-    return {
-      visible: adjacent,
-      ghost: adjacent,
-      dimensions: adjacent && layerVisibilityMode === 'adjacentGhostDims',
-      interactive: false,
-    }
+    void index
+    return { visible: true, ghost: true, dimensions: layerVisibilityMode === 'adjacentGhostDims', interactive: false }
   }
 
   const renderedRooms = useMemo(() => {
@@ -3261,10 +3262,17 @@ function toggleRecessOffsetDirection() {
     })
   }
 
+  // STROM174_LEVEL_VISIBILITY: Vorgaben setzen die Schalter aller Ebenen.
+  function applyLevelPreset174(preset: VisibilityPreset174, dims = false, activeId = activeLayerId) {
+    setLayers((current) => applyPreset174(current, activeId, preset))
+    setLayerVisibilityMode(modeFromPreset174(preset, dims) as LayerVisibilityMode)
+  }
   function cycleLayerVisibilityMode() {
-    const order: LayerVisibilityMode[] = ['active', 'adjacentGhostNoDims', 'adjacentGhostDims', 'allGhostNoDims']
-    const index = order.indexOf(layerVisibilityMode)
-    setLayerVisibilityMode(order[(index + 1) % order.length])
+    // Solo -> Nachbar -> Nachbar mit Bemassung -> Alle -> Solo
+    if (levelPreset174 === 'solo') applyLevelPreset174('neighbors')
+    else if (levelPreset174 === 'neighbors' && layerVisibilityMode !== 'adjacentGhostDims') applyLevelPreset174('neighbors', true)
+    else if (levelPreset174 === 'neighbors') applyLevelPreset174('all')
+    else applyLevelPreset174('solo')
   }
 
   function createLayerFromStairEditor(name: string) {
@@ -3277,7 +3285,7 @@ function toggleRecessOffsetDirection() {
       suffix += 1
     }
     const layer: FloorplanLayer = { id: `layer-${Date.now()}`, name: finalName, visible: true, heightM: activeLayer.heightM ?? floor.heightM, slabThicknessM: 0 }
-    setLayers((current) => [...current, layer])
+    setLayers((current) => applyPreset174([...current, layer], layer.id, 'solo'))
     setActiveLayerId(layer.id)
     setLayerVisibilityMode('active')
     return layer
@@ -3285,13 +3293,15 @@ function toggleRecessOffsetDirection() {
 
   function addLayer() {
     const layer: FloorplanLayer = { id: `layer-${Date.now()}`, name: `Ebene ${layers.length + 1}`, visible: true, heightM: activeLayer.heightM ?? floor.heightM, slabThicknessM: 0 }
-    setLayers((current) => [...current, layer])
+    setLayers((current) => applyPreset174([...current, layer], layer.id, 'solo'))
     setActiveLayerId(layer.id)
     setLayerVisibilityMode('active')
   }
 
   function selectLayer(id: string) {
-    setLayers((current) => current.map((layer) => layer.id === id && !layer.visible ? { ...layer, visible: true } : layer))
+    // STROM174: Solo/Nachbar wandern mit der aktiven Ebene; eigene Auswahl bleibt, die neue Ebene wird sichtbar.
+    if (levelPreset174 === 'solo' || levelPreset174 === 'neighbors') setLayers((current) => applyPreset174(current, id, levelPreset174 as VisibilityPreset174))
+    else setLayers((current) => current.map((layer) => layer.id === id && !layer.visible ? { ...layer, visible: true } : layer))
     setActiveLayerId(id)
     setAllSelected(false)
     onSelectRoom('')
@@ -3302,14 +3312,9 @@ function toggleRecessOffsetDirection() {
   function toggleLayerVisibility(id: string) {
     const target = layers.find((layer) => layer.id === id)
     if (!target) return
-    // In 'only current' mode, clicking an inactive eye should SHOW the chosen
-    // level, not silently flip its internal flag to false.
-    if (id !== activeLayerId && layerVisibilityMode === 'active') {
-      if (!target.visible) setLayers((current) => current.map((layer) => layer.id === id ? { ...layer, visible: true } : layer))
-      setLayerVisibilityMode('allGhostNoDims')
-      return
-    }
-    setLayers((current) => current.map((layer) => layer.id === id ? { ...layer, visible: !layer.visible } : layer))
+    // STROM174: Das Auge schaltet genau diese Ebene um; die aktive Ebene bleibt immer sichtbar.
+    if (id === activeLayerId) return
+    setLayers((current) => current.map((layer) => layer.id === id ? { ...layer, visible: layer.visible === false } : layer))
   }
 
   // STROM149: Bodenplatte gehört zur Etage, deren fertige Bodenhöhe der 3D-Datumspunkt ist.
@@ -3480,7 +3485,7 @@ function toggleRecessOffsetDirection() {
           <button title="Alle Elemente zentrieren" data-tooltip="Center all" aria-label="Alle Elemente zentrieren" disabled={rooms.length === 0} onMouseDown={(event) => event.preventDefault()} onClick={centerAllRooms}><StromIcon name="fit" title="Alles einpassen" /></button>
           <button title="Auf ausgewaehltes Objekt zoomen" data-tooltip="Auswahl zoomen" aria-label="Auf ausgewaehltes Objekt zoomen" disabled={!selectedRoom} onMouseDown={(event) => event.preventDefault()} onClick={zoomToSelectedRoom}><StromIcon name="target" title="Auf Auswahl zoomen" /></button>
           <button title="Technische Bemassung an/aus" data-tooltip="Technische Bemassung" aria-label="Technische Bemassung umschalten" className={dimensionsVisible ? 'active' : ''} onMouseDown={(event) => event.preventDefault()} onClick={() => setDimensionsVisible((current) => !current)}><StromIcon name="dimension" title="Bemassung umschalten" /></button>
-          <button title={visibilityModeLabel(layerVisibilityMode)} data-tooltip={visibilityModeLabel(layerVisibilityMode)} aria-label="Ebenen-Sichtbarkeit umschalten" onMouseDown={(event) => event.preventDefault()} onClick={cycleLayerVisibilityMode}>{visibilityModeIcon(layerVisibilityMode)}</button>
+          <button title={`${toolbarLabel174} (Klick: Solo, Nachbar, Nachbar mit Bemaßung, Alle)`} data-tooltip={toolbarLabel174} aria-label="Ebenen-Sichtbarkeit umschalten" onMouseDown={(event) => event.preventDefault()} onClick={cycleLayerVisibilityMode}>{visibilityModeIcon(toolbarMode174)}</button>
         </div>
       </div>
       <EditorPropertiesTopBar
@@ -3512,6 +3517,8 @@ function toggleRecessOffsetDirection() {
           onMove={moveLayerBefore}
           onAdd={addLayer}
           onDelete={requestDeleteActiveLayer}
+          preset={levelPreset174}
+          onPreset={(preset) => applyLevelPreset174(preset)}
         />
         {layerDeleteRequest && (
           <div className="modal-backdrop layer-delete-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) setLayerDeleteRequestId('') }}>

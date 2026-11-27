@@ -17,6 +17,7 @@ import { deleteRoom, getWallObjects, updateWallObject as updateWallObjectApi } f
 import LevelMenu173 from './LevelMenu173' // STROM173_LEVEL_MENU
 import { moveRawLayer173, patchRawLayer173, readRawLayers173, writeRawLayers173, LEVELS_CHANGED173 } from '../building/levelStore173'
 import { readZeroLevel151, writeZeroLevel151 } from '../building/coordinateReference151'
+import { applyPreset174, derivePreset174, modeFromPreset174, presetFromMode174, type VisibilityPreset174 } from '../building/levelVisibility174'
 import type { Floor, Room, WallObject, PointM } from '../types'
 import { buildSolidSurface, nearestRoomForWallHit } from '../building/solidGeometry'
 import { repairWallSurface145 } from '../building/wallSurface145'
@@ -542,7 +543,6 @@ export default function Building3DWorkspace({ floor, rooms, selectedRoomId, onSe
   const [selectedDoorId, setSelectedDoorId] = useState('')
   const [levelsOpen145, setLevelsOpen145] = useState(true) // STROM173: Ebenenmenue standardmaessig offen
   const [levelDelete173, setLevelDelete173] = useState('')
-  const [showAllLevels146, setShowAllLevels146] = useState(false)
   const [separateLevels146, setSeparateLevels146] = useState(false)
   const [selectedRoof148, setSelectedRoof148] = useState('')
   const [roofRevision148,setRoofRevision148] = useState(0)
@@ -576,6 +576,15 @@ export default function Building3DWorkspace({ floor, rooms, selectedRoomId, onSe
   // STROM173_LEVEL_MENU: dieselbe Ebenenliste wie im Blueprint, inklusive Sichtbarkeit.
   const layers173 = useMemo(() => readRawLayers173(floor), [floor, levelRevision])
   const levelVisible173 = (id: string) => layers173.find((layer) => layer.id === id)?.visible !== false
+  // STROM174_LEVEL_VISIBILITY: weitere Etagen = alle eingeblendeten Ebenen (3D Haus und Wanddetail).
+  const showAllLevels146 = layers173.some((layer) => layer.id !== activeLevel.id && layer.visible !== false)
+  const allLevelsVisible174 = layers173.every((layer) => layer.id === activeLevel.id || layer.visible !== false)
+  const storedMode174 = (() => { try { return JSON.parse(window.localStorage.getItem(`strom.floorplan.layers.${floor.id}.visibilityMode`) || 'null') } catch { return null } })()
+  const levelPreset174 = derivePreset174(layers173, activeLevel.id, presetFromMode174(storedMode174))
+  function applyLevelPreset174(preset: VisibilityPreset174, activeId = activeLevel.id) {
+    window.localStorage.setItem(`strom.floorplan.layers.${floor.id}.visibilityMode`, JSON.stringify(modeFromPreset174(preset)))
+    writeRawLayers173(floor, applyPreset174(readRawLayers173(floor), activeId, preset))
+  }
   function chooseWallDetailLevel144(id: string) {
     if (!selectBlueprintLevel144(floor, id, window.localStorage)) {
       setMessage('Ebene konnte nicht ausgewaehlt werden.')
@@ -590,22 +599,17 @@ export default function Building3DWorkspace({ floor, rooms, selectedRoomId, onSe
   // STROM173_LEVEL_MENU: Bedienung wie im Blueprint, gespeichert in denselben Blueprint-Daten.
   function levelRowState173(id: string) {
     if (id === activeLevel.id) return { visible: true, ghost: false }
-    if (variant === 'house' && showAllLevels146 && levelVisible173(id)) return { visible: true, ghost: true }
+    if (levelVisible173(id)) return { visible: true, ghost: true }
     return { visible: false, ghost: false }
   }
   function selectLevel173(id: string) {
-    if (!levelVisible173(id)) patchRawLayer173(floor, id, { visible: true })
+    if (levelPreset174 === 'solo' || levelPreset174 === 'neighbors') applyLevelPreset174(levelPreset174, id)
+    else if (!levelVisible173(id)) patchRawLayer173(floor, id, { visible: true })
     chooseWallDetailLevel144(id)
   }
   function toggleLevel173(id: string) {
     if (id === activeLevel.id) return
-    if (variant !== 'house') { selectLevel173(id); return }
-    if (!showAllLevels146) {
-      // Wie im Blueprint: Im Modus 'nur aktuelle Ebene' blendet das Auge die Ebene EIN.
-      if (!levelVisible173(id)) patchRawLayer173(floor, id, { visible: true })
-      setShowAllLevels146(true)
-      return
-    }
+    // STROM174: genau diese Ebene ein-/ausblenden (3D Haus und Wanddetail).
     patchRawLayer173(floor, id, { visible: !levelVisible173(id) })
   }
   function addLevel173() {
@@ -613,7 +617,7 @@ export default function Building3DWorkspace({ floor, rooms, selectedRoomId, onSe
     const active = current.find((layer) => layer.id === activeLevel.id)
     const layer = { id: `layer-${Date.now()}`, name: `Ebene ${current.length + 1}`, visible: true, heightM: active?.heightM ?? floor.heightM, slabThicknessM: 0 }
     window.localStorage.setItem(`strom.floorplan.layers.${floor.id}.visibilityMode`, JSON.stringify('active'))
-    writeRawLayers173(floor, [...current, layer])
+    writeRawLayers173(floor, applyPreset174([...current, layer], layer.id, 'solo'))
     chooseWallDetailLevel144(layer.id)
   }
   async function confirmDeleteLevel173() {
@@ -684,7 +688,7 @@ export default function Building3DWorkspace({ floor, rooms, selectedRoomId, onSe
   }, [floor, rooms, objects, levelOptions144, levelRevision, showAllLevels146, separateLevels146])
   const activeOffsetM146 = showAllLevels146 && separateLevels146
     ? sceneLevels146.find((entry146) => entry146.id === activeLevel.id)?.offsetM ?? 0 : 0
-  const extraLevels146 = showAllLevels146 && variant === 'house'
+  const extraLevels146 = showAllLevels146
     ? sceneLevels146.filter((entry146) => entry146.id !== activeLevel.id && levelVisible173(entry146.id)) : [] // STROM173: Auge im Ebenenmenue
   // STROM172_STAIR_LEVELS: Treppen gehoeren zu ihrer Etage. Die aktive Etage zeigt nur ihre eigenen
   // Treppen; weitere Etagen bringen ihre Treppen ueber "Alle Etagen" selbst mit (extraLevels146).
@@ -734,10 +738,10 @@ export default function Building3DWorkspace({ floor, rooms, selectedRoomId, onSe
         {/* STROM145_FLOATING_LEVELS: layer selection lives in the canvas overlay. */}
         {variant === 'house' && (
           <div className="building3d-stacked-options146" role="group" aria-label="3D Haus Geschossdarstellung">
-            <button type="button" className={showAllLevels146 ? 'active' : ''} aria-pressed={showAllLevels146}
+            <button type="button" className={allLevelsVisible174 ? 'active' : ''} aria-pressed={allLevelsVisible174}
               title="Alle Blueprint-Etagen gemeinsam als echtes 3D anzeigen" data-tooltip="Alle Etagen anzeigen"
-              onClick={() => setShowAllLevels146((value) => !value)}>
-              <StromIcon name="layers-all" size={19} title="Alle Etagen anzeigen" /> Alle Etagen {showAllLevels146 ? 'AN' : 'AUS'}
+              onClick={() => applyLevelPreset174(allLevelsVisible174 ? 'solo' : 'all')}>
+              <StromIcon name="layers-all" size={19} title="Alle Etagen anzeigen" /> Alle Etagen {allLevelsVisible174 ? 'AN' : 'AUS'}
             </button>
             <button type="button" className={separateLevels146 && showAllLevels146 ? 'active' : ''}
               aria-pressed={separateLevels146 && showAllLevels146} disabled={!showAllLevels146}
@@ -759,7 +763,7 @@ export default function Building3DWorkspace({ floor, rooms, selectedRoomId, onSe
       <div className="building3d-content">
         <div className="building3d-view">
           <RealBuildingScene model={model} stairs={activeStairs146} activeLevelId148={activeLevel.id} roofRevision148={roofRevision148}
-            selectedRoof148={selectedRoof148} onSelectRoof148={setSelectedRoof148} extraLevels146={extraLevels146} activeOffsetM146={variant === 'house' ? activeOffsetM146 : 0} showAllLevels146={variant === 'house' && showAllLevels146} selectedRoomId={selectedRoomId} selectedDoorId={selectedDoorId} onSelectRoom={onSelectRoom} onSelectDoor={setSelectedDoorId} onSelectWall={variant === 'wall' ? onSelectWall : undefined} transparent={transparent} />
+            selectedRoof148={selectedRoof148} onSelectRoof148={setSelectedRoof148} extraLevels146={extraLevels146} activeOffsetM146={variant === 'house' ? activeOffsetM146 : 0} showAllLevels146={showAllLevels146} selectedRoomId={selectedRoomId} selectedDoorId={selectedDoorId} onSelectRoom={onSelectRoom} onSelectDoor={setSelectedDoorId} onSelectWall={variant === 'wall' ? onSelectWall : undefined} transparent={transparent} />
           {/* STROM173_LEVEL_MENU: dasselbe Ebenenmenue wie im Blueprint */}
           <LevelMenu173
             floatId={variant === 'wall' ? 'wall3d-levels' : 'house3d-levels'}
@@ -772,7 +776,6 @@ export default function Building3DWorkspace({ floor, rooms, selectedRoomId, onSe
             onToggleOpen={() => setLevelsOpen145((value) => !value)}
             rowState={levelRowState173}
             eyeTitle={(id, visible) => id === activeLevel.id ? 'Aktive Ebene wird immer angezeigt'
-              : variant === 'wall' ? 'Wanddetail zeigt genau eine Ebene - klicken, um diese Ebene zu zeigen'
               : visible ? 'Ebene eingeblendet - klicken zum Ausblenden' : 'Ebene ausgeblendet - klicken zum Einblenden'}
             onSelect={selectLevel173}
             onToggleVisible={toggleLevel173}
@@ -783,6 +786,8 @@ export default function Building3DWorkspace({ floor, rooms, selectedRoomId, onSe
             onMove={(dragId, targetId) => moveRawLayer173(floor, dragId, targetId)}
             onAdd={addLevel173}
             onDelete={() => { if (layers173.length > 1) setLevelDelete173(activeLevel.id) }}
+            preset={levelPreset174}
+            onPreset={(preset) => applyLevelPreset174(preset)}
           />
           {levelDeleteLayer173 && (
             <div className="modal-backdrop layer-delete-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) setLevelDelete173('') }}>

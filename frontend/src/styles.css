@@ -5130,3 +5130,11 @@ button.active .strom-icon, .btn.active .strom-icon, button[aria-pressed="true"] 
 .floating-dragging173, .floating-dragging173 * { cursor: grabbing !important; user-select: none !important; }
 /* STROM173: Icons sind nie selbst Klickziel; der Knopf darunter bleibt es auch beim Neuzeichnen. */
 svg.strom-icon, svg.strom-icon * { pointer-events: none !important; }
+
+/* STROM174_LEVEL_VISIBILITY: Vorgaben Solo / Nachbar / Alle neben Neu/Loeschen. */
+.level-menu173 .layer-menu-actions174 { justify-content: space-between; gap: 8px; flex-wrap: wrap; }
+.level-menu173 .layer-visibility-presets174 { display: inline-flex; gap: 2px; padding: 2px; border: 1px solid #d7e1ee; border-radius: 11px; background: #f3f6fb; margin-right: auto; }
+.level-menu173 .layer-visibility-presets174 button { display: inline-flex; align-items: center; gap: 4px; height: 28px; padding: 0 8px; border: 0; border-radius: 9px;
+  background: transparent; box-shadow: none; color: #334a68; font-size: 11.5px; font-weight: 750; }
+.level-menu173 .layer-visibility-presets174 button:hover { background: #e6eefb; }
+.level-menu173 .layer-visibility-presets174 button.active { background: #2563eb; color: #fff; }
