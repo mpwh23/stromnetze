@@ -5107,3 +5107,26 @@ button.active .strom-icon, .btn.active .strom-icon, button[aria-pressed="true"] 
 .strom-outer-offer-outline172 { pointer-events:none; }
 .strom-outer-offer-outline172 polygon { fill:rgba(37,99,235,.04); stroke:#2563eb; stroke-width:3; stroke-dasharray:10 7; opacity:.55; }
 .strom-outer-offer-outline172.hover polygon { fill:rgba(37,99,235,.1); stroke-width:5; opacity:1; }
+
+/* STROM173_LEVEL_MENU + STROM173_FLOAT_DRAG */
+.level-menu173 { display: flex; align-items: center; gap: 6px; }
+.canvas-layer-menu .float-grip173 {
+  display: inline-flex; align-items: center; justify-content: center; flex: 0 0 auto;
+  width: 26px; height: 32px; border-radius: 999px; color: #64748b; cursor: grab; pointer-events: auto !important;
+  background: rgba(248,250,252,0.96); border: 1px solid rgba(148,163,184,0.46); box-shadow: 0 10px 22px rgba(15,23,42,0.10);
+}
+.canvas-layer-menu .float-grip173:hover { color: #1e3a8a; background: #eef4ff; }
+.building3d-view .building3d-floating-levels145.level-menu173 { pointer-events: none; }
+/* 3D: dieselbe Darstellung wie das Blueprint-Ebenenmenue (.floorplan-layout-Regeln uebernommen). */
+.building3d-view .level-menu173 .layer-height-control { display: flex; flex-direction: column; align-items: stretch; gap: 2px; min-width: 0; font-size: 10px; font-weight: 600; color: #526581; }
+.building3d-view .level-menu173 .layer-height-control input { width: 100%; min-width: 0; height: 25px; padding: 3px 4px; font-size: 12px; font-variant-numeric: tabular-nums; border: 1px solid #b6c7de; border-radius: 5px; background: white; color: #1f334b; }
+.building3d-view .level-menu173 .layer-height-control input:focus { outline: 2px solid #60a5fa; }
+.building3d-view .building3d-floating-levels145.level-menu173 .layer-menu-panel { width: auto; max-width: min(420px, 95vw); }
+.building3d-floating-levels145.level-menu173 .layer-list { max-height: 260px; }
+.building3d-view .building3d-floating-levels145.level-menu173 > button { max-width: 220px; }
+[data-float173] { cursor: grab; }
+[data-float173] :is(button, input, select, textarea, label, a) { cursor: auto; }
+[data-float173] button { cursor: pointer; }
+.floating-dragging173, .floating-dragging173 * { cursor: grabbing !important; user-select: none !important; }
+/* STROM173: Icons sind nie selbst Klickziel; der Knopf darunter bleibt es auch beim Neuzeichnen. */
+svg.strom-icon, svg.strom-icon * { pointer-events: none !important; }

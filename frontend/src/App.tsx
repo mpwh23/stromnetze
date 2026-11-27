@@ -3,6 +3,8 @@ import {readZeroLevel151,writeZeroLevel151,resolveZeroLevel151} from './building
 import {queueEntry150,requestExit150,registerEnterReady150,registerEnterFailed165,notifyEnterFailed165,ENTER_FADE150,EXIT_FADE158,currentFrame150} from './components/cameraTransitions150' // STROM150_CAMERA_BRIDGE
 import { type CSSProperties, ChangeEvent as ReactChangeEvent, DragEvent as ReactDragEvent, MouseEvent as ReactMouseEvent, WheelEvent as ReactWheelEvent, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import StromIcon from './components/StromIcon'
+import LevelMenu173 from './components/LevelMenu173' // STROM173_LEVEL_MENU
+import { floatRef173 } from './components/floatDrag173' // STROM173_FLOAT_DRAG
 import { flushSync } from 'react-dom' // STROM168_WHEEL_ZOOM
 import { snapPointToVisibleRooms143, snapRectangleHandle143, snapMovedVerticesToVisibleRooms143 } from './building/neighborSnap143'
 import { snapRectEdge146, snapTranslatedEdge146 } from './building/edgeSnap146'
@@ -1013,6 +1015,7 @@ export function App() {
                 }}
                 onCaptureUndo={() => captureUndoSnapshot()}
                 onBackToBlueprint={() => handleViewModeClick('floorplan')}
+ onReloadRooms173={reload}
                 onOpenLegacyWallDetail={() => setLegacyWallDetail(true)}
                 onSelectWall={setWall3DSelected}
                 objectsRevision={wall3DRevision}
@@ -1055,6 +1058,7 @@ export function App() {
               }}
               onCaptureUndo={() => captureUndoSnapshot()}
               onBackToBlueprint={() => handleViewModeClick('floorplan')}
+ onReloadRooms173={reload}
             />
           )}
           {selectedObject && viewMode === 'threeD' && !floor && <div className="hint-box">Bitte zuerst im Blueprint eine Etage anlegen.</div>}
@@ -1590,7 +1594,7 @@ function FloorplanEditor({
 
   const [roomLayerAssignments, setRoomLayerAssignments] = useState<Record<string, string>>(() => loadLayerAssignments(floor.id))
   const [layerVisibilityMode, setLayerVisibilityMode] = useState<LayerVisibilityMode>(() => loadLayerVisibilityMode(floor.id))
-  const [layersOpen, setLayersOpen] = useState(false)
+  const [layersOpen, setLayersOpen] = useState(true) // STROM173: Ebenenmenue standardmaessig offen
   const [blueprintWallObjects, setBlueprintWallObjects] = useState<ApiWallObject[]>([])
   const [blueprintDoorWidth136, setBlueprintDoorWidth136] = useState(0.9)
   const [blueprintDoorHeight136, setBlueprintDoorHeight136] = useState(2.1)
@@ -1792,7 +1796,7 @@ function FloorplanEditor({
     setTitleOffsets(loadTitleOffsets(floor.id))
     setLayerVisibilityMode(loadLayerVisibilityMode(floor.id))
     setLayerDeleteRequestId('')
-    setLayersOpen(false)
+    setLayersOpen(true)
     setSnapVisibleNeighbors143(safeReadJson<boolean>(layerStorageKey(floor.id, 'snapVisibleNeighbors143'), false))
   }, [floor.id])
 
@@ -3489,96 +3493,26 @@ function toggleRecessOffsetDirection() {
       />
 
       <div className="canvas-card">
-        <div className={`canvas-layer-menu ${layersOpen ? 'open' : ''}`} aria-label="Ebenen">
-          <button type="button" title="Ebenen und Geschosshoehen bearbeiten" onClick={() => setLayersOpen((current) => !current)}><StromIcon name="chevron-down" title="Ebenenmenue" /> {activeLayer.name} · {Math.round((activeLayer.heightM ?? floor.heightM) * 1000)} mm</button>
-          {layersOpen && (
-            <div className="layer-menu-panel">
-              <div className="layer-zero-legend151" title="Die markierte Etage hat Z = 0 m; darüber positive, darunter negative Höhen.">
-                  <span>Nullhöhe</span><strong>Z = 0</strong>
-                </div>
-              <div className="layer-list">
-                {layers.map((layer) => {
-                  const active = layer.id === activeLayerId
-                  const effectiveState = effectiveLayerState(layer.id)
-                  const effectivelyVisible = effectiveState.visible
-                  return (
-                    <div
-                      key={layer.id}
-                      className={`layer-row ${active ? 'active' : ''} ${effectivelyVisible ? 'effectively-visible' : 'effectively-hidden'} ${effectiveState.ghost ? 'preview-visible' : ''}`}
-                      draggable={false}
-                      onClick={() => selectLayer(layer.id)}
-                      onDragOver={(event) => event.preventDefault()}
-                      onDrop={(event) => { event.preventDefault(); moveLayerBefore(draggedLayerId, layer.id); setDraggedLayerId('') }}
-                    >
-                      <label className="layer-zero-marker151" title={layers.length===1 ? 'Einzige Ebene: automatisch Z=0' : 'Diese Ebene als Z=0 festlegen'}
-                        onMouseDown={(event)=>event.stopPropagation()} onClick={(event)=>event.stopPropagation()}>
-                        <input type="radio" name={`layer-zero151-${floor.id}`}
-                          aria-label={`${layer.name} als Z=0-Ebene auswählen`}
-                          checked={resolveZeroLevel151(layers,zeroLevel151)===layer.id}
-                          disabled={layers.length===1}
-                          onChange={()=>{writeZeroLevel151(floor.id,layer.id,window.localStorage);setZeroLevel151(layer.id)}} />
-                        <span aria-hidden="true">0</span>
-                      </label>
-                      <button type="button" className={`layer-eye ${effectivelyVisible ? 'visible' : 'hidden'}`} title={effectivelyVisible ? 'Ebene aktuell sichtbar - klicken zum manuellen Ausblenden' : 'Ebene aktuell ausgeblendet - klicken zum manuellen Einblenden'} onClick={(event) => { event.stopPropagation(); toggleLayerVisibility(layer.id) }}><StromIcon name={effectivelyVisible ? 'eye' : 'eye-off'} title={effectivelyVisible ? 'Ebene sichtbar' : 'Ebene ausgeblendet'} /></button>
-                      <input
-                        aria-label="Ebenenname"
-                        draggable={false}
-                        value={layer.name}
-                        onMouseDown={(event) => event.stopPropagation()}
-                        onClick={(event) => event.stopPropagation()}
-                        onDragStart={(event) => event.preventDefault()}
-                        onFocus={() => selectLayer(layer.id)}
-                        onChange={(event) => renameLayer(layer.id, event.target.value)}
-                      />
-                      <label className="layer-height-control" title="Geschosshoehe dieser Ebene in Millimetern">
-                        <span>Höhe (mm)</span>
-                        <input
-                          key={`${layer.id}-${Math.round((layer.heightM ?? floor.heightM) * 1000)}`}
-                          aria-label={`Geschosshoehe ${layer.name} in Millimetern`}
-                          type="number"
-                          min="100"
-                          max="10000"
-                          step="10"
-                          defaultValue={Math.round((layer.heightM ?? floor.heightM) * 1000)}
-                          onMouseDown={(event) => event.stopPropagation()}
-                          onClick={(event) => event.stopPropagation()}
-                          onDragStart={(event) => event.preventDefault()}
-                          onBlur={(event) => setLayerHeightM(layer.id, Number(event.currentTarget.value))}
-                          onKeyDown={(event) => { if (event.key === 'Enter') event.currentTarget.blur() }}
-                        />
-                      </label>
-<label className="layer-height-control layer-slab-control149" title="Bodendicke der Etage unterhalb des fertigen Fußbodens, in Millimetern">
-    <span>Bodendicke (mm)</span>
-    <input key={`${layer.id}-slab-${Math.round((layer.slabThicknessM ?? 0)*1000)}`}
-      aria-label={`Bodendicke ${layer.name} in Millimetern`} type="number" min="0" max="1500" step="10"
-      defaultValue={Math.round((layer.slabThicknessM ?? 0)*1000)}
-      onMouseDown={event=>event.stopPropagation()} onClick={event=>event.stopPropagation()}
-      onDragStart={event=>event.preventDefault()}
-      onBlur={event=>setLayerSlab149(layer.id,Number(event.currentTarget.value))}
-      onKeyDown={event=>{if(event.key==='Enter')event.currentTarget.blur()}}
-    />
-  </label>
-                      <button
-                        type="button"
-                        className="layer-grip"
-                        title="Ebene verschieben"
-                        draggable
-                        onClick={(event) => event.stopPropagation()}
-                        onDragStart={(event) => { event.dataTransfer.effectAllowed = 'move'; setDraggedLayerId(layer.id) }}
-                        onDragEnd={() => setDraggedLayerId('')}
-                        onMouseDown={(event) => event.stopPropagation()}
-                      ><StromIcon name="drag-dots" title="Ebene verschieben" /></button>
-                    </div>
-                  )
-                })}
-              </div>
-              <div className="layer-menu-actions" aria-label="Ebenenaktionen">
-                <button type="button" className="layer-add round-icon" title="Neue Ebene" aria-label="Neue Ebene" onClick={addLayer}><StromIcon name="new-object" title="Neue Ebene" /></button>
-                <button type="button" className="layer-delete round-icon" title="Ausgewaehlte Ebene loeschen" aria-label="Ausgewaehlte Ebene loeschen" disabled={layers.length <= 1} onClick={requestDeleteActiveLayer}><StromIcon name="trash" title="Ebene loeschen" /></button>
-              </div>
-            </div>
-          )}
-        </div>
+        {/* STROM173_LEVEL_MENU: gemeinsames Ebenenmenue (auch in den 3D-Ansichten) */}
+        <LevelMenu173
+          floatId="blueprint-levels"
+          levels={layers.map((layer) => ({ id: layer.id, name: layer.name, visible: layer.visible !== false, heightM: layer.heightM ?? floor.heightM, slabThicknessM: layer.slabThicknessM ?? 0 }))}
+          activeId={activeLayerId}
+          zeroId={resolveZeroLevel151(layers, zeroLevel151)}
+          radioName={`layer-zero151-${floor.id}`}
+          open={layersOpen}
+          onToggleOpen={() => setLayersOpen((current) => !current)}
+          rowState={(id) => { const state = effectiveLayerState(id); return { visible: state.visible, ghost: state.ghost } }}
+          onSelect={selectLayer}
+          onToggleVisible={toggleLayerVisibility}
+          onRename={renameLayer}
+          onHeight={setLayerHeightM}
+          onSlab={setLayerSlab149}
+          onZero={(id) => { writeZeroLevel151(floor.id, id, window.localStorage); setZeroLevel151(id) }}
+          onMove={moveLayerBefore}
+          onAdd={addLayer}
+          onDelete={requestDeleteActiveLayer}
+        />
         {layerDeleteRequest && (
           <div className="modal-backdrop layer-delete-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) setLayerDeleteRequestId('') }}>
             <section className="confirm-modal layer-delete-modal" role="dialog" aria-modal="true" aria-label="Ebene loeschen bestaetigen">
@@ -3602,7 +3536,7 @@ function toggleRecessOffsetDirection() {
           />
         )}
         {tool === 'recess' && recessBaseRoom && (
-          <div className="canvas-settings recess-help">
+          <div ref={floatRef173('blueprint-recess-help')} className="canvas-settings recess-help">
             <strong>Aussparung</strong>
             <span>In den ausgewaehlten Raum zeichnen. Eine Seite dockt automatisch an den naechsten Rand an.</span>
           </div>
@@ -3628,7 +3562,7 @@ function toggleRecessOffsetDirection() {
         )}
 
         {tool === 'door' && (
-          <div className="canvas-settings blueprint-door-settings136" aria-label="Tuerparameter">
+          <div ref={floatRef173('blueprint-door')} className="canvas-settings blueprint-door-settings136" aria-label="Tuerparameter">
             <strong>Tuer einsetzen</strong>
             <label title="Tuerbreite in Millimetern">Breite (mm)
               <MmNumberInput valueM={blueprintDoorWidth136} minM={0.3} disabled={blueprintDoorSaving136} onChangeM={(value) => setBlueprintDoorWidth136(Math.max(0.3, round3(value)))} />
@@ -3644,7 +3578,7 @@ function toggleRecessOffsetDirection() {
 
         {/* STROM172_OUTER_WALL_ADOPT: Angebot auf einer Ebene ohne Aussenwand */}
         {outerOffer172 && (
-          <div className="strom-stair-direction-floating147 strom-stair-ask170 strom-outer-offer172" role="group" aria-label="Aussenwand uebernehmen">
+          <div ref={floatRef173('blueprint-info')} className="strom-stair-direction-floating147 strom-stair-ask170 strom-outer-offer172" role="group" aria-label="Aussenwand uebernehmen">
             <div className="strom-stair-direction-title147">{layers.find((layer) => layer.id === activeLayerId)?.name || 'Ebene'} · noch keine Außenwand</div>
             <p className="strom-stair-question170">Außenwand einer Nachbarebene übernehmen? Grundriss und Wandstärke werden kopiert und lassen sich danach hier unabhängig ändern.</p>
             <div className="strom-outer-offer-actions172">
@@ -3667,7 +3601,7 @@ function toggleRecessOffsetDirection() {
           const sourceName171 = layers.find((layer) => layer.id === portal171.sourceLayerId)?.name || 'Nachbarebene'
           const here171: StairDirection147 = stairDirections147[portal171.room.id] === 'down' ? 'up' : 'down'
           return (
-            <div className="strom-stair-direction-floating147 strom-stair-ask170 strom-stair-portal-panel171" role="group" aria-label="Treppendurchgang">
+            <div ref={floatRef173('blueprint-info')} className="strom-stair-direction-floating147 strom-stair-ask170 strom-stair-portal-panel171" role="group" aria-label="Treppendurchgang">
               <div className="strom-stair-direction-title147">Treppendurchgang · aus {sourceName171}</div>
               <p className="strom-stair-question170">„{portal171.room.name}“ kommt {here171 === 'down' ? 'von unten' : 'von oben'} hier an. Auf dieser Ebene als {here171 === 'down' ? 'Abwärts' : 'Aufwärts'}-Treppe anlegen? Stufen und Grundriss bleiben mit {sourceName171} gekoppelt.</p>
               <div className="strom-stair-create-row170">
@@ -3679,7 +3613,7 @@ function toggleRecessOffsetDirection() {
           )
         })()}
         {selectedRoom && isStairRoom(selectedRoom) && (roomLayerAssignments[selectedRoom.id] ?? defaultLayerId) === activeLayerId && (
-          <div className={`strom-stair-direction-floating147 ${selectedStairDirection147 ? '' : 'strom-stair-ask170'}`} role="group" aria-label="Treppenraumrichtung">
+          <div ref={floatRef173('blueprint-info')} className={`strom-stair-direction-floating147 ${selectedStairDirection147 ? '' : 'strom-stair-ask170'}`} role="group" aria-label="Treppenraumrichtung">
             <div className="strom-stair-direction-title147">{selectedStairDirection147 ? `Treppenraum · ${selectedStairDirection147 === 'up' ? 'Aufwärts' : 'Abwärts'}` : 'Neue Treppe · Richtung wählen'}</div>
             {!selectedStairDirection147 && <p className="strom-stair-question170">Führt diese Treppe von hier nach oben oder nach unten?</p>}
             <div className="strom-stair-direction-actions147">
@@ -3711,7 +3645,7 @@ function toggleRecessOffsetDirection() {
           </div>
         )}
         {tool==='roof' && <div className="strom-roof-help148" title="Die Dachschräge wird im ausgewählten Raum gespeichert">Dachschräge: {roofStart148?'zweiten Punkt der Startlinie setzen':'ersten Punkt der Startlinie setzen'} · anschließend Parameter einstellen</div>}
-        {selectedRoof148 && <div className="strom-roof-floating148"><RoofEditor148 onSelectRoof149e={setSelectedRoof148} floorId={floor.id} roofId={selectedRoof148}
+        {selectedRoof148 && <div ref={floatRef173('blueprint-roof')} className="strom-roof-floating148"><RoofEditor148 onSelectRoof149e={setSelectedRoof148} floorId={floor.id} roofId={selectedRoof148}
           onClose={()=>setSelectedRoof148('')}/></div>}
         <CanvasRulers zoom={zoom} scrollRef={canvasScrollRef} syncRef={rulerSync168} />
         <div className="canvas-scroll" ref={canvasScrollRef} onScroll={handleCanvasScroll}>
@@ -5411,7 +5345,7 @@ function ToolSettingsPanel({
 }) {
   if (tool === 'rectangle') {
     return (
-      <div className="canvas-settings">
+      <div ref={floatRef173('blueprint-draft')} className="canvas-settings">
         <label>Name<input value={rectInput.name} onChange={(event) => onRectInputChange({ ...rectInput, name: event.target.value })} /></label>
         <label>Wandstaerke m<input type="number" step="0.01" min="0" value={rectInput.wallThicknessM} onChange={(event) => onRectInputChange({ ...rectInput, wallThicknessM: toNumber(event.target.value, 0.12) })} /></label>
         {rectPreview && <div className="metric-card compact"><strong>{formatM(rectPreview.width)} × {formatM(rectPreview.height)}</strong><span>{formatM2(rectPreviewArea)}</span></div>}
@@ -5422,7 +5356,7 @@ function ToolSettingsPanel({
 
   if (tool === 'polygon') {
     return (
-      <div className="canvas-settings">
+      <div ref={floatRef173('blueprint-draft')} className="canvas-settings">
         <label>Name<input value={polygonName} onChange={(event) => onPolygonNameChange(event.target.value)} /></label>
         <label>Wandstaerke m<input type="number" step="0.01" min="0" value={polygonWallThicknessM} onChange={(event) => onPolygonWallThicknessChange(toNumber(event.target.value, 0.12))} /></label>
         <div className="metric-card compact"><strong>{polygonDraft.length} Punkte</strong><span>{polygonArea > 0 ? formatM2(polygonArea) : 'noch offen'}</span></div>
@@ -5472,7 +5406,7 @@ function RecessFloatingPanel({
   const offsetStartLabel = edge === 'top' || edge === 'bottom' ? 'von links' : 'von oben'
   const offsetEndLabel = edge === 'top' || edge === 'bottom' ? 'von rechts' : 'von unten'
   return (
-    <div className="recess-floating">
+    <div ref={floatRef173('blueprint-recess')} className="recess-floating">
       <div>
         <span className="eyebrow">Aussparung</span>
         <strong>Subtraktive Form</strong>
@@ -5525,7 +5459,7 @@ function DistanceFloatingPanel({
   onClose: () => void
 }) {
   return (
-    <div className="distance-floating-panel">
+    <div ref={floatRef173('blueprint-distance')} className="distance-floating-panel">
       <div className="floating-header">
         <strong>Abstand einstellen</strong>
         <button type="button" onClick={onClose} aria-label="Abstand schliessen"><StromIcon name="close" title="Schließen" /></button>
@@ -6295,7 +6229,7 @@ function WallDetailEditor({
   const [layers, setLayers] = useState<FloorplanLayer[]>(() => loadFloorplanLayers(floor.id))
   const [activeLayerId, setActiveLayerId] = useState<string>(() => loadActiveLayerId(floor.id, loadFloorplanLayers(floor.id)))
   const [roomLayerAssignments, setRoomLayerAssignments] = useState<Record<string, string>>(() => loadLayerAssignments(floor.id))
-  const [layersOpen, setLayersOpen] = useState(false)
+  const [layersOpen, setLayersOpen] = useState(true) // STROM173
   const [selectedWall, setSelectedWall] = useState<WallSelection | null>(externalSelection ?? null)
   // Keep the existing Frontalansicht UI in sync with physical 3D wall clicks.
   useEffect(() => {
@@ -6325,7 +6259,7 @@ function WallDetailEditor({
     setLayers(nextLayers)
     setActiveLayerId(loadActiveLayerId(floor.id, nextLayers))
     setRoomLayerAssignments(loadLayerAssignments(floor.id))
-    setLayersOpen(false)
+    setLayersOpen(true)
     setSelectedWall(null)
     setHoveredWall(null)
     setViewTool('rotate')
@@ -6869,7 +6803,6 @@ function WallDetailEditor({
     localStorage.setItem(layerStorageKey(floor.id, 'active'), JSON.stringify(id))
     onSelectRoom('')
     setSelectedWall(null)
-    setLayersOpen(false)
   }
 
   function handleCanvasWheel(event: ReactWheelEvent<HTMLDivElement>) {
@@ -7167,7 +7100,8 @@ function WallDetailEditor({
       />
 
       <div className="canvas-card wall-detail-card">
-        <div className={`canvas-layer-menu wall-layer-menu ${layersOpen ? 'open' : ''}`} aria-label="Ebenen">
+        <div ref={floatRef173('wall-levels')} className={`canvas-layer-menu wall-layer-menu ${layersOpen ? 'open' : ''}`} aria-label="Ebenen">
+          <span className="float-grip173" title="Ebenenmenü verschieben (Doppelklick: zurück an den Standardplatz)" aria-hidden="true"><StromIcon name="drag-dots" size={16} /></span>
           <button type="button" title="Ebenen" onClick={() => setLayersOpen((current) => !current)}><StromIcon name="chevron-down" title="Ebenenmenü" /> {activeLayer.name}</button>
           {layersOpen && (
             <div className="layer-menu-panel">

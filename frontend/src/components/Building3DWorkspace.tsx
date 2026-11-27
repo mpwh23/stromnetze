@@ -13,7 +13,10 @@ import { createContext, useContext } from 'react'
 import RoofEditor148 from './RoofEditor148'
 import { ROOF_EVENT148 } from '../building/roofSlopes148' 
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js'
-import { getWallObjects, updateWallObject as updateWallObjectApi } from '../api'
+import { deleteRoom, getWallObjects, updateWallObject as updateWallObjectApi } from '../api'
+import LevelMenu173 from './LevelMenu173' // STROM173_LEVEL_MENU
+import { moveRawLayer173, patchRawLayer173, readRawLayers173, writeRawLayers173, LEVELS_CHANGED173 } from '../building/levelStore173'
+import { readZeroLevel151, writeZeroLevel151 } from '../building/coordinateReference151'
 import type { Floor, Room, WallObject, PointM } from '../types'
 import { buildSolidSurface, nearestRoomForWallHit } from '../building/solidGeometry'
 import { repairWallSurface145 } from '../building/wallSurface145'
@@ -520,7 +523,8 @@ function DoorForm({ model, door, rooms, rawObjects, onSaved }: {
   )
 }
 
-export default function Building3DWorkspace({ floor, rooms, selectedRoomId, onSelectRoom, onPersistRoom, onCaptureUndo, onBackToBlueprint, variant = 'house', onOpenLegacyWallDetail, onSelectWall, wallEditor, objectsRevision }: {
+export default function Building3DWorkspace({ floor, rooms, selectedRoomId, onSelectRoom, onPersistRoom, onCaptureUndo, onBackToBlueprint, variant = 'house', onOpenLegacyWallDetail, onSelectWall, wallEditor, objectsRevision, onReloadRooms173 }: {
+  onReloadRooms173?: () => Promise<void>
   floor: Floor
   rooms: Room[]
   selectedRoomId: string
@@ -536,7 +540,8 @@ export default function Building3DWorkspace({ floor, rooms, selectedRoomId, onSe
 }) {
   const [objects, setObjects] = useState<WallObject[]>([])
   const [selectedDoorId, setSelectedDoorId] = useState('')
-  const [levelsOpen145, setLevelsOpen145] = useState(false)
+  const [levelsOpen145, setLevelsOpen145] = useState(true) // STROM173: Ebenenmenue standardmaessig offen
+  const [levelDelete173, setLevelDelete173] = useState('')
   const [showAllLevels146, setShowAllLevels146] = useState(false)
   const [separateLevels146, setSeparateLevels146] = useState(false)
   const [selectedRoof148, setSelectedRoof148] = useState('')
@@ -568,6 +573,9 @@ export default function Building3DWorkspace({ floor, rooms, selectedRoomId, onSe
   const activeLevel = useMemo(() => readActiveBlueprintLevel(floor, rooms, window.localStorage), [floor, rooms, levelRevision])
   // STROM144_LEVEL_PICKER: identical layer list, names, heights and active ID as Blueprint.
   const levelOptions144 = useMemo(() => listBlueprintLevelOptions144(floor, window.localStorage), [floor, levelRevision])
+  // STROM173_LEVEL_MENU: dieselbe Ebenenliste wie im Blueprint, inklusive Sichtbarkeit.
+  const layers173 = useMemo(() => readRawLayers173(floor), [floor, levelRevision])
+  const levelVisible173 = (id: string) => layers173.find((layer) => layer.id === id)?.visible !== false
   function chooseWallDetailLevel144(id: string) {
     if (!selectBlueprintLevel144(floor, id, window.localStorage)) {
       setMessage('Ebene konnte nicht ausgewaehlt werden.')
@@ -578,6 +586,74 @@ export default function Building3DWorkspace({ floor, rooms, selectedRoomId, onSe
     setSelectedDoorId('')
     window.dispatchEvent(new Event('strom:blueprint-levels-changed'))
   }
+
+  // STROM173_LEVEL_MENU: Bedienung wie im Blueprint, gespeichert in denselben Blueprint-Daten.
+  function levelRowState173(id: string) {
+    if (id === activeLevel.id) return { visible: true, ghost: false }
+    if (variant === 'house' && showAllLevels146 && levelVisible173(id)) return { visible: true, ghost: true }
+    return { visible: false, ghost: false }
+  }
+  function selectLevel173(id: string) {
+    if (!levelVisible173(id)) patchRawLayer173(floor, id, { visible: true })
+    chooseWallDetailLevel144(id)
+  }
+  function toggleLevel173(id: string) {
+    if (id === activeLevel.id) return
+    if (variant !== 'house') { selectLevel173(id); return }
+    if (!showAllLevels146) {
+      // Wie im Blueprint: Im Modus 'nur aktuelle Ebene' blendet das Auge die Ebene EIN.
+      if (!levelVisible173(id)) patchRawLayer173(floor, id, { visible: true })
+      setShowAllLevels146(true)
+      return
+    }
+    patchRawLayer173(floor, id, { visible: !levelVisible173(id) })
+  }
+  function addLevel173() {
+    const current = readRawLayers173(floor)
+    const active = current.find((layer) => layer.id === activeLevel.id)
+    const layer = { id: `layer-${Date.now()}`, name: `Ebene ${current.length + 1}`, visible: true, heightM: active?.heightM ?? floor.heightM, slabThicknessM: 0 }
+    window.localStorage.setItem(`strom.floorplan.layers.${floor.id}.visibilityMode`, JSON.stringify('active'))
+    writeRawLayers173(floor, [...current, layer])
+    chooseWallDetailLevel144(layer.id)
+  }
+  async function confirmDeleteLevel173() {
+    const id = levelDelete173
+    const current = readRawLayers173(floor)
+    setLevelDelete173('')
+    if (!id || current.length <= 1) return
+    let assignments: Record<string, string> = {}
+    try { assignments = JSON.parse(window.localStorage.getItem(`strom.floorplan.layers.${floor.id}.roomAssignments`) || '{}') || {} } catch { assignments = {} }
+    const targetRooms = rooms.filter((room) => (assignments[room.id] || 'layer-main') === id)
+    const remaining = current.filter((layer) => layer.id !== id)
+    const oldIndex = current.findIndex((layer) => layer.id === id)
+    const fallback = remaining[Math.max(0, Math.min(remaining.length - 1, oldIndex - 1))] ?? remaining[0]
+    try {
+      onCaptureUndo()
+      onSelectRoom('')
+      onSelectWall?.(null)
+      await Promise.all(targetRooms.map((room) => deleteRoom(room.id)))
+      const nextAssignments = { ...assignments }
+      for (const [roomId, layerId] of Object.entries(nextAssignments)) if (layerId === id) delete nextAssignments[roomId]
+      window.localStorage.setItem(`strom.floorplan.layers.${floor.id}.roomAssignments`, JSON.stringify(nextAssignments))
+      try {
+        const offsets = JSON.parse(window.localStorage.getItem(`strom.floorplan.titleOffsets.${floor.id}`) || '{}') || {}
+        targetRooms.forEach((room) => { delete offsets[room.id] })
+        window.localStorage.setItem(`strom.floorplan.titleOffsets.${floor.id}`, JSON.stringify(offsets))
+      } catch { /* Beschriftungsversatz ist optional */ }
+      window.localStorage.setItem(`strom.floorplan.layers.${floor.id}.active`, JSON.stringify(fallback.id))
+      writeRawLayers173(floor, remaining)
+      await onReloadRooms173?.()
+    } catch (error) {
+      setMessage(`Ebene konnte nicht geloescht werden: ${error instanceof Error ? error.message : String(error)}`)
+      await onReloadRooms173?.()
+    }
+  }
+  const levelDeleteLayer173 = layers173.find((layer) => layer.id === levelDelete173) ?? null
+  const levelDeleteCount173 = levelDeleteLayer173 ? (() => {
+    let assignments: Record<string, string> = {}
+    try { assignments = JSON.parse(window.localStorage.getItem(`strom.floorplan.layers.${floor.id}.roomAssignments`) || '{}') || {} } catch { assignments = {} }
+    return rooms.filter((room) => (assignments[room.id] || 'layer-main') === levelDeleteLayer173.id).length
+  })() : 0
 
   const levelFloor = useMemo(() => active3DFloor(floor, activeLevel), [floor, activeLevel])
   const model = useMemo(() => buildBuildingModel(levelFloor, activeLevel.rooms, objects), [levelFloor, activeLevel, objects])
@@ -609,7 +685,7 @@ export default function Building3DWorkspace({ floor, rooms, selectedRoomId, onSe
   const activeOffsetM146 = showAllLevels146 && separateLevels146
     ? sceneLevels146.find((entry146) => entry146.id === activeLevel.id)?.offsetM ?? 0 : 0
   const extraLevels146 = showAllLevels146 && variant === 'house'
-    ? sceneLevels146.filter((entry146) => entry146.id !== activeLevel.id) : []
+    ? sceneLevels146.filter((entry146) => entry146.id !== activeLevel.id && levelVisible173(entry146.id)) : [] // STROM173: Auge im Ebenenmenue
   // STROM172_STAIR_LEVELS: Treppen gehoeren zu ihrer Etage. Die aktive Etage zeigt nur ihre eigenen
   // Treppen; weitere Etagen bringen ihre Treppen ueber "Alle Etagen" selbst mit (extraLevels146).
   // Vorher wurden die Treppen aller Etagen immer halbtransparent mitgezeichnet.
@@ -684,37 +760,46 @@ export default function Building3DWorkspace({ floor, rooms, selectedRoomId, onSe
         <div className="building3d-view">
           <RealBuildingScene model={model} stairs={activeStairs146} activeLevelId148={activeLevel.id} roofRevision148={roofRevision148}
             selectedRoof148={selectedRoof148} onSelectRoof148={setSelectedRoof148} extraLevels146={extraLevels146} activeOffsetM146={variant === 'house' ? activeOffsetM146 : 0} showAllLevels146={variant === 'house' && showAllLevels146} selectedRoomId={selectedRoomId} selectedDoorId={selectedDoorId} onSelectRoom={onSelectRoom} onSelectDoor={setSelectedDoorId} onSelectWall={variant === 'wall' ? onSelectWall : undefined} transparent={transparent} />
-          {/* STROM145_FLOATING_LEVELS: reuse the Blueprint floating layer-menu classes. */}
-          <div className={`canvas-layer-menu building3d-floating-levels145 ${levelsOpen145 ? 'open' : ''}`} aria-label="Ebenen">
-            <button type="button" title="Ebenenauswahl wie im Blueprint" aria-label="Ebenenauswahl öffnen oder schließen"
-              aria-expanded={levelsOpen145} onClick={() => setLevelsOpen145((value) => !value)}>
-              <StromIcon name="chevron-down" size={19} title="Ebenen" />
-              <span>{activeLevel.name}</span>
-            </button>
-            {levelsOpen145 && (
-              <div className="layer-menu-panel" role="group" aria-label="Blueprint-Ebenen">
-                <div className="layer-list">
-                  {levelOptions144.map((level) => {
-                    const selected = level.id === activeLevel.id
-                    return (
-                      <button type="button" key={level.id}
-                        className={`layer-row building3d-floating-level-row145 ${selected ? 'active effectively-visible' : 'effectively-hidden'}`}
-                        title={`${level.name} wählen – ${Math.round(level.heightM * 1000)} mm Geschosshöhe`}
-                        aria-current={selected ? 'true' : undefined}
-                        onClick={() => { chooseWallDetailLevel144(level.id); setLevelsOpen145(false) }}>
-                        <StromIcon name={selected ? 'layers-current' : 'layers-neighbor'} size={19} title={selected ? 'Aktive Ebene' : 'Andere Ebene'} />
-                        <span className="building3d-level-name145">{level.name}</span>
-                        <small>{Math.round(level.heightM * 1000)} mm</small>
-                      </button>
-                    )
-                  })}
+          {/* STROM173_LEVEL_MENU: dasselbe Ebenenmenue wie im Blueprint */}
+          <LevelMenu173
+            floatId={variant === 'wall' ? 'wall3d-levels' : 'house3d-levels'}
+            className="building3d-floating-levels145"
+            levels={layers173.map((layer) => ({ id: layer.id, name: layer.name, visible: layer.visible !== false, heightM: layer.heightM ?? floor.heightM, slabThicknessM: layer.slabThicknessM ?? 0 }))}
+            activeId={activeLevel.id}
+            zeroId={readZeroLevel151(floor.id, layers173, window.localStorage)}
+            radioName={`layer-zero151-3d-${floor.id}`}
+            open={levelsOpen145}
+            onToggleOpen={() => setLevelsOpen145((value) => !value)}
+            rowState={levelRowState173}
+            eyeTitle={(id, visible) => id === activeLevel.id ? 'Aktive Ebene wird immer angezeigt'
+              : variant === 'wall' ? 'Wanddetail zeigt genau eine Ebene - klicken, um diese Ebene zu zeigen'
+              : visible ? 'Ebene eingeblendet - klicken zum Ausblenden' : 'Ebene ausgeblendet - klicken zum Einblenden'}
+            onSelect={selectLevel173}
+            onToggleVisible={toggleLevel173}
+            onRename={(id, name) => patchRawLayer173(floor, id, { name })}
+            onHeight={(id, millimetres) => { const heightM = Math.min(10, Math.max(0.1, Math.round(millimetres) / 1000)); if (Number.isFinite(millimetres) && heightM !== (layers173.find((layer) => layer.id === id)?.heightM ?? floor.heightM)) patchRawLayer173(floor, id, { heightM }) }}
+            onSlab={(id, millimetres) => { const slabThicknessM = Math.min(1.5, Math.max(0, Math.round(millimetres) / 1000)); if (Number.isFinite(millimetres) && slabThicknessM !== (layers173.find((layer) => layer.id === id)?.slabThicknessM ?? 0)) patchRawLayer173(floor, id, { slabThicknessM }) }}
+            onZero={(id) => { writeZeroLevel151(floor.id, id, window.localStorage); window.dispatchEvent(new Event(LEVELS_CHANGED173)) }}
+            onMove={(dragId, targetId) => moveRawLayer173(floor, dragId, targetId)}
+            onAdd={addLevel173}
+            onDelete={() => { if (layers173.length > 1) setLevelDelete173(activeLevel.id) }}
+          />
+          {levelDeleteLayer173 && (
+            <div className="modal-backdrop layer-delete-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) setLevelDelete173('') }}>
+              <section className="confirm-modal layer-delete-modal" role="dialog" aria-modal="true" aria-label="Ebene loeschen bestaetigen">
+                <h2>Ebene loeschen?</h2>
+                <p>Die Ebene <strong>{levelDeleteLayer173.name}</strong> wird geloescht.</p>
+                {levelDeleteCount173 > 0 && <p className="warning-text">Achtung: Dabei werden auch alle {levelDeleteCount173} Objekte auf dieser Ebene geloescht.</p>}
+                {levelDeleteCount173 === 0 && <p>Auf dieser Ebene befinden sich keine Objekte.</p>}
+                <div className="button-row">
+                  <button type="button" onClick={() => setLevelDelete173('')}>Abbrechen</button>
+                  <button type="button" className="danger" onClick={() => void confirmDeleteLevel173()}>Ja, Ebene loeschen</button>
                 </div>
-                <p className="building3d-level-note145">Die aktive Ebene ist dieselbe wie im Blueprint. Ebenenverwaltung und Höhenänderung erfolgen im Blueprint.</p>
-              </div>
-            )}
-          </div>
+              </section>
+            </div>
+          )}
 
-          <div className="building3d-help">{variant === 'wall' ? 'Linke Maustaste: drehen · Mausrad: zoomen · rechte Maustaste: verschieben · Klick: Wand zum Bearbeiten auswaehlen' : 'Linke Maustaste: drehen · Mausrad: zoomen · rechte Maustaste: verschieben · Klick: Raum oder Tuer waehlen'}</div>
+                    <div className="building3d-help">{variant === 'wall' ? 'Linke Maustaste: drehen · Mausrad: zoomen · rechte Maustaste: verschieben · Klick: Wand zum Bearbeiten auswaehlen' : 'Linke Maustaste: drehen · Mausrad: zoomen · rechte Maustaste: verschieben · Klick: Raum oder Tuer waehlen'}</div>
         </div>
         <aside className="building3d-inspector">
           {selectedRoof148 && <RoofEditor148 floorId={floor.id} roofId={selectedRoof148}
