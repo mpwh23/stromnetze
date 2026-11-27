@@ -5101,3 +5101,9 @@ button.active .strom-icon, .btn.active .strom-icon, button[aria-pressed="true"] 
 .strom-stair-link171 span { display:flex; flex-direction:column; gap:2px; }
 .strom-stair-link171 small { color:#6b5a95; font-weight:500; font-size:11px; }
 .strom-stair-link171:hover { background:#ede5ff; }
+
+/* STROM172_OUTER_WALL_ADOPT: Angebot "Aussenwand uebernehmen". */
+.strom-outer-offer-actions172 { display:flex; flex-direction:column; align-items:flex-start; gap:6px; }
+.strom-outer-offer-outline172 { pointer-events:none; }
+.strom-outer-offer-outline172 polygon { fill:rgba(37,99,235,.04); stroke:#2563eb; stroke-width:3; stroke-dasharray:10 7; opacity:.55; }
+.strom-outer-offer-outline172.hover polygon { fill:rgba(37,99,235,.1); stroke-width:5; opacity:1; }

@@ -1715,6 +1715,21 @@ function FloorplanEditor({
   const stairPartnerRoom171 = stairPartnerId171 ? rooms.find((room) => room.id === stairPartnerId171) ?? null : null
   useEffect(() => { if (selectedRoomId) setSelectedPortal171('') }, [selectedRoomId])
   useEffect(() => { setSelectedPortal171('') }, [activeLayerId])
+  // STROM172_OUTER_WALL_ADOPT: Ebene ohne Aussenwand -> Aussenwand der naechsten Ebene darunter/darueber anbieten.
+  const outerWallsOf172 = (layerId: string) => rooms.filter((room) => isOuterWallRoom(room) && (roomLayerAssignments[room.id] ?? defaultLayerId) === layerId)
+  const outerWallSources172 = (() => {
+    const index = layers.findIndex((layer) => layer.id === activeLayerId)
+    if (index < 0 || outerWallsOf172(activeLayerId).length) return []
+    const found: { layer: FloorplanLayer; walls: Room[]; relation: 'darunter' | 'darüber' }[] = []
+    for (let i = index + 1; i < layers.length; i += 1) { const walls = outerWallsOf172(layers[i].id); if (walls.length) { found.push({ layer: layers[i], walls, relation: 'darunter' }); break } }
+    for (let i = index - 1; i >= 0; i -= 1) { const walls = outerWallsOf172(layers[i].id); if (walls.length) { found.push({ layer: layers[i], walls, relation: 'darüber' }); break } }
+    return found
+  })()
+  const [outerOfferDismissed172, setOuterOfferDismissed172] = useState<Record<string, boolean>>({})
+  const [outerHover172, setOuterHover172] = useState('')
+  const [outerAdopting172, setOuterAdopting172] = useState(false)
+  const outerOffer172 = tool === 'select' && !selectedRoom && !selectedPortal171 && !allSelected
+    && outerWallSources172.length > 0 && !outerOfferDismissed172[activeLayerId]
   const stairSeenRooms171 = useRef<Set<string>>(new Set())
   useEffect(() => {
     // Geloeschte Raeume aus der Kopplung entfernen; faellt der Eigentuemer weg, behaelt der
@@ -2146,6 +2161,37 @@ function FloorplanEditor({
     if (!currentDirection && matchingUnassigned) next[matchingUnassigned.id] = direction === 'up' ? 'down' : 'up'
     storeStairDirections147(next)
     onSelectRoom(selectedRoom.id)
+  }
+
+  // STROM172_OUTER_WALL_ADOPT: Kopie (nicht gekoppelt), damit z. B. ein Dachgeschoss abweichen darf.
+  async function adoptOuterWall172(source: { layer: FloorplanLayer; walls: Room[] }) {
+    if (outerAdopting172 || outerWallsOf172(activeLayerId).length) return
+    setOuterAdopting172(true)
+    try {
+      onError(null)
+      onCaptureUndoSnapshot()
+      const createdIds: string[] = []
+      for (const wall of source.walls) {
+        const created = await createRoom({
+          floorId: floor.id,
+          name: wall.name,
+          shapeType: wall.shapeType,
+          ...(wall.roomType ? { roomType: wall.roomType } : {}),
+          wallThicknessM: wall.wallThicknessM,
+          vertices: wall.vertices.map((point) => ({ ...point })),
+        })
+        createdIds.push(created.id)
+      }
+      setRoomLayerAssignments((current) => {
+        const next = { ...current }
+        for (const id of createdIds) next[id] = activeLayerId
+        return next
+      })
+      setOuterHover172('')
+      await onReload()
+      if (createdIds[0]) onSelectRoom(createdIds[0])
+    } catch (err) { onError(err instanceof Error ? err.message : String(err)) }
+    finally { setOuterAdopting172(false) }
   }
 
   // STROM171_STAIR_FLIGHT: Treppendurchgang -> gekoppelter Treppenraum auf dieser Ebene.
@@ -3596,6 +3642,24 @@ function toggleRecessOffsetDirection() {
           </div>
         )}
 
+        {/* STROM172_OUTER_WALL_ADOPT: Angebot auf einer Ebene ohne Aussenwand */}
+        {outerOffer172 && (
+          <div className="strom-stair-direction-floating147 strom-stair-ask170 strom-outer-offer172" role="group" aria-label="Aussenwand uebernehmen">
+            <div className="strom-stair-direction-title147">{layers.find((layer) => layer.id === activeLayerId)?.name || 'Ebene'} · noch keine Außenwand</div>
+            <p className="strom-stair-question170">Außenwand einer Nachbarebene übernehmen? Grundriss und Wandstärke werden kopiert und lassen sich danach hier unabhängig ändern.</p>
+            <div className="strom-outer-offer-actions172">
+              {outerWallSources172.map((source) => (
+                <button key={source.layer.id} type="button" className="strom-stair-create147" data-outer-source172={source.layer.id} disabled={outerAdopting172}
+                  onMouseEnter={() => setOuterHover172(source.layer.id)} onMouseLeave={() => setOuterHover172('')}
+                  onFocus={() => setOuterHover172(source.layer.id)} onBlur={() => setOuterHover172('')}
+                  onClick={() => void adoptOuterWall172(source)}>
+                  <StromIcon name="outer-wall" size={18} /> {outerAdopting172 ? 'Wird übernommen …' : `Von ${source.layer.name} übernehmen (${source.relation})`}</button>
+              ))}
+            </div>
+            <button type="button" className="strom-stair-swap170" title="Angebot ausblenden und die Außenwand selbst zeichnen"
+              onClick={() => { setOuterOfferDismissed172((current) => ({ ...current, [activeLayerId]: true })); void chooseTool('outerwall') }}>Selbst zeichnen</button>
+          </div>
+        )}
         {/* STROM171_STAIR_FLIGHT: gewaehlter Treppendurchgang */}
         {(() => {
           const portal171 = stairPortals148.find((item) => item.room.id === selectedPortal171)
@@ -3720,6 +3784,12 @@ function toggleRecessOffsetDirection() {
                 </text>
               </g>
             ))}
+            {/* STROM172_OUTER_WALL_ADOPT: Umriss der angebotenen Aussenwand(en) */}
+            {outerOffer172 && outerWallSources172.flatMap((source) => source.walls.map((wall) => (
+              <g key={`outer-offer172-${wall.id}`} className={`strom-outer-offer-outline172 ${outerHover172 === source.layer.id ? 'hover' : ''}`} data-outer-outline172={source.layer.id} aria-hidden="true">
+                <polygon points={pointsToSvg(wall.vertices)} />
+              </g>
+            )))}
             {/* STROM148_ROOF_EDIT: distinct slopes can be placed on one room; click edits parameters. */}
             {roofSlopes148.filter(roof=>roof.levelId===activeLayerId && rooms.some(room=>room.id===roof.roomId)).map(roof=>{
               const middle={x:(roof.start.x+roof.end.x)/2,y:(roof.start.y+roof.end.y)/2}

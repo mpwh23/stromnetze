@@ -610,10 +610,10 @@ export default function Building3DWorkspace({ floor, rooms, selectedRoomId, onSe
     ? sceneLevels146.find((entry146) => entry146.id === activeLevel.id)?.offsetM ?? 0 : 0
   const extraLevels146 = showAllLevels146 && variant === 'house'
     ? sceneLevels146.filter((entry146) => entry146.id !== activeLevel.id) : []
-  // 143b already supplies ghost stairs from every level. Suppress those
-  // copies when dedicated floor groups render the same staircases in 146.
-  const activeStairs146 = showAllLevels146 && variant === 'house'
-    ? stairs.filter((surface146) => surface146.levelId === activeLevel.id) : stairs
+  // STROM172_STAIR_LEVELS: Treppen gehoeren zu ihrer Etage. Die aktive Etage zeigt nur ihre eigenen
+  // Treppen; weitere Etagen bringen ihre Treppen ueber "Alle Etagen" selbst mit (extraLevels146).
+  // Vorher wurden die Treppen aller Etagen immer halbtransparent mitgezeichnet.
+  const activeStairs146 = stairs.filter((surface146) => surface146.levelId === activeLevel.id)
   const selectedRoom = activeLevel.rooms.find((room) => room.id === selectedRoomId) ?? null
   const selectedDoor = model.doors.find((door) => door.groupId === selectedDoorId) ?? null
   const movable = Boolean(selectedRoom && !selectedRoom.name.startsWith('__strom_outer_wall__') && selectedRoom.roomType !== 'stair')
