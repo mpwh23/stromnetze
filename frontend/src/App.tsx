@@ -6086,7 +6086,9 @@ function BlueprintWallObjectConnections({ wallObjects, rooms, showDimensions = f
         let nx = inner.x - outer.x, ny = inner.y - outer.y
         const nl = Math.hypot(nx, ny)
         if (nl < 1e-6) { nx = -dy / len; ny = dx / len } else { nx /= nl; ny /= nl }
-        const labelAt = { x: inner.x + nx * 0.2, y: inner.y + ny * 0.2 }
+        // STROM178_LABEL_CENTER: Masse mittig in der Tuer bzw. im Fenster (Mitte zwischen beiden Wandseiten).
+        void nx; void ny
+        const labelAt = mid(midA, midB)
         const lx = mToX(labelAt.x), ly = mToY(labelAt.y)
         return (
           <g key={o.key} className={o.kind === 'door' ? 'blueprint-door176' : 'blueprint-window176'} data-opening176={o.kind}>
