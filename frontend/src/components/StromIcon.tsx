@@ -1,3 +1,5 @@
+import { iconAlias169, iconSet169 } from './iconSet169'
+
 type StromIconProps = {
   name: string
   title?: string
@@ -5,27 +7,26 @@ type StromIconProps = {
   className?: string
 }
 
-/** SVG-only design library; no icon fonts. */
+const escape169 = (text: string) => text.replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c] as string))
+
+/** STROM169_ICONS: einheitliche SVG-Icons ohne Nachladen (vorher Sprite-Datei + zweiter Iconsatz). */
 export default function StromIcon({ name, title, size = 20, className = '' }: StromIconProps) {
-  // Distinguish Stage from production even when an older Vite config still has base=/strom/.
-  const basePath = typeof window === 'undefined'
-    ? import.meta.env.BASE_URL
-    : window.location.pathname.startsWith('/strom-test/') ? '/strom-test/'
-      : window.location.pathname.startsWith('/strom/') ? '/strom/'
-        : import.meta.env.BASE_URL
+  const key = iconSet169[name] ? name : iconAlias169[name]
+  const entry = key ? iconSet169[key] : undefined
+  const body = entry ? entry[1] : ''
   return (
     <svg
-      className={`strom-ui-icon ${className}`}
+      className={`strom-icon strom-ui-icon ${className}`.trim()}
+      data-icon={key || name}
+      data-tone={entry ? entry[0] : 'nav'}
       width={size}
       height={size}
-      viewBox="0 0 80 80"
+      viewBox="0 0 24 24"
       role={title ? 'img' : undefined}
       aria-hidden={title ? undefined : true}
       aria-label={title}
       focusable="false"
-    >
-      {title && <title>{title}</title>}
-      <use href={`${basePath}strom-icons-v7.svg#${name}`} />
-    </svg>
+      dangerouslySetInnerHTML={{ __html: (title ? `<title>${escape169(title)}</title>` : '') + body }}
+    />
   )
 }

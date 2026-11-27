@@ -5043,3 +5043,32 @@ svg [class*="dimension"], svg [class*="technical"], svg [class*="measure"] { vec
 }
 .floorplan-canvas .grid line.strom153-zero-x,
 .floorplan-canvas .grid line.strom153-zero-y { stroke-width:1px !important; }
+
+/* STROM169_ICONS: ein Iconsatz fuer die ganze Anwendung (Entwurf v7, Duoton wie Blender / 3ds Max). */
+.strom-icon { display:inline-block; flex:none; vertical-align:middle; overflow:visible; color:inherit; --si-accent:#2563eb; }
+.strom-icon * { fill:none; stroke:currentColor; stroke-width:1.75; stroke-linecap:round; stroke-linejoin:round; }
+.strom-icon .t { fill:currentColor; fill-opacity:.13; stroke:none; }
+.strom-icon .a { stroke:var(--si-accent); }
+.strom-icon .at { fill:var(--si-accent); fill-opacity:.2; stroke:none; }
+.strom-icon .af { fill:var(--si-accent); stroke:none; }
+.strom-icon .k { fill:currentColor; stroke:none; }
+.strom-icon .thin { stroke-width:1.2; }
+.strom-icon[data-tone="nav"], .strom-icon[data-tone="create"], .strom-icon[data-tone="edit"], .strom-icon[data-tone="object"] { --si-accent:#2563eb; }
+.strom-icon[data-tone="danger"] { --si-accent:#dc2626; }
+.strom-icon[data-tone="view"] { --si-accent:#0e7490; }
+.strom-icon[data-tone="layer"] { --si-accent:#7c3aed; }
+.strom-icon[data-tone="stair"] { --si-accent:#c2410c; }
+.strom-icon[data-tone="power"] { --si-accent:#d97706; }
+/* Auf farbigem (aktivem) Grund uebernimmt der Akzent die Schriftfarbe. */
+button.active .strom-icon, .btn.active .strom-icon, button[aria-pressed="true"] .strom-icon,
+.nav-list button.active .strom-icon { --si-accent:currentColor; }
+
+/* STROM169_ICONS: Treppen-Bibliothek zeigt die Icons 47–54 statt eigener CSS-Zeichnungen. */
+.stair-floating-window .stair-library-graphic.stair-library-icon169 { display:grid; place-items:center; color:#7c2d12; }
+.stair-floating-window .stair-library-graphic.stair-library-icon169::before,
+.stair-floating-window .stair-library-graphic.stair-library-icon169::after { content:none !important; display:none !important; }
+/* Werkzeugknoepfe mit Icon + Text (3D / Wanddetail): Icon und Beschriftung in einer Zeile. */
+.building3d-toolbar button, .wall-detail-legacy-wrapper > button { display:inline-flex; align-items:center; gap:6px; }
+.building3d-toolbar button .strom-icon, .wall-detail-legacy-wrapper > button .strom-icon { width:19px; height:19px; }
+.object-panel .collapse-toggle .strom-icon { width:18px; height:18px; }
+.layer-eye .strom-icon { width:18px; height:18px; }

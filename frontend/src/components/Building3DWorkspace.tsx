@@ -668,15 +668,15 @@ export default function Building3DWorkspace({ floor, rooms, selectedRoomId, onSe
               title="Etagen nur in der 3D-Ansicht mit zusätzlichem vertikalen Abstand darstellen; Blueprint-Höhen unverändert"
               data-tooltip="Etagen mit Abstand auseinanderziehen"
               onClick={() => setSeparateLevels146((value) => !value)}>
-              <StromIcon name="layers-neighbor" size={19} title="Etagen auseinanderziehen" /> Offset {separateLevels146 ? 'AN' : 'AUS'}
+              <StromIcon name="layers-explode" size={19} title="Etagen auseinanderziehen" /> Offset {separateLevels146 ? 'AN' : 'AUS'}
             </button>
           </div>
         )}
-        <button type="button" title="Transparente Waende umschalten" onClick={() => setTransparent((value) => !value)}>{transparent ? 'Waende deckend' : 'Waende transparent'}</button>
-        <button type="button" title="Zum 2D-Blueprint wechseln" onClick={onBackToBlueprint}>Zurueck zum Blueprint (2D)</button>
+        <button type="button" title="Transparente Waende umschalten" onClick={() => setTransparent((value) => !value)} aria-pressed={transparent}><StromIcon name="walls-transparent" size={19} />{transparent ? 'Waende deckend' : 'Waende transparent'}</button>
+        <button type="button" title="Zum 2D-Blueprint wechseln" onClick={onBackToBlueprint}><StromIcon name="blueprint" size={19} />Zurueck zum Blueprint (2D)</button>
         {variant === 'wall' && onOpenLegacyWallDetail && (
           <button type="button" title="Bisherige Wandobjekte, Durchbrueche und Wand-Popup bearbeiten" onClick={onOpenLegacyWallDetail}>
-            Klassische Wandbearbeitung
+            <StromIcon name="wall-edit" size={19} />Klassische Wandbearbeitung
           </button>
         )}
       </div>
