@@ -3500,7 +3500,7 @@ function toggleRecessOffsetDirection() {
       <div className="canvas-card">
         {/* STROM173_LEVEL_MENU: gemeinsames Ebenenmenue (auch in den 3D-Ansichten) */}
         <LevelMenu173
-          floatId="blueprint-levels"
+          floatId="levels" // STROM175: gleiche Position in allen Ansichten
           levels={layers.map((layer) => ({ id: layer.id, name: layer.name, visible: layer.visible !== false, heightM: layer.heightM ?? floor.heightM, slabThicknessM: layer.slabThicknessM ?? 0 }))}
           activeId={activeLayerId}
           zeroId={resolveZeroLevel151(layers, zeroLevel151)}
@@ -3652,7 +3652,7 @@ function toggleRecessOffsetDirection() {
           </div>
         )}
         {tool==='roof' && <div className="strom-roof-help148" title="Die Dachschräge wird im ausgewählten Raum gespeichert">Dachschräge: {roofStart148?'zweiten Punkt der Startlinie setzen':'ersten Punkt der Startlinie setzen'} · anschließend Parameter einstellen</div>}
-        {selectedRoof148 && <div ref={floatRef173('blueprint-roof')} className="strom-roof-floating148"><RoofEditor148 onSelectRoof149e={setSelectedRoof148} floorId={floor.id} roofId={selectedRoof148}
+        {selectedRoof148 && <div ref={floatRef173('roof')} className="strom-roof-floating148"><RoofEditor148 onSelectRoof149e={setSelectedRoof148} floorId={floor.id} roofId={selectedRoof148}
           onClose={()=>setSelectedRoof148('')}/></div>}
         <CanvasRulers zoom={zoom} scrollRef={canvasScrollRef} syncRef={rulerSync168} />
         <div className="canvas-scroll" ref={canvasScrollRef} onScroll={handleCanvasScroll}>
@@ -7107,7 +7107,7 @@ function WallDetailEditor({
       />
 
       <div className="canvas-card wall-detail-card">
-        <div ref={floatRef173('wall-levels')} className={`canvas-layer-menu wall-layer-menu ${layersOpen ? 'open' : ''}`} aria-label="Ebenen">
+        <div ref={floatRef173('levels')} className={`canvas-layer-menu wall-layer-menu ${layersOpen ? 'open' : ''}`} aria-label="Ebenen">
           <span className="float-grip173" title="Ebenenmenü verschieben (Doppelklick: zurück an den Standardplatz)" aria-hidden="true"><StromIcon name="drag-dots" size={16} /></span>
           <button type="button" title="Ebenen" onClick={() => setLayersOpen((current) => !current)}><StromIcon name="chevron-down" title="Ebenenmenü" /> {activeLayer.name}</button>
           {layersOpen && (

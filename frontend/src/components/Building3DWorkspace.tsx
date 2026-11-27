@@ -15,6 +15,7 @@ import { ROOF_EVENT148 } from '../building/roofSlopes148'
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js'
 import { deleteRoom, getWallObjects, updateWallObject as updateWallObjectApi } from '../api'
 import LevelMenu173 from './LevelMenu173' // STROM173_LEVEL_MENU
+import { floatRef173 } from './floatDrag173'
 import { moveRawLayer173, patchRawLayer173, readRawLayers173, writeRawLayers173, LEVELS_CHANGED173 } from '../building/levelStore173'
 import { readZeroLevel151, writeZeroLevel151 } from '../building/coordinateReference151'
 import { applyPreset174, derivePreset174, modeFromPreset174, presetFromMode174, type VisibilityPreset174 } from '../building/levelVisibility174'
@@ -578,7 +579,7 @@ export default function Building3DWorkspace({ floor, rooms, selectedRoomId, onSe
   const levelVisible173 = (id: string) => layers173.find((layer) => layer.id === id)?.visible !== false
   // STROM174_LEVEL_VISIBILITY: weitere Etagen = alle eingeblendeten Ebenen (3D Haus und Wanddetail).
   const showAllLevels146 = layers173.some((layer) => layer.id !== activeLevel.id && layer.visible !== false)
-  const allLevelsVisible174 = layers173.every((layer) => layer.id === activeLevel.id || layer.visible !== false)
+  const allLevelsVisible174 = layers173.length > 1 && layers173.every((layer) => layer.id === activeLevel.id || layer.visible !== false)
   const storedMode174 = (() => { try { return JSON.parse(window.localStorage.getItem(`strom.floorplan.layers.${floor.id}.visibilityMode`) || 'null') } catch { return null } })()
   const levelPreset174 = derivePreset174(layers173, activeLevel.id, presetFromMode174(storedMode174))
   function applyLevelPreset174(preset: VisibilityPreset174, activeId = activeLevel.id) {
@@ -760,13 +761,40 @@ export default function Building3DWorkspace({ floor, rooms, selectedRoomId, onSe
           </button>
         )}
       </div>
+      {/* STROM175_PROPERTIES_TOP: Eigenschaften oben wie im Blueprint (vorher rechte Seitenleiste). */}
+      <section className={`properties-topbar building3d-properties175 ${!selectedRoom && !selectedDoor ? 'empty' : ''}`} aria-label={variant === 'wall' ? 'Wanddetail Eigenschaften' : '3D-Eigenschaften'}>
+        <div className="properties-title"><span className="eyebrow">Eigenschaften</span><strong>{selectedDoor ? 'Tür' : selectedRoom ? (selectedRoom.roomType === 'stair' ? 'Treppenraum' : selectedRoom.name.startsWith('__strom_outer_wall__') ? 'Aussenwand' : 'Raum') : 'Keine Auswahl'}</strong></div>
+        {!selectedRoom && !selectedDoor && <p>{variant === 'wall' ? 'Wand anklicken zum Bearbeiten, oder Raum bzw. blau angedeutete Tür anklicken. Gleiche Daten wie im Blueprint.' : 'Raum oder blau angedeutete Tür anklicken. Werte werden hier live angezeigt; gleiche Daten wie im Blueprint.'}</p>}
+        {selectedRoom && !selectedDoor && (
+          <>
+            <div className="property-readout"><span>{selectedRoom.name.startsWith('__strom_outer_wall__') ? 'Aussenwand' : selectedRoom.name}</span><span>{selectedRoom.vertices.length} Eckpunkte · {fmtMm(floor.heightM)} mm Höhe</span></div>
+            {movable ? (
+              <>
+                <label>Mittelpunkt X mm<input type="number" value={xMm} step={100} onChange={(event) => setXmm(Number(event.target.value))} /></label>
+                <label>Mittelpunkt Y mm<input type="number" value={yMm} step={100} onChange={(event) => setYmm(Number(event.target.value))} /></label>
+                <button type="button" disabled={busy} onClick={() => void shiftSelectedRoom((xMm / 1000) - centroid.x, (yMm / 1000) - centroid.y)} title="Raumposition speichern">Position speichern</button>
+                <div className="building3d-directional building3d-directional175" role="group" aria-label="Feinverschiebung um 100 mm">
+                  <button type="button" disabled={busy} title="Raum um 100 mm nach links verschieben" onClick={() => void shiftSelectedRoom(-0.1, 0)}>X −100</button>
+                  <button type="button" disabled={busy} title="Raum um 100 mm nach oben verschieben" onClick={() => void shiftSelectedRoom(0, -0.1)}>Y −100</button>
+                  <button type="button" disabled={busy} title="Raum um 100 mm nach unten verschieben" onClick={() => void shiftSelectedRoom(0, 0.1)}>Y +100</button>
+                  <button type="button" disabled={busy} title="Raum um 100 mm nach rechts verschieben" onClick={() => void shiftSelectedRoom(0.1, 0)}>X +100</button>
+                </div>
+              </>
+            ) : <div className="property-readout"><span>Spezialobjekt</span><span>im Blueprint bearbeitbar</span></div>}
+          </>
+        )}
+        {selectedDoor && <DoorForm model={model} door={selectedDoor} rooms={rooms} rawObjects={objects} onSaved={reloadDoors} />}
+        {message && <p className="building3d-notice" role="status">{message}</p>}
+      </section>
       <div className="building3d-content">
         <div className="building3d-view">
           <RealBuildingScene model={model} stairs={activeStairs146} activeLevelId148={activeLevel.id} roofRevision148={roofRevision148}
             selectedRoof148={selectedRoof148} onSelectRoof148={setSelectedRoof148} extraLevels146={extraLevels146} activeOffsetM146={variant === 'house' ? activeOffsetM146 : 0} showAllLevels146={showAllLevels146} selectedRoomId={selectedRoomId} selectedDoorId={selectedDoorId} onSelectRoom={onSelectRoom} onSelectDoor={setSelectedDoorId} onSelectWall={variant === 'wall' ? onSelectWall : undefined} transparent={transparent} />
+          {selectedRoof148 && <div ref={floatRef173('roof')} className="strom-roof-floating148"><RoofEditor148 floorId={floor.id} roofId={selectedRoof148}
+            onClose={()=>setSelectedRoof148('')} onChanged={()=>setRoofRevision148(value=>value+1)}/></div>}
           {/* STROM173_LEVEL_MENU: dasselbe Ebenenmenue wie im Blueprint */}
           <LevelMenu173
-            floatId={variant === 'wall' ? 'wall3d-levels' : 'house3d-levels'}
+            floatId="levels"
             className="building3d-floating-levels145"
             levels={layers173.map((layer) => ({ id: layer.id, name: layer.name, visible: layer.visible !== false, heightM: layer.heightM ?? floor.heightM, slabThicknessM: layer.slabThicknessM ?? 0 }))}
             activeId={activeLevel.id}
@@ -806,34 +834,6 @@ export default function Building3DWorkspace({ floor, rooms, selectedRoomId, onSe
 
                     <div className="building3d-help">{variant === 'wall' ? 'Linke Maustaste: drehen · Mausrad: zoomen · rechte Maustaste: verschieben · Klick: Wand zum Bearbeiten auswaehlen' : 'Linke Maustaste: drehen · Mausrad: zoomen · rechte Maustaste: verschieben · Klick: Raum oder Tuer waehlen'}</div>
         </div>
-        <aside className="building3d-inspector">
-          {selectedRoof148 && <RoofEditor148 floorId={floor.id} roofId={selectedRoof148}
-            onClose={()=>setSelectedRoof148('')} onChanged={()=>setRoofRevision148(value=>value+1)}/>}
-          <h2>{variant === 'wall' ? 'Wanddetail · Eigenschaften' : '3D-Eigenschaften'}</h2>
-          <p>Die Daten stammen direkt aus demselben Gebaeudemodell wie im Blueprint.</p>
-          <div className="building3d-inspector-section">
-            <strong>{selectedRoom ? `Raum: ${selectedRoom.name}` : 'Raum anklicken'}</strong>
-            <p>{selectedRoom ? `${selectedRoom.vertices.length} Eckpunkte · ${fmtMm(floor.heightM)} mm Hoehe` : 'Ein Raum kann in 3D ausgewaehlt und verschoben werden.'}</p>
-            {movable && (
-              <>
-                <label>Mittelpunkt X (mm)<input type="number" value={xMm} step={100} onChange={(event) => setXmm(Number(event.target.value))} /></label>
-                <label>Mittelpunkt Y (mm)<input type="number" value={yMm} step={100} onChange={(event) => setYmm(Number(event.target.value))} /></label>
-                <button type="button" disabled={busy} onClick={() => void shiftSelectedRoom((xMm / 1000) - centroid.x, (yMm / 1000) - centroid.y)} title="Raumposition speichern">Raumposition speichern</button>
-                <p>Feinverschiebung um 100 mm:</p>
-                <div className="building3d-directional">
-                  <button type="button" disabled={busy} title="Raum um 100 mm nach links verschieben" onClick={() => void shiftSelectedRoom(-0.1, 0)}>X −100</button>
-                  <button type="button" disabled={busy} title="Raum um 100 mm nach oben verschieben" onClick={() => void shiftSelectedRoom(0, -0.1)}>Y −100</button>
-                  <button type="button" disabled={busy} title="Raum um 100 mm nach unten verschieben" onClick={() => void shiftSelectedRoom(0, 0.1)}>Y +100</button>
-                  <button type="button" disabled={busy} title="Raum um 100 mm nach rechts verschieben" onClick={() => void shiftSelectedRoom(0.1, 0)}>X +100</button>
-                </div>
-              </>
-            )}
-            {selectedRoom && !movable && <p>Dieses Spezialobjekt bleibt in Phase 1 im Blueprint bearbeitbar.</p>}
-          </div>
-          {selectedDoor && <DoorForm model={model} door={selectedDoor} rooms={rooms} rawObjects={objects} onSaved={reloadDoors} />}
-          {!selectedDoor && <p>Eine blau angedeutete Tuer anklicken, um Position, Breite oder Hoehe auch in 3D zu bearbeiten.</p>}
-          {message && <p className="building3d-notice" role="status">{message}</p>}
-        </aside>
       </div>
       {variant === 'wall' && wallEditor}
       <div className="building3d-status">Modell: {model.rooms.length} Raumkonturen, {model.walls.length} Wandkanten, {model.doors.length} Tuergruppen, {stairs.length} Stufen-/Absatzvolumen aus {stairData143.savedLayouts} gespeicherten Treppenlayouts ({stairData143.activeLayouts} auf aktiver Ebene){stairData143.savedLayouts === 0 ? ' · Hinweis: keine Treppenlayouts im Browser-Speicher gefunden' : ''} · Blueprint-Ebene: {activeLevel.name} von {activeLevel.layerCount}. Weitere Etagen koennen ueber den Schalter Alle Etagen eingeblendet werden.</div>
