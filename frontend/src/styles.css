@@ -5030,6 +5030,12 @@ svg [class*="dimension"], svg [class*="technical"], svg [class*="measure"] { vec
 /* STROM159_HIDE_CAMERA_DIAGNOSTICS: hide any stale 150p/155 popup from cached JS. */
 #strom-150p-viewport-geometry, #strom-155-camera-values { display:none !important; }
 
+/* STROM168_RULERS: Lineal-Inhalt wird per transform mit dem Scrollbereich verschoben. */
+.canvas-ruler-track168 { position:absolute; inset:0; will-change:transform; }
+/* STROM168_SMOOTH: keine Hintergrund-Unschaerfe ueber der Zeichnung; sie musste bei jedem Zoom-
+   und Scrollbild neu berechnet werden. Die Flaechen sind ohnehin zu 93-96 % deckend. */
+.canvas-ruler-top, .canvas-ruler-left, .canvas-toolbox, .canvas-settings { backdrop-filter: none; }
+
 /* STROM164_FIVE_METRE_GRID: identical Blueprint and 3D screen-pixel cadence. */
 .floorplan-canvas .grid line { stroke-width:1px !important; vector-effect:non-scaling-stroke; }
 .floorplan-canvas .grid line.major:not(.strom153-zero-x):not(.strom153-zero-y) {

@@ -4,6 +4,7 @@ import {queueEntry150,requestExit150,registerEnterReady150,registerEnterFailed16
 import StromIcon150 from './components/StromIcon150'
 import { type CSSProperties, ChangeEvent as ReactChangeEvent, DragEvent as ReactDragEvent, MouseEvent as ReactMouseEvent, WheelEvent as ReactWheelEvent, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import StromIcon from './components/StromIcon'
+import { flushSync } from 'react-dom' // STROM168_WHEEL_ZOOM
 import { snapPointToVisibleRooms143, snapRectangleHandle143, snapMovedVerticesToVisibleRooms143 } from './building/neighborSnap143'
 import { snapRectEdge146, snapTranslatedEdge146 } from './building/edgeSnap146'
 import { readStairDirections147, sameStairFootprint147, stairDirectionKey147, type StairDirection147 } from './building/stairOverlay147'
@@ -184,7 +185,7 @@ function loadCanvasViewport(floorId: string): CanvasViewportState {
   const left = Number(stored?.left)
   const top = Number(stored?.top)
   return {
-    zoom: Number.isFinite(zoom) ? clamp(round2(zoom), 0.22, 10) : 1,
+    zoom: Number.isFinite(zoom) ? clamp(Math.round(zoom * 10000) / 10000, 0.22, 10) : 1, // STROM168: stufenloser Zoom
     left: Number.isFinite(left) ? Math.max(0, left) : 0,
     top: Number.isFinite(top) ? Math.max(0, top) : 0,
   }
@@ -193,7 +194,7 @@ function loadCanvasViewport(floorId: string): CanvasViewportState {
 function saveCanvasViewport(floorId: string, state: CanvasViewportState) {
   try {
     localStorage.setItem(viewportStorageKey(floorId), JSON.stringify({
-      zoom: clamp(round2(state.zoom), 0.22, 10),
+      zoom: clamp(Math.round(state.zoom * 10000) / 10000, 0.22, 10),
       left: Math.max(0, Math.round(state.left)),
       top: Math.max(0, Math.round(state.top)),
     }))
@@ -1523,6 +1524,17 @@ function FloorplanEditor({
     const viewport = loadCanvasViewport(floor.id)
     return { left: viewport.left, top: viewport.top }
   })
+  // STROM168_WHEEL_ZOOM: aktueller Zoom ohne veralteten Closure-Wert, Lineal-Abgleich, gebuendeltes Speichern.
+  const zoomRef168 = useRef(zoom)
+  zoomRef168.current = zoom
+  const rulerSync168 = useRef<(() => void) | null>(null)
+  const viewport168 = useRef<{ floorId: string; zoom: number; left: number; top: number } | null>(null)
+  const viewportTimer168 = useRef<number | null>(null)
+  const exactScroll168 = useRef<{ left: number; top: number } | null>(null)
+  const applyZoomRef168 = useRef(applyZoom168)
+  applyZoomRef168.current = applyZoom168
+  const flushViewportRef168 = useRef(flushViewport168)
+  flushViewportRef168.current = flushViewport168
   const [snapEnabled, setSnapEnabled] = useState(true)
   // STROM143_CROSS_LEVEL_SNAP: opt-in; keep the original snapping as the default.
   // STROM143B_DIRECT_GHOST: independent toggle; direct geometry only, zero clearance.
@@ -1741,6 +1753,72 @@ function FloorplanEditor({
       window.removeEventListener('mouseup', onUp)
     }
   }, [stairPanelDrag])
+
+  // STROM168_WHEEL_ZOOM: nativer, nicht-passiver Listener. React meldet wheel passiv an;
+  // preventDefault() wirkte deshalb nicht und der Browser scrollte bei jeder Raste
+  // zusaetzlich um ca. 100 px (Zoom sprang). Pinch mit ctrlKey zoomte die ganze Seite.
+  useEffect(() => {
+    const scroll = canvasScrollRef.current
+    if (!scroll) return
+    let factor = 1
+    let anchorX = 0
+    let anchorY = 0
+    let frame = 0
+    let gestureBase = 0
+    const anchorAt = (clientX: number | undefined, clientY: number | undefined) => {
+      const rect = scroll.getBoundingClientRect()
+      anchorX = Number.isFinite(clientX) ? (clientX as number) - rect.left - scroll.clientLeft : scroll.clientWidth / 2
+      anchorY = Number.isFinite(clientY) ? (clientY as number) - rect.top - scroll.clientTop : scroll.clientHeight / 2
+    }
+    const run = () => {
+      frame = 0
+      const pending = factor
+      factor = 1
+      applyZoomRef168.current(zoomRef168.current * pending, anchorX, anchorY)
+    }
+    const onWheel = (event: WheelEvent) => {
+      event.preventDefault()
+      const unit = event.deltaMode === 1 ? 16 : event.deltaMode === 2 ? scroll.clientHeight : 1
+      const dx = event.deltaX * unit
+      const dy = event.deltaY * unit
+      if (!event.ctrlKey && Math.abs(dx) > Math.abs(dy)) {
+        scroll.scrollLeft += dx // Shift+Mausrad bzw. seitliches Wischen: waagerecht verschieben
+        return
+      }
+      if (dy === 0) return
+      const limited = Math.max(-200, Math.min(200, dy))
+      factor *= Math.pow(2, -limited * (event.ctrlKey ? 0.01 : 0.002))
+      anchorAt(event.clientX, event.clientY)
+      if (!frame) frame = window.requestAnimationFrame(run)
+    }
+    // Safari meldet Pinch als gesture*-Ereignis statt als wheel.
+    const onGestureStart = (event: Event) => {
+      event.preventDefault()
+      gestureBase = zoomRef168.current
+    }
+    const onGestureChange = (event: Event) => {
+      event.preventDefault()
+      const gesture = event as Event & { scale?: number; clientX?: number; clientY?: number }
+      if (!gestureBase || !Number.isFinite(gesture.scale) || !(gesture.scale as number > 0)) return
+      anchorAt(gesture.clientX, gesture.clientY)
+      factor = gestureBase * (gesture.scale as number) / zoomRef168.current
+      if (!frame) frame = window.requestAnimationFrame(run)
+    }
+    const passiveOff: AddEventListenerOptions = { passive: false }
+    scroll.addEventListener('wheel', onWheel, passiveOff)
+    scroll.addEventListener('gesturestart', onGestureStart, passiveOff)
+    scroll.addEventListener('gesturechange', onGestureChange, passiveOff)
+    const onPageHide = () => flushViewportRef168.current()
+    window.addEventListener('pagehide', onPageHide)
+    return () => {
+      scroll.removeEventListener('wheel', onWheel)
+      scroll.removeEventListener('gesturestart', onGestureStart)
+      scroll.removeEventListener('gesturechange', onGestureChange)
+      window.removeEventListener('pagehide', onPageHide)
+      if (frame) window.cancelAnimationFrame(frame)
+      flushViewportRef168.current() // letzte Ansicht sicher speichern (z. B. vor dem Wechsel nach 3D)
+    }
+  }, [floor.id])
 
   useEffect(() => {
     const viewport = loadCanvasViewport(floor.id)
@@ -2569,10 +2647,13 @@ if (dimensionDrag) {
   }
 
   function changeZoom(next: number) {
-    const nextZoom = Math.min(10, Math.max(0.22, round2(next)))
-    setZoom(nextZoom)
+    // STROM168_WHEEL_ZOOM: um die Bildmitte statt um die linke obere Ecke.
     const scroll = canvasScrollRef.current
-    if (scroll) saveCanvasViewport(floor.id, { zoom: nextZoom, left: scroll.scrollLeft, top: scroll.scrollTop })
+    if (!scroll) {
+      setZoom(Math.min(10, Math.max(0.22, next)))
+      return
+    }
+    applyZoom168(next, scroll.clientWidth / 2, scroll.clientHeight / 2)
   }
 
   function changeRecessSize(axis: 'along' | 'depth', value: number) {
@@ -2787,38 +2868,74 @@ function toggleRecessOffsetDirection() {
     setDistancePair({ first, second: nextSecond, distanceM: safeDistance })
   }
 
-  function handleCanvasWheel(event: ReactWheelEvent<HTMLDivElement>) {
-    event.preventDefault()
-    event.stopPropagation()
+  // STROM168_WHEEL_ZOOM: Zoomen wie in Karten- und CAD-Programmen.
+  // Der Punkt unter dem Mauszeiger bleibt stehen; der Zoom folgt der Drehung des Rads
+  // (2^(-deltaY * 0.002), Zwei-Finger-Zoom/Pinch zehnfach) statt fester 12-%-Schritte.
+  // Alle Ereignisse eines Bildes werden gesammelt und einmal pro Frame angewendet;
+  // das DOM wird synchron aktualisiert und erst danach gescrollt (kein Zwischenbild).
+  function applyZoom168(target: number, anchorX: number, anchorY: number) {
     const scroll = canvasScrollRef.current
     if (!scroll) return
-    const rect = scroll.getBoundingClientRect()
-    const mouseX = event.clientX - rect.left
-    const mouseY = event.clientY - rect.top
-    const beforeZoom = zoom
-    const contentX = (scroll.scrollLeft + mouseX) / beforeZoom
-    const contentY = (scroll.scrollTop + mouseY) / beforeZoom
-    const dominantDelta = Math.abs(event.deltaY) >= Math.abs(event.deltaX) ? event.deltaY : event.deltaX
-    if (dominantDelta === 0) return
-    const factor = dominantDelta < 0 ? 1.12 : (1 / 1.12)
-    const nextZoom = Math.min(10, Math.max(0.22, round2(beforeZoom * factor)))
-    if (nextZoom === beforeZoom) return
-    setZoom(nextZoom)
-    window.requestAnimationFrame(() => {
-      const nextScroll = canvasScrollRef.current
-      if (!nextScroll) return
-      nextScroll.scrollLeft = Math.max(0, contentX * nextZoom - mouseX)
-      nextScroll.scrollTop = Math.max(0, contentY * nextZoom - mouseY)
-      setScrollPosition({ left: nextScroll.scrollLeft, top: nextScroll.scrollTop })
-      saveCanvasViewport(floor.id, { zoom: nextZoom, left: nextScroll.scrollLeft, top: nextScroll.scrollTop })
-    })
+    const before = zoomRef168.current
+    const next = Math.min(10, Math.max(0.22, target))
+    if (!Number.isFinite(next) || Math.abs(next - before) < 1e-6) return
+    // Der Browser rundet scrollLeft/Top. Solange niemand anders gescrollt hat, mit dem exakten
+    // Wert weiterrechnen, sonst summiert sich der Rundungsfehler ueber viele Zoomschritte.
+    const exact = exactScroll168.current
+    const left = exact && Math.abs(exact.left - scroll.scrollLeft) < 1 ? exact.left : scroll.scrollLeft
+    const top = exact && Math.abs(exact.top - scroll.scrollTop) < 1 ? exact.top : scroll.scrollTop
+    // Gerechnet wird mit der tatsaechlich gezeichneten Groesse der Zeichnung (der Browser rundet
+    // Breiten auf 1/64 px) und ihrem Abstand zum Rand des Scrollinhalts.
+    const drawing = scroll.querySelector('svg')
+    const units = drawing?.viewBox?.baseVal?.width || canvas.width
+    const frame = scroll.getBoundingClientRect()
+    const sheet = drawing ? drawing.getBoundingClientRect() : null
+    const scaleBefore = sheet && sheet.width > 0 ? sheet.width / units : before
+    const offsetX = sheet ? sheet.left - frame.left - scroll.clientLeft + scroll.scrollLeft : 0
+    const offsetY = sheet ? sheet.top - frame.top - scroll.clientTop + scroll.scrollTop : 0
+    const contentX = (left + anchorX - offsetX) / scaleBefore
+    const contentY = (top + anchorY - offsetY) / scaleBefore
+    zoomRef168.current = next
+    flushSync(() => setZoom(next))
+    const sheetAfter = drawing ? drawing.getBoundingClientRect() : null
+    const scaleAfter = sheetAfter && sheetAfter.width > 0 ? sheetAfter.width / units : next
+    const nextLeft = contentX * scaleAfter + offsetX - anchorX
+    const nextTop = contentY * scaleAfter + offsetY - anchorY
+    scroll.scrollLeft = nextLeft
+    scroll.scrollTop = nextTop
+    exactScroll168.current = { left: nextLeft, top: nextTop }
+    rulerSync168.current?.()
+    rememberViewport168()
+  }
+
+  /** Zoomknoepfe: gleichmaessige Schritte um die Bildmitte. */
+  function zoomStep168(factor: number) {
+    const scroll = canvasScrollRef.current
+    if (!scroll) return
+    applyZoom168(zoomRef168.current * factor, scroll.clientWidth / 2, scroll.clientHeight / 2)
+  }
+
+  /** Ansicht merken; gespeichert wird hoechstens alle 200 ms (vorher bei jedem Scroll-Ereignis). */
+  function rememberViewport168() {
+    const scroll = canvasScrollRef.current
+    if (!scroll) return
+    viewport168.current = { floorId: floor.id, zoom: zoomRef168.current, left: scroll.scrollLeft, top: scroll.scrollTop }
+    if (viewportTimer168.current === null) viewportTimer168.current = window.setTimeout(flushViewport168, 200)
+  }
+
+  function flushViewport168() {
+    if (viewportTimer168.current !== null) {
+      window.clearTimeout(viewportTimer168.current)
+      viewportTimer168.current = null
+    }
+    const state = viewport168.current
+    if (state) saveCanvasViewport(state.floorId, state)
   }
 
   function handleCanvasScroll() {
-    const scroll = canvasScrollRef.current
-    if (!scroll) return
-    setScrollPosition({ left: scroll.scrollLeft, top: scroll.scrollTop })
-    saveCanvasViewport(floor.id, { zoom, left: scroll.scrollLeft, top: scroll.scrollTop })
+    // STROM168_RULERS: Lineale folgen direkt, ohne den ganzen Editor neu aufzubauen.
+    rulerSync168.current?.()
+    rememberViewport168()
   }
 
   function handleCanvasMouseDown(event: ReactMouseEvent<SVGSVGElement>) {
@@ -2891,22 +3008,13 @@ function toggleRecessOffsetDirection() {
   }
 
   function scaleCanvasTo100() {
+    // STROM168_WHEEL_ZOOM: 100 % um die Bildmitte, ohne Zwischenbild.
     const scroll = canvasScrollRef.current
     if (!scroll) {
       setZoom(1)
       return
     }
-    const contentCenterX = (scroll.scrollLeft + scroll.clientWidth / 2) / zoom
-    const contentCenterY = (scroll.scrollTop + scroll.clientHeight / 2) / zoom
-    setZoom(1)
-    window.requestAnimationFrame(() => {
-      const nextScroll = canvasScrollRef.current
-      if (!nextScroll) return
-      nextScroll.scrollLeft = Math.max(0, contentCenterX - nextScroll.clientWidth / 2)
-      nextScroll.scrollTop = Math.max(0, contentCenterY - nextScroll.clientHeight / 2)
-      setScrollPosition({ left: nextScroll.scrollLeft, top: nextScroll.scrollTop })
-      saveCanvasViewport(floor.id, { zoom: 1, left: nextScroll.scrollLeft, top: nextScroll.scrollTop })
-    })
+    applyZoom168(1, scroll.clientWidth / 2, scroll.clientHeight / 2)
   }
 
   function zoomToSelectedRoom() {
@@ -3077,7 +3185,7 @@ function toggleRecessOffsetDirection() {
   }
 
   const hintText = tool === 'select'
-    ? 'Auswahlmodus: Raum anklicken und ziehen. Leere Flaeche ziehen verschiebt die Ansicht. Mausrad scrollt, Shift+Mausrad zoomt. Shift haelt Bewegungen waagerecht, senkrecht oder 45 Grad.'
+    ? 'Auswahlmodus: Raum anklicken und ziehen. Leere Flaeche ziehen verschiebt die Ansicht. Mausrad und Zwei-Finger-Zoom zoomen am Mauszeiger, Shift+Mausrad verschiebt waagerecht. Shift haelt Bewegungen waagerecht, senkrecht oder 45 Grad.'
     : tool === 'rectangle'
       ? 'Rechteck: erster Klick setzt die Ecke, Maus aufziehen, zweiter Klick speichert und waehlt den Raum. Eigenschaften oben bearbeiten.'
       : tool === 'outerwall'
@@ -3161,10 +3269,10 @@ function toggleRecessOffsetDirection() {
             <input type="number" step="0.01" min="0" value={snapWallThicknessM} onChange={(event) => setSnapWallThicknessM(toNumber(event.target.value, 0))} />
           </label>
           <span className="tool-divider" />
-          <button title="Verkleinern" data-tooltip="Zoom verkleinern" aria-label="Canvas verkleinern" onMouseDown={(event) => event.preventDefault()} onClick={() => changeZoom(zoom - 0.15)}><StromIcon name="zoom-out" title="Herauszoomen" /></button>
+          <button title="Verkleinern" data-tooltip="Zoom verkleinern" aria-label="Canvas verkleinern" onMouseDown={(event) => event.preventDefault()} onClick={() => zoomStep168(1 / 1.25)}><StromIcon name="zoom-out" title="Herauszoomen" /></button>
           <button title="Scale to 100%" data-tooltip="Scale 100%" aria-label="Scale to 100%" className={Math.abs(zoom - 1) < 0.001 ? 'active' : ''} onMouseDown={(event) => event.preventDefault()} onClick={scaleCanvasTo100}><StromIcon name="one-to-one" title="100 Prozent Ansicht" /></button>
           <span className="canvas-zoom-level" aria-label="Zoomstufe">{Math.round(zoom * 100)}%</span>
-          <button title="Vergroessern" data-tooltip="Zoom vergroessern" aria-label="Canvas vergroessern" onMouseDown={(event) => event.preventDefault()} onClick={() => changeZoom(zoom + 0.15)}><StromIcon name="zoom-in" title="Hineinzoomen" /></button>
+          <button title="Vergroessern" data-tooltip="Zoom vergroessern" aria-label="Canvas vergroessern" onMouseDown={(event) => event.preventDefault()} onClick={() => zoomStep168(1.25)}><StromIcon name="zoom-in" title="Hineinzoomen" /></button>
           <button title="Alle Elemente zentrieren" data-tooltip="Center all" aria-label="Alle Elemente zentrieren" disabled={rooms.length === 0} onMouseDown={(event) => event.preventDefault()} onClick={centerAllRooms}><StromIcon name="fit" title="Alles einpassen" /></button>
           <button title="Auf ausgewaehltes Objekt zoomen" data-tooltip="Auswahl zoomen" aria-label="Auf ausgewaehltes Objekt zoomen" disabled={!selectedRoom} onMouseDown={(event) => event.preventDefault()} onClick={zoomToSelectedRoom}><StromIcon name="target" title="Auf Auswahl zoomen" /></button>
           <button title="Technische Bemassung an/aus" data-tooltip="Technische Bemassung" aria-label="Technische Bemassung umschalten" className={dimensionsVisible ? 'active' : ''} onMouseDown={(event) => event.preventDefault()} onClick={() => setDimensionsVisible((current) => !current)}><StromIcon name="measure" title="Bemassung umschalten" /></button>
@@ -3359,8 +3467,8 @@ function toggleRecessOffsetDirection() {
         {tool==='roof' && <div className="strom-roof-help148" title="Die Dachschräge wird im ausgewählten Raum gespeichert">Dachschräge: {roofStart148?'zweiten Punkt der Startlinie setzen':'ersten Punkt der Startlinie setzen'} · anschließend Parameter einstellen</div>}
         {selectedRoof148 && <div className="strom-roof-floating148"><RoofEditor148 onSelectRoof149e={setSelectedRoof148} floorId={floor.id} roofId={selectedRoof148}
           onClose={()=>setSelectedRoof148('')}/></div>}
-        <CanvasRulers zoom={zoom} scrollLeft={scrollPosition.left} scrollTop={scrollPosition.top} />
-        <div className="canvas-scroll" ref={canvasScrollRef} onWheelCapture={handleCanvasWheel} onScroll={handleCanvasScroll}>
+        <CanvasRulers zoom={zoom} scrollRef={canvasScrollRef} syncRef={rulerSync168} />
+        <div className="canvas-scroll" ref={canvasScrollRef} onScroll={handleCanvasScroll}>
           <svg
             className={`canvas floorplan-canvas ${tool === 'select' ? 'select-mode' : ''} ${tool === 'door' ? 'blueprint-door-active136' : ''}`}
             style={{
@@ -5547,30 +5655,63 @@ function DimensionLabels({ vertices, muted = false }: { vertices: PointM[]; mute
 }
 
 
-function CanvasRulers({ zoom, scrollLeft, scrollTop }: { zoom: number; scrollLeft: number; scrollTop: number }) {
+// STROM168_RULERS: Die Lineale verschieben sich direkt mit der Zeichnung (transform).
+// Vorher wurde bei jedem Scroll-Ereignis der ganze Blueprint-Editor neu aufgebaut.
+function CanvasRulers({ zoom, scrollRef, syncRef }: {
+  zoom: number
+  scrollRef: { current: HTMLDivElement | null }
+  syncRef: { current: (() => void) | null }
+}) {
   const ticks = Array.from({ length: canvas.maxM - canvas.minM + 1 }, (_, index) => canvas.minM + index)
+  const topTrack = useRef<HTMLDivElement | null>(null)
+  const leftTrack = useRef<HTMLDivElement | null>(null)
+  useLayoutEffect(() => {
+    // Bezug ist die tatsaechliche Lage der Zeichnung. Vorher fehlte der 15-px-Scrollbalken-
+    // Abstand links (scrollbar-gutter), das obere Lineal lag 15 px neben dem Raster.
+    const sync = () => {
+      const drawing = scrollRef.current?.querySelector('svg')
+      const topBox = topTrack.current?.parentElement
+      const leftBox = leftTrack.current?.parentElement
+      if (!drawing || !topBox || !leftBox || !topTrack.current || !leftTrack.current) return
+      const sheet = drawing.getBoundingClientRect()
+      topTrack.current.style.transform = `translate3d(${sheet.left - topBox.getBoundingClientRect().left}px, 0, 0)`
+      leftTrack.current.style.transform = `translate3d(0, ${sheet.top - leftBox.getBoundingClientRect().top}px, 0)`
+    }
+    syncRef.current = sync
+    sync()
+    return () => { if (syncRef.current === sync) syncRef.current = null }
+  })
+  useEffect(() => {
+    const onResize = () => syncRef.current?.()
+    window.addEventListener('resize', onResize)
+    return () => window.removeEventListener('resize', onResize)
+  }, [syncRef])
   return (
     <div className="canvas-rulers" aria-hidden="true">
       <div className="canvas-ruler-corner" />
       <div className="canvas-ruler-top">
-        {ticks.map((meter) => {
-          const major = meter % 5 === 0
-          return (
-            <span key={`rt-${meter}`} className={`canvas-ruler-tick ${major ? 'major' : ''}`} style={{ left: mToX(meter) * zoom - scrollLeft }}>
-              {major && <em>{meter}</em>}
-            </span>
-          )
-        })}
+        <div className="canvas-ruler-track168" ref={topTrack}>
+          {ticks.map((meter) => {
+            const major = meter % 5 === 0
+            return (
+              <span key={`rt-${meter}`} className={`canvas-ruler-tick ${major ? 'major' : ''}`} style={{ left: mToX(meter) * zoom }}>
+                {major && <em>{meter}</em>}
+              </span>
+            )
+          })}
+        </div>
       </div>
       <div className="canvas-ruler-left">
-        {ticks.map((meter) => {
-          const major = meter % 5 === 0
-          return (
-            <span key={`rl-${meter}`} className={`canvas-ruler-tick ${major ? 'major' : ''}`} style={{ top: mToY(meter) * zoom - scrollTop }}>
-              {major && <em>{meter}</em>}
-            </span>
-          )
-        })}
+        <div className="canvas-ruler-track168" ref={leftTrack}>
+          {ticks.map((meter) => {
+            const major = meter % 5 === 0
+            return (
+              <span key={`rl-${meter}`} className={`canvas-ruler-tick ${major ? 'major' : ''}`} style={{ top: mToY(meter) * zoom }}>
+                {major && <em>{meter}</em>}
+              </span>
+            )
+          })}
+        </div>
       </div>
     </div>
   )
