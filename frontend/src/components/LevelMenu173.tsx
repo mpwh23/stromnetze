@@ -1,4 +1,4 @@
-import { useState, type ReactNode } from 'react'
+import { useEffect, useRef, useState, type ReactNode } from 'react'
 import StromIcon from './StromIcon'
 import { floatRef173 } from './floatDrag173'
 import type { DerivedPreset174, VisibilityPreset174 } from '../building/levelVisibility174'
@@ -33,6 +33,46 @@ type LevelMenuProps173 = {
 }
 
 const mm173 = (m: number) => Math.round(m * 1000)
+
+/** STROM176_UNIT_INPUT: Laenge mit Einheit lesen (m, dm, cm, mm; Komma oder Punkt). Ergebnis in mm, sonst null. */
+export function parseLengthMm176(text: string): number | null {
+  const clean = text.trim().toLowerCase().replace(/\s+/g, '').replace(',', '.')
+  const match = /^([+-]?(?:\d+\.?\d*|\.\d+))(mm|cm|dm|m)?$/.exec(clean)
+  if (!match) return null
+  const factor = { mm: 1, cm: 10, dm: 100, m: 1000 }[(match[2] || 'mm') as 'mm' | 'cm' | 'dm' | 'm']
+  const value = Number(match[1]) * factor
+  return Number.isFinite(value) ? Math.round(value) : null
+}
+
+/** Zahl im Feld, 'mm' grau dahinter; beim Bearbeiten nur die Zahl. Enter/Verlassen uebernimmt, Escape verwirft. */
+function MmField176({ valueMm, label, title, onCommit }: { valueMm: number; label: string; title: string; onCommit: (mm: number) => void }) {
+  const [editing, setEditing] = useState(false)
+  const [text, setText] = useState(String(valueMm))
+  const justFocused = useRef(false) // Mausklick soll die Markierung beim Fokussieren nicht aufheben
+  useEffect(() => { if (!editing) setText(String(valueMm)) }, [valueMm, editing])
+  const commit = () => {
+    setEditing(false)
+    const mm = parseLengthMm176(text)
+    if (mm === null) { setText(String(valueMm)); return }
+    setText(String(mm))
+    if (mm !== valueMm) onCommit(mm)
+  }
+  return (
+    <span className={`mm-field176 ${editing ? 'editing' : ''}`} title={title}>
+      <input type="text" inputMode="decimal" aria-label={label} value={editing ? text : String(valueMm)}
+        onMouseDown={(event) => event.stopPropagation()} onClick={(event) => event.stopPropagation()} onDragStart={(event) => event.preventDefault()}
+        onFocus={(event) => { setEditing(true); setText(String(valueMm)); justFocused.current = true; event.currentTarget.select() }}
+        onMouseUp={(event) => { if (justFocused.current) { event.preventDefault(); justFocused.current = false } }}
+        onChange={(event) => setText(event.target.value)}
+        onBlur={commit}
+        onKeyDown={(event) => {
+          if (event.key === 'Enter') event.currentTarget.blur()
+          if (event.key === 'Escape') { setText(String(valueMm)); setEditing(false); window.setTimeout(() => (event.target as HTMLInputElement).blur(), 0) }
+        }} />
+      {!editing && <span className="mm-unit176" aria-hidden="true">mm</span>}
+    </span>
+  )
+}
 
 export default function LevelMenu173(props: LevelMenuProps173) {
   const { floatId, className = '', levels, activeId, zeroId, radioName, open, rowState } = props
@@ -70,15 +110,16 @@ export default function LevelMenu173(props: LevelMenuProps173) {
                   onDragOver={(event) => event.preventDefault()}
                   onDrop={(event) => { event.preventDefault(); props.onMove(dragged, layer.id); setDragged('') }}
                 >
-                  <label className="layer-zero-marker151" title={levels.length === 1 ? 'Einzige Ebene: automatisch Z=0' : 'Diese Ebene als Z=0 festlegen'}
-                    onMouseDown={(event) => event.stopPropagation()} onClick={(event) => event.stopPropagation()}>
-                    <input type="radio" name={radioName}
-                      aria-label={`${layer.name} als Z=0-Ebene auswählen`}
-                      checked={zeroId === layer.id}
-                      disabled={levels.length === 1}
-                      onChange={() => props.onZero(layer.id)} />
-                    <span aria-hidden="true">0</span>
-                  </label>
+                  {/* STROM176_ZERO_ICON: Nullhoehe als Icon-Knopf, genau einer aktiv (wie ein Radiobutton). */}
+                  <button type="button" role="radio" data-radio-group={radioName}
+                    className={`layer-zero-marker151 layer-zero176 ${zeroId === layer.id ? 'active' : ''}`}
+                    aria-checked={zeroId === layer.id} aria-label={`${layer.name} als Z=0-Ebene auswählen`}
+                    title={levels.length === 1 ? 'Einzige Ebene: automatisch Nullhöhe (Z = 0)' : zeroId === layer.id ? 'Nullhöhe (Z = 0) liegt auf dieser Ebene' : 'Diese Ebene als Nullhöhe (Z = 0) festlegen'}
+                    disabled={levels.length === 1 && zeroId === layer.id}
+                    onMouseDown={(event) => event.stopPropagation()}
+                    onClick={(event) => { event.stopPropagation(); if (zeroId !== layer.id) props.onZero(layer.id) }}>
+                    <StromIcon name="zero-level" title="Nullhöhe" />
+                  </button>
                   <button type="button" className={`layer-eye ${state.visible ? 'visible' : 'hidden'}`} title={eyeTitle(layer.id, state.visible)}
                     onClick={(event) => { event.stopPropagation(); props.onToggleVisible(layer.id) }}>
                     <StromIcon name={state.visible ? 'eye' : 'eye-off'} title={state.visible ? 'Ebene sichtbar' : 'Ebene ausgeblendet'} />
@@ -93,33 +134,15 @@ export default function LevelMenu173(props: LevelMenuProps173) {
                     onFocus={() => { if (!isActive) props.onSelect(layer.id) }}
                     onChange={(event) => props.onRename(layer.id, event.target.value)}
                   />
-                  <label className="layer-height-control" title="Geschosshoehe dieser Ebene in Millimetern">
-                    <span>Höhe (mm)</span>
-                    <input
-                      key={`${layer.id}-${mm173(layer.heightM)}`}
-                      aria-label={`Geschosshoehe ${layer.name} in Millimetern`}
-                      type="number" min="100" max="10000" step="10"
-                      defaultValue={mm173(layer.heightM)}
-                      onMouseDown={(event) => event.stopPropagation()}
-                      onClick={(event) => event.stopPropagation()}
-                      onDragStart={(event) => event.preventDefault()}
-                      onBlur={(event) => props.onHeight(layer.id, Number(event.currentTarget.value))}
-                      onKeyDown={(event) => { if (event.key === 'Enter') event.currentTarget.blur() }}
-                    />
+                  <label className="layer-height-control">
+                    <span>Höhe</span>
+                    <MmField176 valueMm={mm173(layer.heightM)} label={`Geschosshoehe ${layer.name} in Millimetern`}
+                      title="Geschosshöhe; Eingabe z. B. 2600, 2,6 m, 260 cm" onCommit={(mm) => props.onHeight(layer.id, mm)} />
                   </label>
-                  <label className="layer-height-control layer-slab-control149" title="Bodendicke der Etage unterhalb des fertigen Fußbodens, in Millimetern">
-                    <span>Bodendicke (mm)</span>
-                    <input
-                      key={`${layer.id}-slab-${mm173(layer.slabThicknessM)}`}
-                      aria-label={`Bodendicke ${layer.name} in Millimetern`}
-                      type="number" min="0" max="1500" step="10"
-                      defaultValue={mm173(layer.slabThicknessM)}
-                      onMouseDown={(event) => event.stopPropagation()}
-                      onClick={(event) => event.stopPropagation()}
-                      onDragStart={(event) => event.preventDefault()}
-                      onBlur={(event) => props.onSlab(layer.id, Number(event.currentTarget.value))}
-                      onKeyDown={(event) => { if (event.key === 'Enter') event.currentTarget.blur() }}
-                    />
+                  <label className="layer-height-control layer-slab-control149">
+                    <span>Bodendicke</span>
+                    <MmField176 valueMm={mm173(layer.slabThicknessM)} label={`Bodendicke ${layer.name} in Millimetern`}
+                      title="Bodendicke unter dem fertigen Fußboden; Eingabe z. B. 200, 20 cm, 0,2 m" onCommit={(mm) => props.onSlab(layer.id, mm)} />
                   </label>
                   <button
                     type="button"

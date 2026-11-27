@@ -74,6 +74,7 @@ export const iconSet169: Record<string, readonly [IconTone169, string]> = {
   "tv": ["object", "<rect class=\"at\" x=\"3\" y=\"4.5\" width=\"18\" height=\"12\" rx=\"1\"/><rect x=\"3\" y=\"4.5\" width=\"18\" height=\"12\" rx=\"1\"/><path d=\"M9 20.5h6M12 16.5v4\"/>"],
   "walls-transparent": ["view", "<rect class=\"t\" x=\"3\" y=\"3\" width=\"12\" height=\"12\" rx=\"1\"/><rect x=\"3\" y=\"3\" width=\"12\" height=\"12\" rx=\"1\"/><rect class=\"at\" x=\"9\" y=\"9\" width=\"12\" height=\"12\" rx=\"1\"/><rect class=\"a\" x=\"9\" y=\"9\" width=\"12\" height=\"12\" rx=\"1\" stroke-dasharray=\"2.6 2.2\"/>"],
   "wall-edit": ["view", "<rect class=\"t\" x=\"3\" y=\"3.5\" width=\"12\" height=\"17\" rx=\"1\"/><rect x=\"3\" y=\"3.5\" width=\"12\" height=\"17\" rx=\"1\"/><path d=\"M3 9.2h12M3 14.8h12\"/><path class=\"at\" d=\"M13 21l.6-3.6 6.2-6.2 3 3-6.2 6.2z\"/><path class=\"a\" d=\"M13 21l.6-3.6 6.2-6.2 3 3-6.2 6.2zM18.2 12.8l3 3\"/>"],
+  "zero-level": ["layer", "<path d=\"M3 17.5h18\"/><path class=\"at\" d=\"M7 8h10l-5 9.5z\"/><path class=\"a\" d=\"M7 8h10l-5 9.5z\"/>"],
 }
 /** Fruehere Namen (StromIcon150, v7-Sprite) auf das neue Set. */
 export const iconAlias169: Record<string, string> = {"house": "cube", "wall": "wall-detail", "power": "lightning", "rotate": "rotate-view", "reset": "reset-camera", "zoomOut": "zoom-out", "zoomIn": "zoom-in", "zoomOne": "one-to-one", "fullscreen": "fit", "focus": "target", "menu": "chevron-down", "eye-2d3d": "view-2d3d", "delete": "trash", "electrical": "lightning"}

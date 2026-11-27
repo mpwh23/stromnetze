@@ -2660,6 +2660,20 @@ if (dimensionDrag) {
 
   function startRoomDrag(event: ReactMouseEvent<SVGGElement>, room: Room) {
     if (tool !== 'select') return
+    // STROM176_SELECT_BEFORE_DRAG: Nur ein bereits ausgewaehltes Objekt wird verschoben. Sonst verschiebt
+    // Ziehen die Ansicht (wie neben einem Objekt); ein Klick ohne Ziehen waehlt das Objekt aus.
+    if (!allSelected && room.id !== selectedRoomId) {
+      if (event.button !== 0 || !canvasScrollRef.current) return
+      event.preventDefault()
+      panDragRef.current = {
+        startX: event.clientX,
+        startY: event.clientY,
+        scrollLeft: canvasScrollRef.current.scrollLeft,
+        scrollTop: canvasScrollRef.current.scrollTop,
+        moved: false,
+      }
+      return
+    }
     const point = eventToMeters(event)
     if (!point) return
     event.preventDefault()
@@ -2964,6 +2978,8 @@ function toggleRecessOffsetDirection() {
   }
 
   function selectSingleRoom(id: string) {
+    // STROM176: Nach dem Verschieben der Ansicht nicht zusaetzlich auswaehlen.
+    if (suppressCanvasClickRef.current) { suppressCanvasClickRef.current = false; return }
     setAllSelected(false)
     setDistanceFirstEdge(null)
     setDistancePair(null)
@@ -2975,6 +2991,11 @@ function toggleRecessOffsetDirection() {
     if ((roomLayerAssignments[room.id] ?? defaultLayerId) !== activeLayerId) return
     event.preventDefault()
     event.stopPropagation()
+    // STROM176: Raumname eines nicht ausgewaehlten Raums: Ansicht verschieben (Klick waehlt aus).
+    if (room.id !== selectedRoomId && canvasScrollRef.current) {
+      panDragRef.current = { startX: event.clientX, startY: event.clientY, scrollLeft: canvasScrollRef.current.scrollLeft, scrollTop: canvasScrollRef.current.scrollTop, moved: false }
+      return
+    }
     setAllSelected(false)
     onSelectRoom(room.id)
     setTitleDrag({
@@ -3394,7 +3415,7 @@ function toggleRecessOffsetDirection() {
   }
 
   const hintText = tool === 'select'
-    ? 'Auswahlmodus: Raum anklicken und ziehen. Leere Flaeche ziehen verschiebt die Ansicht. Mausrad und Zwei-Finger-Zoom zoomen am Mauszeiger, Shift+Mausrad verschiebt waagerecht. Shift haelt Bewegungen waagerecht, senkrecht oder 45 Grad.'
+    ? 'Auswahlmodus: Klick waehlt einen Raum aus; nur ein ausgewaehlter Raum laesst sich ziehen, sonst verschiebt Ziehen die Ansicht. Mausrad und Zwei-Finger-Zoom zoomen am Mauszeiger, Shift+Mausrad verschiebt waagerecht. Shift haelt Bewegungen waagerecht, senkrecht oder 45 Grad.'
     : tool === 'rectangle'
       ? 'Rechteck: erster Klick setzt die Ecke, Maus aufziehen, zweiter Klick speichert und waehlt den Raum. Eigenschaften oben bearbeiten.'
       : tool === 'outerwall'
@@ -3770,6 +3791,8 @@ function toggleRecessOffsetDirection() {
             <BlueprintWallObjectConnections
               wallObjects={blueprintWallObjects.filter((item) => (roomLayerAssignments[item.roomId] ?? defaultLayerId) === activeLayerId)}
               rooms={activeLayerRooms}
+              showDimensions={dimensionsVisible && tool === 'select'}
+              wallHeightM={blueprintDoorWallHeight136}
             />
             {blueprintDoorPreview136 && tool === 'door' && (
               <g className="blueprint-door-preview136" pointerEvents="none" aria-label="Tuer-Vorschau">
@@ -6003,47 +6026,93 @@ function blueprintDoorCandidate136(point: PointM, rooms: Room[], widthM: number)
   return winner
 }
 
-function BlueprintWallObjectConnections({ wallObjects, rooms }: { wallObjects: ApiWallObject[]; rooms: Room[] }) {
+function BlueprintWallObjectConnections({ wallObjects, rooms, showDimensions = false, wallHeightM = 2.5 }: { wallObjects: ApiWallObject[]; rooms: Room[]; showDimensions?: boolean; wallHeightM?: number }) {
+  // STROM176_OPENINGS: Tueren und Fenster in Orange (wie das Treppensymbol); Fenster als "H" in der Wand;
+  // bei eingeschalteter Bemassung klein: Tuer b x h, Fenster b x h und Bruestungshoehe (BRH).
   const byGroup = wallObjects
-    .filter((item) => item.objectType === 'door' && item.groupId && !isFullWallOpenGroupId(item.groupId))
+    .filter((item) => (item.objectType === 'door' || item.objectType === 'window') && !isFullWallOpenGroupId(item.groupId || ''))
     .reduce<Record<string, ApiWallObject[]>>((acc, item) => {
-      const key = item.groupId || item.id
+      const key = `${item.objectType}:${item.groupId || item.id}`
       acc[key] = [...(acc[key] ?? []), item]
       return acc
     }, {})
 
-  const connectors = Object.entries(byGroup).flatMap(([groupId, groupItems]) => {
+  const openings = Object.entries(byGroup).flatMap(([key, groupItems]) => {
+    const kind = groupItems[0].objectType as 'door' | 'window'
     const actualSegments = groupItems
       .map((item) => blueprintWallObjectSegment(item, rooms))
       .filter((segment): segment is BlueprintWallSegment => Boolean(segment))
     if (actualSegments.length === 0) return []
-
     let pair: { a: BlueprintWallSegment; b: BlueprintWallSegment } | null = null
-    if (actualSegments.length >= 2) {
-      pair = bestBlueprintConnectionPair(actualSegments)
-    } else {
+    if (actualSegments.length >= 2) pair = bestBlueprintConnectionPair(actualSegments)
+    else {
       const synthetic = synthesizeBlueprintDoorPartner(actualSegments[0], rooms)
       if (synthetic) pair = { a: actualSegments[0], b: synthetic }
     }
-    if (!pair) return []
-
+    const source = actualSegments[0].sourceItem
+    if (!pair) {
+      // Keine Gegenwand gefunden: schmale Darstellung direkt auf der Wandlinie.
+      const seg = actualSegments[0]
+      const ex = seg.right.x - seg.left.x, ey = seg.right.y - seg.left.y, el = Math.hypot(ex, ey) || 1
+      const n = { x: -ey / el * 0.06, y: ex / el * 0.06 }
+      const a = { ...seg, left: { x: seg.left.x + n.x, y: seg.left.y + n.y }, right: { x: seg.right.x + n.x, y: seg.right.y + n.y } }
+      const b = { ...seg, left: { x: seg.left.x - n.x, y: seg.left.y - n.y }, right: { x: seg.right.x - n.x, y: seg.right.y - n.y } }
+      pair = { a, b }
+    }
     const normalized = normalizeBlueprintConnectionPair(pair.a, pair.b)
-    return [{ groupId, points: [normalized.a.left, normalized.a.right, normalized.b.right, normalized.b.left], edgeA: normalized.a, edgeB: normalized.b }]
+    const a = normalized.a, b = normalized.b
+    const widthMm = Math.round(distance(actualSegments[0].left, actualSegments[0].right) * 1000) // Breite der gespeicherten Seite
+    const h = clamp(Number(source.h) || 0, 0, 1)
+    const y = Number(source.y) || 0
+    const heightMm = Math.round(h * wallHeightM * 1000)
+    const sillMm = Math.max(0, Math.round((1 - (y + h / 2)) * wallHeightM * 1000))
+    return [{ key, kind, a, b, widthMm, heightMm, sillMm }]
   })
 
-  if (connectors.length === 0) return null
+  if (openings.length === 0) return null
+  const mid = (p: PointM, q: PointM): PointM => ({ x: (p.x + q.x) / 2, y: (p.y + q.y) / 2 })
+  const L = (p: PointM, q: PointM, className: string) => <line x1={mToX(p.x)} y1={mToY(p.y)} x2={mToX(q.x)} y2={mToY(q.y)} className={className} />
   return (
-    <g className="blueprint-wall-object-connections" aria-label="Wanddetail-Durchgaenge">
-      {connectors.map((connector) => (
-        <g key={connector.groupId}>
-          <polygon
-            points={connector.points.map((point) => `${mToX(point.x)},${mToY(point.y)}`).join(' ')}
-            className="blueprint-wall-connection-door"
-          />
-          <line x1={mToX(connector.edgeA.left.x)} y1={mToY(connector.edgeA.left.y)} x2={mToX(connector.edgeA.right.x)} y2={mToY(connector.edgeA.right.y)} className="blueprint-wall-door-edge" />
-          <line x1={mToX(connector.edgeB.left.x)} y1={mToY(connector.edgeB.left.y)} x2={mToX(connector.edgeB.right.x)} y2={mToY(connector.edgeB.right.y)} className="blueprint-wall-door-edge" />
-        </g>
-      ))}
+    <g className="blueprint-wall-object-connections blueprint-openings176" aria-label="Tueren und Fenster">
+      {openings.map((o) => {
+        const dx = o.a.right.x - o.a.left.x, dy = o.a.right.y - o.a.left.y, len = Math.hypot(dx, dy) || 1
+        let angle = Math.atan2(mToY(o.a.right.y) - mToY(o.a.left.y), mToX(o.a.right.x) - mToX(o.a.left.x)) * 180 / Math.PI
+        if (angle > 90) angle -= 180
+        if (angle < -90) angle += 180
+        // Beschriftung neben der Wand, auf der Raumseite (nicht auf der Aussenwand-Seite).
+        const midA = mid(o.a.left, o.a.right), midB = mid(o.b.left, o.b.right)
+        const inner = isOuterWallRoom(o.a.room) ? midB : midA
+        const outer = inner === midA ? midB : midA
+        let nx = inner.x - outer.x, ny = inner.y - outer.y
+        const nl = Math.hypot(nx, ny)
+        if (nl < 1e-6) { nx = -dy / len; ny = dx / len } else { nx /= nl; ny /= nl }
+        const labelAt = { x: inner.x + nx * 0.2, y: inner.y + ny * 0.2 }
+        const lx = mToX(labelAt.x), ly = mToY(labelAt.y)
+        return (
+          <g key={o.key} className={o.kind === 'door' ? 'blueprint-door176' : 'blueprint-window176'} data-opening176={o.kind}>
+            {o.kind === 'door' ? (
+              <>
+                <polygon points={[o.a.left, o.a.right, o.b.right, o.b.left].map((point) => `${mToX(point.x)},${mToY(point.y)}`).join(' ')} className="blueprint-wall-connection-door" />
+                {L(o.a.left, o.a.right, 'blueprint-wall-door-edge')}
+                {L(o.b.left, o.b.right, 'blueprint-wall-door-edge')}
+              </>
+            ) : (
+              <>
+                <polygon points={[o.a.left, o.a.right, o.b.right, o.b.left].map((point) => `${mToX(point.x)},${mToY(point.y)}`).join(' ')} className="blueprint-window-cut176" />
+                {L(o.a.left, o.b.left, 'blueprint-window-jamb176')}
+                {L(o.a.right, o.b.right, 'blueprint-window-jamb176')}
+                {L(mid(o.a.left, o.b.left), mid(o.a.right, o.b.right), 'blueprint-window-glass176')}
+              </>
+            )}
+            {showDimensions && (
+              <text className="blueprint-opening-dims176" x={lx} y={ly} textAnchor="middle" dominantBaseline="middle" transform={`rotate(${angle.toFixed(2)} ${lx.toFixed(2)} ${ly.toFixed(2)})`}>
+                {o.kind === 'door' ? `${o.widthMm} × ${o.heightMm}` : `${o.widthMm} × ${o.heightMm} · BRH ${o.sillMm}`}
+              </text>
+            )}
+            <title>{o.kind === 'door' ? `Tür ${o.widthMm} × ${o.heightMm} mm` : `Fenster ${o.widthMm} × ${o.heightMm} mm, Brüstungshöhe ${o.sillMm} mm`}</title>
+          </g>
+        )
+      })}
     </g>
   )
 }
